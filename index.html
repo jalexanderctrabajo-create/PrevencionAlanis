@@ -23195,6 +23195,9 @@ body{font-family:Arial,sans-serif;font-size:14px;color:#1a1a1a;background:#f4f6f
   <div class="logo">
     <div class="logo-title">LBOX</div>
     <div class="logo-sub">Prevención · Inroute</div>
+    <select id="cuenta-sel" onchange="cambiarCuenta(this.value)" style="margin:8px 0 0 0;padding:5px 8px;border:1px solid rgba(255,255,255,.3);border-radius:6px;background:rgba(255,255,255,.15);color:#fff;font-size:11px;width:100%">
+      <option value="alanis">Alanis</option>
+    </select>
     <div class="sync-row"><span class="dot loading" id="sync-dot"></span><span id="sync-label">Conectando...</span></div>
   </div>
   <div class="nav-item active" onclick="showPage('dashboard')" id="nav-dashboard">📊 Dashboard</div>
@@ -23234,6 +23237,15 @@ body{font-family:Arial,sans-serif;font-size:14px;color:#1a1a1a;background:#f4f6f
       </div>
     </div>
 
+      <!-- Gráfica mensual -->
+      <div class="card" style="margin-top:16px">
+        <div class="card-title">📊 Dispositivos por mes (últimos 12 meses)</div>
+        <div style="display:flex;gap:16px;font-size:11px;color:#666;margin-bottom:8px">
+          <span>🟦 Total revisados &nbsp; 🟩 Recuperados</span>
+        </div>
+        <canvas id="chart-mensual" width="700" height="220" style="width:100%;max-width:700px"></canvas>
+      </div>
+
     <div class="page" id="page-captura">
       <div class="card">
         <div class="card-title">Nueva unidad <span style="font-size:11px;color:#888;font-weight:400">— Los días se calculan automáticamente desde la fecha de último reporte</span></div>
@@ -23265,7 +23277,7 @@ body{font-family:Arial,sans-serif;font-size:14px;color:#1a1a1a;background:#f4f6f
       <div class="card">
         <div class="card-title">Unidades en este reporte (<span id="count-cap">0</span>)</div>
         <div class="scroll-x"><table class="tbl">
-          <thead><tr><th>#ECO</th><th>LBOX</th><th>Firmware</th><th>Días</th><th>Posic. LINK</th><th>Desvincular</th><th>Reset Lbox</th><th>Reset LINK</th><th>Recuperó</th><th>Voltaje</th><th>Causa</th><th>Comentario</th><th></th></tr></thead>
+          <thead><tr><th>#ECO</th><th>LBOX</th><th>Firmware</th><th>Días</th><th>Posic. LINK</th><th>Desvincular</th><th>Reset Lbox</th><th>Reset LINK</th><th>Recuperó</th><th>Voltaje</th><th>Causa</th><th>Comentario</th><th>Nota interna</th><th></th></tr></thead>
           <tbody id="tbody-captura"><tr><td colspan="9" class="empty">Cargando...</td></tr></tbody>
         </table></div>
       </div>
@@ -23286,9 +23298,12 @@ body{font-family:Arial,sans-serif;font-size:14px;color:#1a1a1a;background:#f4f6f
     </div>
 
     <div class="page" id="page-historial">
-      <div style="display:flex;gap:8px;margin-bottom:12px;align-items:center">
-        <input type="text" id="search-hist" placeholder="Buscar por ECO, LBOX o folio..." style="flex:1;padding:7px 10px;border:1px solid #d0d0d0;border-radius:7px;font-size:12px" oninput="filtrarHistorial()">
+      <div style="display:flex;gap:8px;margin-bottom:12px;align-items:center;flex-wrap:wrap">
+        <input type="text" id="search-hist" placeholder="Buscar por ECO, LBOX o folio..." style="flex:1;min-width:160px;padding:7px 10px;border:1px solid #d0d0d0;border-radius:7px;font-size:12px" oninput="filtrarHistorial()">
+        <select id="filter-agente" onchange="filtrarHistorial()" style="padding:7px 10px;border:1px solid #d0d0d0;border-radius:7px;font-size:12px;background:#fff"><option value="">Todos los agentes</option></select>
+        <select id="filter-reinc-hist" onchange="filtrarHistorial()" style="padding:7px 10px;border:1px solid #d0d0d0;border-radius:7px;font-size:12px;background:#fff"><option value="">Todos</option><option value="reinc">Solo reincidentes (5+)</option></select>
         <button class="btn" onclick="syncAll()">↻ Actualizar</button>
+        <button class="btn success" onclick="exportarHistorialExcel()">📥 Exportar Excel</button>
       </div>
       <div class="card"><div class="scroll-x"><table class="tbl">
         <thead><tr><th>Fecha</th><th>Folio</th><th>#ECO</th><th>LBOX</th><th>Días</th><th>Posic.</th><th>Desvincular</th><th>Reset Lbox</th><th>Reset LINK</th><th>Recuperó</th><th>Voltaje</th><th>Causa</th><th>Comentario</th></tr></thead>
@@ -23571,6 +23586,103 @@ async function confirmarImport() {
   btn.disabled = false; btn.textContent = 'Agregar al reporte';
 }
 
+// ── CAMBIAR CUENTA ────────────────────────────────────────────────────────
+function cambiarCuenta(cuenta) {
+  // Future: change API endpoints and Sheets tab per client
+  notify('Cuenta seleccionada: ' + cuenta + ' (multi-cuenta próximamente)', 'info', 3000);
+}
+
+// ── EXPORTAR HISTORIAL A EXCEL ────────────────────────────────────────────
+function exportarHistorialExcel() {
+  if (!hist.length) { notify('No hay historial para exportar', 'err'); return; }
+  if (typeof XLSX === 'undefined') { notify('Librería Excel no cargada', 'err'); return; }
+
+  const headers = ['Fecha','Folio','ECO','LBOX','Firmware','Días','Posic.LINK','Desvincular','Reset Lbox','Reset LINK','Recuperó','Voltaje','Causa','Comentario','Agente'];
+  const rows = hist.map(h => [
+    h.fecha||'', h.folio||'', h.eco||'', h.lbox||'', h.fw||'',
+    h.dias||'', h.pos||'', h.desv||'', h.rlbox||'', h.rlink||'',
+    h.recupero||'', h.voltaje||'', h.causa||'', h.comentario||'', h.agente||''
+  ]);
+
+  const wb = XLSX.utils.book_new();
+  const ws = XLSX.utils.aoa_to_sheet([headers, ...rows]);
+
+  // Column widths
+  ws['!cols'] = [10,14,8,16,10,6,10,12,10,10,10,10,20,20,16].map(w=>({wch:w}));
+
+  XLSX.utils.book_append_sheet(wb, ws, 'Historial');
+  const fecha = new Date().toISOString().slice(0,10);
+  XLSX.writeFile(wb, 'Historial_LBOX_Alanis_' + fecha + '.xlsx');
+  notify('Historial exportado: ' + hist.length + ' registros', 'ok');
+}
+
+// ── GRÁFICA MENSUAL ───────────────────────────────────────────────────────
+function renderGraficaMensual() {
+  const canvas = document.getElementById('chart-mensual');
+  if (!canvas) return;
+  const ctx = canvas.getContext('2d');
+
+  // Aggregate hist by month
+  const monthly = {};
+  hist.forEach(h => {
+    if (!h.fecha) return;
+    const key = h.fecha.slice(0,7); // YYYY-MM
+    if (!monthly[key]) monthly[key] = { total:0, recuperados:0 };
+    monthly[key].total++;
+    if ((h.recupero||'').toUpperCase() === 'SI') monthly[key].recuperados++;
+  });
+
+  const labels = Object.keys(monthly).sort().slice(-12); // last 12 months
+  const totals = labels.map(k => monthly[k].total);
+  const recups = labels.map(k => monthly[k].recuperados);
+  const labelsShort = labels.map(l => {
+    const [y,m] = l.split('-');
+    const meses = ['','Ene','Feb','Mar','Abr','May','Jun','Jul','Ago','Sep','Oct','Nov','Dic'];
+    return meses[parseInt(m)] + ' ' + y.slice(2);
+  });
+
+  // Clear and draw simple bar chart using canvas
+  const W = canvas.width, H = canvas.height;
+  ctx.clearRect(0,0,W,H);
+  if (!labels.length) return;
+
+  const padL=40, padR=20, padT=20, padB=40;
+  const chartW = W-padL-padR, chartH = H-padT-padB;
+  const barW = Math.floor(chartW / labels.length);
+  const maxVal = Math.max(...totals, 1);
+
+  // Grid lines
+  ctx.strokeStyle='#eee'; ctx.lineWidth=1;
+  for(let i=0;i<=4;i++){
+    const y = padT + chartH - (chartH * i/4);
+    ctx.beginPath(); ctx.moveTo(padL,y); ctx.lineTo(W-padR,y); ctx.stroke();
+    ctx.fillStyle='#aaa'; ctx.font='10px sans-serif'; ctx.textAlign='right';
+    ctx.fillText(Math.round(maxVal*i/4), padL-4, y+3);
+  }
+
+  // Bars
+  labels.forEach((lbl,i) => {
+    const x = padL + i*barW + barW*0.1;
+    const bw = barW*0.4;
+    // Total bar
+    const hTotal = (totals[i]/maxVal)*chartH;
+    ctx.fillStyle='#185FA5'; ctx.fillRect(x, padT+chartH-hTotal, bw, hTotal);
+    // Recovered bar
+    const hRecup = (recups[i]/maxVal)*chartH;
+    ctx.fillStyle='#27ae60'; ctx.fillRect(x+bw+2, padT+chartH-hRecup, bw, hRecup);
+    // Label
+    ctx.fillStyle='#666'; ctx.font='9px sans-serif'; ctx.textAlign='center';
+    ctx.fillText(labelsShort[i], padL + i*barW + barW/2, H-padB+14);
+  });
+
+  // Legend
+  ctx.fillStyle='#185FA5'; ctx.fillRect(padL,8,12,10);
+  ctx.fillStyle='#555'; ctx.font='11px sans-serif'; ctx.textAlign='left';
+  ctx.fillText('Total', padL+16, 17);
+  ctx.fillStyle='#27ae60'; ctx.fillRect(padL+60,8,12,10);
+  ctx.fillText('Recuperados', padL+76, 17);
+}
+
 async function syncAll(){
   setSyncStatus('loading');
   document.getElementById('btn-sync').disabled = true;
@@ -23598,8 +23710,20 @@ function renderAll(){
   renderHistorial(hist);
 }
 
-function isReinc(lbox){ return hist.some(h=>h.lbox===lbox); }
-function dClass(d){ const n=parseInt(d)||0; return n<=3?'days-ok':n<=7?'days-warn':'days-crit'; }
+function reincCount(lbox){ return hist.filter(h=>h.lbox===lbox).length; }
+function isReinc(lbox){ return reincCount(lbox) >= 5; }
+function dClass(d){
+  const n=parseInt(d)||0;
+  if(n<=7)  return 'days-ok';
+  if(n<=30) return 'days-warn';
+  return 'days-crit';
+}
+function prioIcon(d){
+  const n=parseInt(d)||0;
+  if(n>30) return '🔴';
+  if(n>7)  return '🟡';
+  return '🟢';
+}
 function badge(v){
   if(v==='SI'||v==='SI/A') return '<span class="badge si">'+v+'</span>';
   if(v==='NO') return '<span class="badge no">NO</span>';
@@ -23679,6 +23803,7 @@ async function updateUnit(i, field, value) {
   isSaving = true;
   try { await apiPost({ action: 'saveUnits', data: units }); } catch(e) {}
   isSaving = false;
+  renderGraficaMensual();
 }
 
 function renderCaptura(){
@@ -23691,11 +23816,11 @@ function renderCaptura(){
   tbody.innerHTML=units.map((u,i)=>`<tr style="background:${i%2?'#f9f9f9':'#fff'}">
     <td style="white-space:nowrap">
       <b style="font-size:12px">ECO ${u.eco}</b>
-      ${isReinc(u.lbox)?'<span class="tag-reinc">reinc.</span>':''}
+      ${reincCount(u.lbox)>=5?'<span class="tag-reinc">reinc. ×'+reincCount(u.lbox)+'</span>':reincCount(u.lbox)>0?'<span class="tag-reinc" style="background:#f39c12">×'+reincCount(u.lbox)+'</span>':''}
     </td>
     <td style="font-size:11px;color:#185FA5;white-space:nowrap">${u.lbox||'—'}</td>
     <td style="font-size:10px;color:#555;max-width:100px;overflow:hidden;text-overflow:ellipsis;white-space:nowrap" title="${u.fw||''}">${u.fw||'—'}</td>
-    <td class="${dClass(u.dias)}" style="text-align:center;font-weight:700">${u.dias||'0'}d</td>
+    <td class="${dClass(u.dias)}" style="text-align:center;font-weight:700">${prioIcon(u.dias)} ${u.dias||'0'}d</td>
     <td>${sel('pos',i,u.pos||'—',SN)}</td>
     <td>${sel('desv',i,u.desv||'—',SIA)}</td>
     <td>${sel('rlbox',i,u.rlbox||'—',SIA)}</td>
@@ -23704,6 +23829,7 @@ function renderCaptura(){
     <td>${sel('voltaje',i,u.voltaje||'—',SV)}</td>
     <td>${inp('causa',i,u.causa,'causa')}</td>
     <td>${inp('comentario',i,u.comentario,'comentario')}</td>
+    <td>${inp('nota',i,u.nota,'nota interna')}</td>
     <td><button class="btn danger" style="padding:2px 8px;font-size:11px" onclick="eliminar(${i})">✕</button></td>
   </tr>`).join('');
 }
@@ -23722,11 +23848,13 @@ function renderUnidades(data){
     <td>${badge(u.recupero)}</td><td>${badge(u.voltaje)}</td>
     <td style="font-size:11px;max-width:90px;overflow:hidden;text-overflow:ellipsis;white-space:nowrap">${u.causa||'—'}</td>
     <td style="font-size:11px;max-width:100px;overflow:hidden;text-overflow:ellipsis;white-space:nowrap">${u.comentario||'—'}</td>
+    <td>${inp('nota',i,u.nota,'nota interna')}</td>
     <td><button class="btn danger" style="padding:2px 8px;font-size:11px" onclick="eliminar(${i})">✕</button></td>
   </tr>`).join('');
 }
 
 function renderHistorial(data){
+  populateAgenteFilter();
   const tbody=document.getElementById('tbody-historial');
   if(!data.length){tbody.innerHTML='<tr><td colspan="13" class="empty">Sin historial aún</td></tr>';return;}
   tbody.innerHTML=[...data].reverse().map(h=>`<tr>
@@ -23753,8 +23881,22 @@ function filtrarUnidades(){
 }
 
 function filtrarHistorial(){
-  const q=document.getElementById('search-hist').value.toLowerCase();
-  renderHistorial(hist.filter(h=>(h.eco+h.lbox+h.folio).toLowerCase().includes(q)));
+  const q      = document.getElementById('search-hist').value.toLowerCase();
+  const agente = document.getElementById('filter-agente').value;
+  const reinc  = document.getElementById('filter-reinc-hist') ? document.getElementById('filter-reinc-hist').value : '';
+  renderHistorial(hist.filter(h =>
+    (h.eco+h.lbox+(h.folio||'')).toLowerCase().includes(q) &&
+    (!agente || (h.agente||'') === agente) &&
+    (!reinc  || reincCount(h.lbox) >= 5)
+  ));
+}
+
+function populateAgenteFilter(){
+  const sel = document.getElementById('filter-agente');
+  const agentes = [...new Set(hist.map(h=>h.agente||'').filter(Boolean))].sort();
+  const current = sel.value;
+  sel.innerHTML = '<option value="">Todos los agentes</option>' +
+    agentes.map(a=>'<option value="'+a+'"'+(a===current?' selected':'')+'>'+a+'</option>').join('');
 }
 
 function limpiarForm(){
