@@ -23419,7 +23419,9 @@ async function fetchLiveData() {
       ...u,
       engineOn: (wfMap[u.eco] || {}).engineOn || '',
       motion:   (wfMap[u.eco] || {}).motion   || '',
-      posText:  (wfMap[u.eco] || {}).posText   || '',
+      posText:  (wfMap[u.eco] || {}).posText  || '',
+      pos:      (wfMap[u.eco] || {}).posLink  || '',
+      diasPos:  (wfMap[u.eco] || {}).diasPos  || '',
     }));
 
     importData = crossed.filter(u => parseInt(u.dias) >= 1);
