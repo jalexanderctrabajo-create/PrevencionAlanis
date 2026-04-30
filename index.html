@@ -190,7 +190,7 @@ body{font-family:Arial,sans-serif;font-size:14px;color:#1a1a1a;background:#f4f6f
       <div class="card">
         <div class="card-title">Unidades en este reporte (<span id="count-cap">0</span>)</div>
         <div class="scroll-x"><table class="tbl">
-          <thead><tr><th>#ECO</th><th>LBOX</th><th>Días</th><th>Posic.</th><th>Reset Lbox</th><th>Recuperó</th><th>Voltaje</th><th>Causa</th><th></th></tr></thead>
+          <thead><tr><th>#ECO</th><th>LBOX</th><th>FW</th><th>Días</th><th>Posic. LINK</th><th>Desvincular</th><th>Reset Lbox</th><th>Reset LINK</th><th>Recuperó</th><th>Voltaje</th><th>Causa</th><th>Comentario</th><th></th></tr></thead>
           <tbody id="tbody-captura"><tr><td colspan="9" class="empty">Cargando...</td></tr></tbody>
         </table></div>
       </div>
@@ -585,16 +585,50 @@ function renderDashboard(){
     <div class="bar-group"><div class="bar-val" style="color:#c0392b">${b3}</div><div class="bar" style="height:${h(b3)}px;background:#d9534f"></div><div class="bar-label">8+d</div></div>`;
 }
 
+function sel(field, i, val, opts) {
+  var onch = "updateUnit(" + i + ',"' + field + '",this.value)';
+  var s = '<select onchange="' + onch + '" style="font-size:11px;padding:2px 4px;border:1px solid #d0d0d0;border-radius:4px;background:#fff;width:78px">';
+  opts.forEach(function(o){ s += '<option value="' + o + '"' + (val===o?' selected':'') + '>' + o + '</option>'; });
+  return s + '</select>';
+}
+
+function inp(field, i, val, ph) {
+  var onch = "updateUnit(" + i + ',"' + field + '",this.value)';
+  return '<input type="text" value="' + escHtml(val||'') + '" placeholder="' + ph + '" onchange="' + onch + '" style="font-size:11px;padding:2px 5px;border:1px solid #d0d0d0;border-radius:4px;width:100px">';
+}
+
+function escHtml(s){ return String(s).replace(/&/g,'&amp;').replace(/"/g,'&quot;'); }
+
+async function updateUnit(i, field, value) {
+  units[i][field] = value;
+  // Save to Sheets
+  try { await apiPost({ action: 'saveUnits', data: units }); } catch(e) {}
+  // Re-render dashboard only (avoid re-rendering table which loses focus)
+  renderDashboard();
+}
+
 function renderCaptura(){
   document.getElementById('count-cap').textContent=units.length;
   const tbody=document.getElementById('tbody-captura');
-  if(!units.length){tbody.innerHTML='<tr><td colspan="9" class="empty">Sin unidades aún</td></tr>';return;}
-  tbody.innerHTML=units.map((u,i)=>`<tr>
-    <td><b>ECO ${u.eco}</b>${isReinc(u.lbox)?'<span class="tag-reinc">reinc.</span>':''}</td>
-    <td style="font-size:11px;color:#888">${u.lbox}</td>
-    <td class="${dClass(u.dias)}">${u.dias}</td>
-    <td>${badge(u.pos)}</td><td>${badge(u.rlbox)}</td><td>${badge(u.recupero)}</td><td>${badge(u.voltaje)}</td>
-    <td style="font-size:11px;max-width:120px;overflow:hidden;text-overflow:ellipsis;white-space:nowrap">${u.causa||'—'}</td>
+  if(!units.length){tbody.innerHTML='<tr><td colspan="13" class="empty">Sin unidades aún. Usa el botón "Obtener datos en vivo" o captura manualmente.</td></tr>';return;}
+  const SN  = ['—','SI','NO','N/A'];
+  const SIA = ['—','SI/A','NO','N/A'];
+  tbody.innerHTML=units.map((u,i)=>`<tr style="background:${i%2?'#f9f9f9':'#fff'}">
+    <td style="white-space:nowrap">
+      <b style="font-size:12px">ECO ${u.eco}</b>
+      ${isReinc(u.lbox)?'<span class="tag-reinc">reinc.</span>':''}
+      <div style="font-size:10px;color:#999;margin-top:1px">${u.lbox}</div>
+    </td>
+    <td style="font-size:10px;color:#888;max-width:80px;overflow:hidden;text-overflow:ellipsis;white-space:nowrap">${u.fw||'—'}</td>
+    <td class="${dClass(u.dias)}" style="text-align:center;font-weight:700">${u.dias}d</td>
+    <td>${sel('pos',i,u.pos||'—',SN)}</td>
+    <td>${sel('desv',i,u.desv||'—',SIA)}</td>
+    <td>${sel('rlbox',i,u.rlbox||'—',SIA)}</td>
+    <td>${sel('rlink',i,u.rlink||'—',SIA)}</td>
+    <td>${sel('recupero',i,u.recupero||'—',SN)}</td>
+    <td>${sel('voltaje',i,u.voltaje||'—',SN)}</td>
+    <td>${inp('causa',i,u.causa,'causa')}</td>
+    <td>${inp('comentario',i,u.comentario,'comentario')}</td>
     <td><button class="btn danger" style="padding:2px 8px;font-size:11px" onclick="eliminar(${i})">✕</button></td>
   </tr>`).join('');
 }
