@@ -23404,27 +23404,13 @@ async function fetchLiveData() {
   notify('Consultando LBOX y Webfleet... puede tardar 20-30 segundos', 'info', 10000);
 
   try {
-    const [lboxRes, wfRes] = await Promise.all([
-      jsonp({ action: 'fetchLbox' }),
-      jsonp({ action: 'fetchWF' })
-    ]);
+    const lboxRes = await jsonp({ action: 'fetchLbox' });
 
     if (lboxRes.error) throw new Error('LBOX: ' + lboxRes.error);
-    if (wfRes.error)   throw new Error('Webfleet: ' + wfRes.error);
 
     const lboxUnits = lboxRes.data || [];
-    const wfMap     = wfRes.data   || {};
 
-    const crossed = lboxUnits.map(u => ({
-      ...u,
-      engineOn: (wfMap[u.eco] || {}).engineOn || '',
-      motion:   (wfMap[u.eco] || {}).motion   || '',
-      posText:  (wfMap[u.eco] || {}).posText  || '',
-      pos:      (wfMap[u.eco] || {}).posLink  || '',
-      diasPos:  (wfMap[u.eco] || {}).diasPos  || '',
-    }));
-
-    importData = crossed.filter(u => parseInt(u.dias) >= 1);
+    importData = lboxUnits.filter(u => parseInt(u.dias) >= 1);
     importData.sort((a, b) => parseInt(b.dias) - parseInt(a.dias));
 
     document.getElementById('import-count').textContent = importData.length;
