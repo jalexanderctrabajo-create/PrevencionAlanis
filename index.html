@@ -23236,14 +23236,14 @@ body{font-family:Arial,sans-serif;font-size:14px;color:#1a1a1a;background:#f4f6f
 
     <div class="page" id="page-captura">
       <div class="card">
-        <div class="card-title">Nueva unidad</div>
+        <div class="card-title">Nueva unidad <span style="font-size:11px;color:#888;font-weight:400">— Los días se calculan automáticamente desde la fecha de último reporte</span></div>
         <div class="form-grid">
           <div class="form-group"><label>Fecha ejecución</label><input type="date" id="f-fecha"></div>
           <div class="form-group"><label>#ECO</label><input type="text" id="f-eco" placeholder="ej. 1081"></div>
           <div class="form-group"><label>LBOX (serie)</label><input type="text" id="f-lbox" placeholder="ej. LBOXV432A0B6"></div>
           <div class="form-group"><label>Firmware</label><input type="text" id="f-fw" placeholder="ej. 5.4.0"></div>
           <div class="form-group"><label>Fecha últ. reporte</label><input type="datetime-local" id="f-fecha-rep"></div>
-          <div class="form-group"><label>Días sin reporte</label><input type="number" id="f-dias" min="0" placeholder="0"></div>
+
         </div>
         <div class="form-grid">
           <div class="form-group"><label>Posicionamiento LINK</label><select id="f-pos"><option value="">--</option><option>SI</option><option>NO</option><option>N/A</option></select></div>
@@ -23695,7 +23695,7 @@ function renderCaptura(){
       ${isReinc(u.lbox)?'<span class="tag-reinc">reinc.</span>':''}
       <div style="font-size:10px;color:#999;margin-top:1px">${u.lbox}</div>
     </td>
-    <td style="font-size:10px;color:#888;max-width:80px;overflow:hidden;text-overflow:ellipsis;white-space:nowrap">${u.fw||'—'}</td>
+    <td style="font-size:10px;color:#555;max-width:90px;overflow:hidden;text-overflow:ellipsis;white-space:nowrap" title="${u.fw||''}">${u.fw||'—'}</td>
     <td class="${dClass(u.dias)}" style="text-align:center;font-weight:700">${u.dias}d</td>
     <td>${sel('pos',i,u.pos||'—',SN)}</td>
     <td>${sel('desv',i,u.desv||'—',SIA)}</td>
@@ -23754,6 +23754,16 @@ function filtrarHistorial(){
 function limpiarForm(){
   ['f-eco','f-lbox','f-fw','f-dias','f-causa','f-comentario'].forEach(id=>document.getElementById(id).value='');
   ['f-pos','f-desv','f-rlbox','f-rlink','f-rec','f-volt'].forEach(id=>document.getElementById(id).value='');
+}
+
+function calcDias(fechaRepStr) {
+  if (!fechaRepStr) return '0';
+  try {
+    const rep  = new Date(fechaRepStr);
+    const now  = new Date();
+    const diff = Math.max(0, Math.floor((now - rep) / (1000 * 60 * 60 * 24)));
+    return String(diff);
+  } catch(e) { return '0'; }
 }
 
 async function agregarUnidad(){
@@ -23889,8 +23899,7 @@ async function generarReporte(){
     children.push(p('KAM Asistencia — Inroute',{before:0,after:20,color:'555555'}));
     children.push(p('marisol.angulo@inroute.com.mx',{before:0,after:20,color:BLUE}));
     const docObj=new Document({styles:{default:{document:{run:{font:'Arial',size:20}}}},sections:[{properties:{page:{size:{width:15840,height:12240,orientation:PageOrientation.LANDSCAPE},margin:{top:720,right:800,bottom:720,left:800}}},children}]});
-    const buf=await Packer.toBuffer(docObj);
-    const blob=new Blob([buf],{type:'application/vnd.openxmlformats-officedocument.wordprocessingml.document'});
+    const blob=await Packer.toBlob(docObj);
     const a=document.createElement('a');
     a.href=URL.createObjectURL(blob);
     a.download='Informe_LBOX_'+fecha.replace(/-/g,'')+'.docx';
@@ -23902,6 +23911,27 @@ async function generarReporte(){
 
 document.getElementById('f-fecha').value = new Date().toISOString().slice(0,10);
 syncAll();
+
+// Auto-sync every 3 minutes
+setInterval(async () => {
+  try {
+    const [uRes, hRes] = await Promise.all([
+      jsonp({ action: 'getUnits' }),
+      jsonp({ action: 'getHist' })
+    ]);
+    const newUnits = rowsToObjects(uRes);
+    const newHist  = rowsToObjects(hRes);
+    units = newUnits;
+    hist  = newHist;
+    renderAll();
+    const now = new Date().toLocaleTimeString('es-MX', {hour:'2-digit', minute:'2-digit'});
+    document.getElementById('sync-label').textContent = 'Sincronizado ' + now;
+    document.getElementById('sync-dot').className = 'dot';
+  } catch(e) {
+    document.getElementById('sync-dot').className = 'dot err';
+    document.getElementById('sync-label').textContent = 'Error de sincronización';
+  }
+}, 3 * 60 * 1000);
 </script>
 </body>
 </html>
