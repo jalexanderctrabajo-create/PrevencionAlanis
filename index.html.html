@@ -1,0 +1,537 @@
+<!DOCTYPE html>
+<html lang="es">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>LBOX — Prevención Inroute</title>
+<script src="https://cdnjs.cloudflare.com/ajax/libs/docx/8.5.0/docx.umd.min.js"></script>
+<style>
+*{box-sizing:border-box;margin:0;padding:0}
+body{font-family:Arial,sans-serif;font-size:14px;color:#1a1a1a;background:#f4f6f9;height:100vh;display:flex}
+.sidebar{width:190px;min-width:190px;background:#fff;border-right:1px solid #e0e0e0;display:flex;flex-direction:column;padding:12px 0}
+.logo{padding:14px 16px 16px;border-bottom:1px solid #f0f0f0;margin-bottom:8px}
+.logo-title{font-size:15px;font-weight:700;color:#185FA5}
+.logo-sub{font-size:11px;color:#888;margin-top:2px}
+.sync-row{display:flex;align-items:center;gap:5px;font-size:11px;color:#888;margin-top:4px}
+.dot{width:7px;height:7px;border-radius:50%;background:#5cb85c;display:inline-block}
+.dot.err{background:#d9534f}.dot.loading{background:#f0ad4e;animation:pulse 1s infinite}
+@keyframes pulse{0%,100%{opacity:1}50%{opacity:.3}}
+.nav-item{display:flex;align-items:center;gap:9px;padding:9px 16px;cursor:pointer;font-size:13px;color:#666;border-left:2px solid transparent;transition:all .15s}
+.nav-item:hover{background:#f0f4f9;color:#185FA5}
+.nav-item.active{color:#185FA5;border-left-color:#185FA5;background:#e8f0fb;font-weight:600}
+.main{flex:1;overflow-y:auto;display:flex;flex-direction:column;min-width:0}
+.topbar{background:#fff;border-bottom:1px solid #e0e0e0;padding:11px 20px;display:flex;align-items:center;justify-content:space-between;gap:8px;position:sticky;top:0;z-index:10}
+.topbar-title{font-size:15px;font-weight:600;white-space:nowrap}
+.topbar-actions{display:flex;gap:6px;flex-wrap:wrap}
+.content{padding:18px 20px;flex:1}
+.page{display:none}.page.active{display:block}
+.kpi-grid{display:grid;grid-template-columns:repeat(auto-fit,minmax(130px,1fr));gap:10px;margin-bottom:16px}
+.kpi{background:#fff;border:1px solid #e8e8e8;border-radius:10px;padding:14px}
+.kpi-label{font-size:11px;color:#888;margin-bottom:6px}
+.kpi-val{font-size:26px;font-weight:700}
+.kpi-val.blue{color:#185FA5}.kpi-val.green{color:#2d7a3a}.kpi-val.red{color:#c0392b}.kpi-val.amber{color:#b35900}.kpi-val.gray{color:#888}
+.card{background:#fff;border:1px solid #e8e8e8;border-radius:10px;padding:16px;margin-bottom:14px}
+.card-title{font-size:13px;font-weight:600;margin-bottom:12px}
+.tbl{width:100%;border-collapse:collapse;font-size:12px}
+.tbl th{text-align:left;padding:7px 8px;background:#185FA5;color:#fff;font-weight:600;font-size:11px;white-space:nowrap}
+.tbl td{padding:6px 8px;border-bottom:1px solid #f0f0f0;vertical-align:middle}
+.tbl tr:last-child td{border-bottom:none}
+.tbl tr:hover td{background:#f7faff}
+.badge{display:inline-block;font-size:10px;padding:2px 8px;border-radius:99px;font-weight:600}
+.badge.si{background:#d4edda;color:#155724}
+.badge.no{background:#f8d7da;color:#721c24}
+.badge.na{background:#f0f0f0;color:#666}
+.badge.pend{background:#cce5ff;color:#004085}
+.form-grid{display:grid;grid-template-columns:repeat(auto-fit,minmax(160px,1fr));gap:10px;margin-bottom:12px}
+.form-group{display:flex;flex-direction:column;gap:4px}
+.form-group label{font-size:11px;color:#555;font-weight:600}
+.form-group input,.form-group select{font-size:12px;padding:6px 9px;border:1px solid #d0d0d0;border-radius:6px;background:#fff;color:#1a1a1a;outline:none}
+.form-group input:focus,.form-group select:focus{border-color:#185FA5}
+.btn{padding:7px 14px;border-radius:7px;border:1px solid #d0d0d0;background:#fff;color:#333;font-size:12px;cursor:pointer;font-family:Arial,sans-serif;white-space:nowrap;font-weight:500}
+.btn:hover{background:#f5f5f5}.btn:disabled{opacity:.5;cursor:not-allowed}
+.btn.primary{background:#185FA5;color:#fff;border-color:#185FA5}.btn.primary:hover{background:#0f4a8a}
+.btn.danger{background:#fff0f0;color:#c0392b;border-color:#f5c6c6}
+.days-ok{color:#2d7a3a;font-weight:600}.days-warn{color:#b35900;font-weight:600}.days-crit{color:#c0392b;font-weight:600}
+.empty{text-align:center;padding:28px;color:#aaa;font-size:13px}
+.tag-reinc{background:#fff3cd;color:#856404;font-size:10px;padding:1px 6px;border-radius:4px;font-weight:600;margin-left:4px}
+.notif{position:fixed;top:18px;right:18px;padding:11px 18px;border-radius:8px;font-size:13px;z-index:9999;opacity:0;transition:opacity .3s;color:#fff;background:#185FA5;max-width:320px}
+.notif.show{opacity:1}.notif.err{background:#c0392b}.notif.ok{background:#2d7a3a}
+.scroll-x{overflow-x:auto}
+.two-col{display:grid;grid-template-columns:1fr 1fr;gap:14px}
+.bar-chart{display:flex;align-items:flex-end;gap:10px;height:90px;padding-top:8px}
+.bar-group{display:flex;flex-direction:column;align-items:center;gap:4px}
+.bar{border-radius:4px 4px 0 0;min-height:4px;width:52px}
+.bar-label{font-size:10px;color:#888}.bar-val{font-size:12px;font-weight:600}
+.user-info{padding:12px 16px;border-top:1px solid #f0f0f0;margin-top:auto}
+.user-name{font-size:12px;font-weight:600}.user-role{font-size:11px;color:#888}
+</style>
+</head>
+<body>
+<div class="notif" id="notif"></div>
+<div class="app" style="display:flex;height:100vh">
+<div class="sidebar">
+  <div class="logo">
+    <div class="logo-title">LBOX</div>
+    <div class="logo-sub">Prevención · Inroute</div>
+    <div class="sync-row"><span class="dot loading" id="sync-dot"></span><span id="sync-label">Conectando...</span></div>
+  </div>
+  <div class="nav-item active" onclick="showPage('dashboard')" id="nav-dashboard">📊 Dashboard</div>
+  <div class="nav-item" onclick="showPage('captura')" id="nav-captura">➕ Captura</div>
+  <div class="nav-item" onclick="showPage('unidades')" id="nav-unidades">📋 Unidades</div>
+  <div class="nav-item" onclick="showPage('historial')" id="nav-historial">🕓 Historial</div>
+  <div class="user-info">
+    <div class="user-name">Alexander Cedillo</div>
+    <div class="user-role">KAM Asistencia</div>
+  </div>
+</div>
+<div class="main">
+  <div class="topbar">
+    <div class="topbar-title" id="page-title">Dashboard</div>
+    <div class="topbar-actions">
+      <button class="btn" onclick="syncAll()" id="btn-sync">↻ Sincronizar</button>
+      <button class="btn primary" onclick="generarReporte()" id="btn-report">⬇ Generar .docx</button>
+    </div>
+  </div>
+  <div class="content">
+
+    <div class="page active" id="page-dashboard">
+      <div class="kpi-grid" id="kpi-grid"><div class="kpi"><div class="kpi-label">Conectando...</div><div class="kpi-val gray">—</div></div></div>
+      <div class="two-col">
+        <div class="card"><div class="card-title" style="color:#c0392b">🔴 No recuperadas</div><div id="dash-norec"><div class="empty">Cargando...</div></div></div>
+        <div class="card"><div class="card-title" style="color:#b35900">⚠️ Reincidentes</div><div id="dash-reinc"><div class="empty">Cargando...</div></div></div>
+      </div>
+      <div class="card">
+        <div class="card-title">Distribución por días sin reporte</div>
+        <div class="bar-chart" id="dash-chart"></div>
+        <div style="display:flex;gap:18px;margin-top:10px;font-size:11px;color:#888">
+          <span style="color:#2d7a3a">■ 1–3 días</span><span style="color:#b35900">■ 4–7 días</span><span style="color:#c0392b">■ 8+ días</span>
+        </div>
+      </div>
+    </div>
+
+    <div class="page" id="page-captura">
+      <div class="card">
+        <div class="card-title">Nueva unidad</div>
+        <div class="form-grid">
+          <div class="form-group"><label>Fecha ejecución</label><input type="date" id="f-fecha"></div>
+          <div class="form-group"><label>#ECO</label><input type="text" id="f-eco" placeholder="ej. 1081"></div>
+          <div class="form-group"><label>LBOX (serie)</label><input type="text" id="f-lbox" placeholder="ej. LBOXV432A0B6"></div>
+          <div class="form-group"><label>Firmware</label><input type="text" id="f-fw" placeholder="ej. 5.4.0"></div>
+          <div class="form-group"><label>Fecha últ. reporte</label><input type="datetime-local" id="f-fecha-rep"></div>
+          <div class="form-group"><label>Días sin reporte</label><input type="number" id="f-dias" min="0" placeholder="0"></div>
+        </div>
+        <div class="form-grid">
+          <div class="form-group"><label>Posicionamiento LINK</label><select id="f-pos"><option value="">--</option><option>SI</option><option>NO</option><option>N/A</option></select></div>
+          <div class="form-group"><label>Desvinculación/Vinculación</label><select id="f-desv"><option value="">--</option><option>SI/A</option><option>NO</option><option>N/A</option></select></div>
+          <div class="form-group"><label>Reset Lbox</label><select id="f-rlbox"><option value="">--</option><option>SI/A</option><option>NO</option><option>N/A</option></select></div>
+          <div class="form-group"><label>Reset LINK</label><select id="f-rlink"><option value="">--</option><option>SI/A</option><option>NO</option><option>N/A</option></select></div>
+          <div class="form-group"><label>¿Se recuperó?</label><select id="f-rec"><option value="">--</option><option>SI</option><option>NO</option><option>N/A</option></select></div>
+          <div class="form-group"><label>Voltaje Teltonika</label><select id="f-volt"><option value="">--</option><option>SI</option><option>NO</option><option>N/A</option></select></div>
+        </div>
+        <div class="form-grid">
+          <div class="form-group" style="grid-column:1/3"><label>Causas</label><input type="text" id="f-causa" placeholder="ej. LINK no responde"></div>
+          <div class="form-group" style="grid-column:3/5"><label>Comentarios</label><input type="text" id="f-comentario" placeholder="observaciones adicionales"></div>
+        </div>
+        <div style="display:flex;gap:8px;margin-top:8px">
+          <button class="btn primary" onclick="agregarUnidad()" id="btn-add">💾 Guardar en Sheets</button>
+          <button class="btn" onclick="limpiarForm()">Limpiar</button>
+        </div>
+      </div>
+      <div class="card">
+        <div class="card-title">Unidades en este reporte (<span id="count-cap">0</span>)</div>
+        <div class="scroll-x"><table class="tbl">
+          <thead><tr><th>#ECO</th><th>LBOX</th><th>Días</th><th>Posic.</th><th>Reset Lbox</th><th>Recuperó</th><th>Voltaje</th><th>Causa</th><th></th></tr></thead>
+          <tbody id="tbody-captura"><tr><td colspan="9" class="empty">Cargando...</td></tr></tbody>
+        </table></div>
+      </div>
+    </div>
+
+    <div class="page" id="page-unidades">
+      <div style="display:flex;gap:8px;margin-bottom:12px;align-items:center">
+        <input type="text" id="search-uni" placeholder="Buscar por ECO o LBOX..." style="flex:1;padding:7px 10px;border:1px solid #d0d0d0;border-radius:7px;font-size:12px" oninput="filtrarUnidades()">
+        <select id="filter-rec" onchange="filtrarUnidades()" style="font-size:12px;padding:6px 9px;border:1px solid #d0d0d0;border-radius:7px">
+          <option value="">Todos</option><option value="SI">Recuperados</option><option value="NO">No recuperados</option><option value="N/A">N/A</option>
+        </select>
+        <button class="btn danger" onclick="limpiarReporte()">🗑 Limpiar reporte</button>
+      </div>
+      <div class="card"><div class="scroll-x"><table class="tbl">
+        <thead><tr><th>Fecha</th><th>#ECO</th><th>LBOX</th><th>FW</th><th>Últ. reporte</th><th>Días</th><th>Posic.</th><th>Desvincular</th><th>R.Lbox</th><th>R.LINK</th><th>Recuperó</th><th>Voltaje</th><th>Causa</th><th>Comentario</th><th></th></tr></thead>
+        <tbody id="tbody-unidades"><tr><td colspan="15" class="empty">Cargando...</td></tr></tbody>
+      </table></div></div>
+    </div>
+
+    <div class="page" id="page-historial">
+      <div style="display:flex;gap:8px;margin-bottom:12px;align-items:center">
+        <input type="text" id="search-hist" placeholder="Buscar por ECO, LBOX o folio..." style="flex:1;padding:7px 10px;border:1px solid #d0d0d0;border-radius:7px;font-size:12px" oninput="filtrarHistorial()">
+        <button class="btn" onclick="syncAll()">↻ Actualizar</button>
+      </div>
+      <div class="card"><div class="scroll-x"><table class="tbl">
+        <thead><tr><th>Fecha reporte</th><th>Folio</th><th>#ECO</th><th>LBOX (serie)</th><th>Recuperó</th><th>Días</th></tr></thead>
+        <tbody id="tbody-historial"><tr><td colspan="6" class="empty">Cargando...</td></tr></tbody>
+      </table></div></div>
+    </div>
+
+  </div>
+</div>
+</div>
+
+<script>
+const API = 'https://script.google.com/macros/s/AKfycbyDmpGL2ZfvMbyzu-lRFS4InTNGnhlGfE8BJVYxwPy523Tmna3Kt4VEY7QfbDRL1JRMMg/exec';
+
+let units = [], hist = [], cbCount = 0;
+
+function notify(msg, type='info', dur=3000){
+  const n = document.getElementById('notif');
+  n.textContent = msg;
+  n.className = 'notif show' + (type==='err'?' err':type==='ok'?' ok':'');
+  clearTimeout(n._t);
+  n._t = setTimeout(()=>n.className='notif', dur);
+}
+
+function setSyncStatus(state){
+  document.getElementById('sync-dot').className = 'dot'+(state==='ok'?'':state==='err'?' err':' loading');
+  document.getElementById('sync-label').textContent = state==='ok'?'Sincronizado':state==='err'?'Sin conexión':'Sincronizando...';
+}
+
+// JSONP — funciona desde file:// sin CORS
+function jsonp(params){
+  return new Promise((resolve, reject) => {
+    const cbName = '__lbox_cb_' + (++cbCount);
+    const timeout = setTimeout(() => {
+      delete window[cbName];
+      reject(new Error('Timeout'));
+    }, 12000);
+
+    window[cbName] = (data) => {
+      clearTimeout(timeout);
+      delete window[cbName];
+      const tag = document.getElementById(cbName);
+      if(tag) tag.remove();
+      resolve(data);
+    };
+
+    const url = API + '?' + new URLSearchParams({...params, callback: cbName});
+    const script = document.createElement('script');
+    script.id = cbName;
+    script.src = url;
+    script.onerror = () => {
+      clearTimeout(timeout);
+      delete window[cbName];
+      reject(new Error('Script error'));
+    };
+    document.head.appendChild(script);
+  });
+}
+
+// POST via fetch (funciona cuando hay internet, falla solo desde file://)
+// Usamos un iframe trick para POST desde file://
+function apiPost(body){
+  return new Promise((resolve, reject) => {
+    fetch(API, {
+      method: 'POST',
+      body: JSON.stringify(body),
+      headers: {'Content-Type': 'application/json'}
+    })
+    .then(r => r.json())
+    .then(resolve)
+    .catch(reject);
+  });
+}
+
+function rowsToObjects(rows){
+  if(!rows || !Array.isArray(rows) || rows.length < 2) return [];
+  const [headers, ...data] = rows;
+  return data.map(r => {
+    const obj = {};
+    headers.forEach((h,i) => obj[h] = String(r[i]||''));
+    return obj;
+  });
+}
+
+async function syncAll(){
+  setSyncStatus('loading');
+  document.getElementById('btn-sync').disabled = true;
+  try {
+    const [uRes, hRes] = await Promise.all([
+      jsonp({action:'getUnits'}),
+      jsonp({action:'getHist'})
+    ]);
+    units = rowsToObjects(uRes);
+    hist  = rowsToObjects(hRes);
+    setSyncStatus('ok');
+    renderAll();
+    notify('Sincronizado — '+units.length+' unidades', 'ok');
+  } catch(e) {
+    setSyncStatus('err');
+    notify('Error de conexión. Verifica que republicaste el Apps Script.', 'err', 5000);
+  }
+  document.getElementById('btn-sync').disabled = false;
+}
+
+function renderAll(){
+  renderDashboard();
+  renderCaptura();
+  renderUnidades(units);
+  renderHistorial(hist);
+}
+
+function isReinc(lbox){ return hist.some(h=>h.lbox===lbox); }
+function dClass(d){ const n=parseInt(d)||0; return n<=3?'days-ok':n<=7?'days-warn':'days-crit'; }
+function badge(v){
+  if(v==='SI'||v==='SI/A') return '<span class="badge si">'+v+'</span>';
+  if(v==='NO') return '<span class="badge no">NO</span>';
+  return '<span class="badge na">'+(v||'—')+'</span>';
+}
+
+function showPage(p){
+  document.querySelectorAll('.page').forEach(x=>x.classList.remove('active'));
+  document.querySelectorAll('.nav-item').forEach(x=>x.classList.remove('active'));
+  document.getElementById('page-'+p).classList.add('active');
+  document.getElementById('nav-'+p).classList.add('active');
+  const titles={dashboard:'Dashboard',captura:'Captura de unidades',unidades:'Unidades del reporte',historial:'Historial de reportes'};
+  document.getElementById('page-title').textContent = titles[p]||p;
+}
+
+function renderDashboard(){
+  const total=units.length, rec=units.filter(u=>u.recupero==='SI').length,
+    noRec=units.filter(u=>u.recupero==='NO').length,
+    reinc=units.filter(u=>isReinc(u.lbox)).length,
+    sinV=units.filter(u=>u.voltaje==='NO').length,
+    linkN=units.filter(u=>u.pos==='NO').length;
+  document.getElementById('kpi-grid').innerHTML=`
+    <div class="kpi"><div class="kpi-label">Total revisadas</div><div class="kpi-val blue">${total}</div></div>
+    <div class="kpi"><div class="kpi-label">Recuperadas</div><div class="kpi-val green">${rec}</div></div>
+    <div class="kpi"><div class="kpi-label">No recuperadas</div><div class="kpi-val red">${noRec}</div></div>
+    <div class="kpi"><div class="kpi-label">Reincidentes</div><div class="kpi-val amber">${reinc}</div></div>
+    <div class="kpi"><div class="kpi-label">Sin voltaje</div><div class="kpi-val amber">${sinV}</div></div>
+    <div class="kpi"><div class="kpi-label">LINK no responde</div><div class="kpi-val gray">${linkN}</div></div>`;
+  const noRecU=units.filter(u=>u.recupero==='NO');
+  document.getElementById('dash-norec').innerHTML=noRecU.length===0?'<div class="empty">Ninguna ✓</div>'
+    :noRecU.map(u=>`<div style="display:flex;justify-content:space-between;padding:6px 0;border-bottom:1px solid #f5f5f5;font-size:12px">
+      <span><b>ECO ${u.eco}</b><span style="color:#999;font-size:11px;margin-left:6px">${u.lbox}</span>${isReinc(u.lbox)?'<span class="tag-reinc">reinc.</span>':''}</span>
+      <span class="${dClass(u.dias)}">${u.dias}d</span></div>`).join('');
+  const reincU=units.filter(u=>isReinc(u.lbox));
+  document.getElementById('dash-reinc').innerHTML=reincU.length===0?'<div class="empty">Sin reincidentes</div>'
+    :reincU.map(u=>`<div style="display:flex;justify-content:space-between;padding:6px 0;border-bottom:1px solid #f5f5f5;font-size:12px">
+      <span><b>ECO ${u.eco}</b></span><span style="color:#999">${hist.filter(h=>h.lbox===u.lbox).length} aparición(es) prev.</span></div>`).join('');
+  const b1=units.filter(u=>{const n=parseInt(u.dias)||0;return n>=1&&n<=3}).length;
+  const b2=units.filter(u=>{const n=parseInt(u.dias)||0;return n>=4&&n<=7}).length;
+  const b3=units.filter(u=>(parseInt(u.dias)||0)>=8).length;
+  const maxB=Math.max(b1,b2,b3,1);
+  const h=n=>Math.max(4,Math.round((n/maxB)*72));
+  document.getElementById('dash-chart').innerHTML=`
+    <div class="bar-group"><div class="bar-val" style="color:#2d7a3a">${b1}</div><div class="bar" style="height:${h(b1)}px;background:#5cb85c"></div><div class="bar-label">1–3d</div></div>
+    <div class="bar-group"><div class="bar-val" style="color:#b35900">${b2}</div><div class="bar" style="height:${h(b2)}px;background:#f0ad4e"></div><div class="bar-label">4–7d</div></div>
+    <div class="bar-group"><div class="bar-val" style="color:#c0392b">${b3}</div><div class="bar" style="height:${h(b3)}px;background:#d9534f"></div><div class="bar-label">8+d</div></div>`;
+}
+
+function renderCaptura(){
+  document.getElementById('count-cap').textContent=units.length;
+  const tbody=document.getElementById('tbody-captura');
+  if(!units.length){tbody.innerHTML='<tr><td colspan="9" class="empty">Sin unidades aún</td></tr>';return;}
+  tbody.innerHTML=units.map((u,i)=>`<tr>
+    <td><b>ECO ${u.eco}</b>${isReinc(u.lbox)?'<span class="tag-reinc">reinc.</span>':''}</td>
+    <td style="font-size:11px;color:#888">${u.lbox}</td>
+    <td class="${dClass(u.dias)}">${u.dias}</td>
+    <td>${badge(u.pos)}</td><td>${badge(u.rlbox)}</td><td>${badge(u.recupero)}</td><td>${badge(u.voltaje)}</td>
+    <td style="font-size:11px;max-width:120px;overflow:hidden;text-overflow:ellipsis;white-space:nowrap">${u.causa||'—'}</td>
+    <td><button class="btn danger" style="padding:2px 8px;font-size:11px" onclick="eliminar(${i})">✕</button></td>
+  </tr>`).join('');
+}
+
+function renderUnidades(data){
+  const tbody=document.getElementById('tbody-unidades');
+  if(!data.length){tbody.innerHTML='<tr><td colspan="15" class="empty">Sin datos</td></tr>';return;}
+  tbody.innerHTML=data.map((u,i)=>`<tr>
+    <td style="white-space:nowrap;font-size:11px">${u.fechaEjec||'—'}</td>
+    <td><b>ECO ${u.eco}</b>${isReinc(u.lbox)?'<span class="tag-reinc">reinc.</span>':''}</td>
+    <td style="font-size:11px">${u.lbox}</td>
+    <td style="font-size:10px;color:#999">${u.fw||'—'}</td>
+    <td style="font-size:11px;white-space:nowrap">${u.fechaRep||'—'}</td>
+    <td class="${dClass(u.dias)}">${u.dias}</td>
+    <td>${badge(u.pos)}</td><td>${badge(u.desv)}</td><td>${badge(u.rlbox)}</td><td>${badge(u.rlink)}</td>
+    <td>${badge(u.recupero)}</td><td>${badge(u.voltaje)}</td>
+    <td style="font-size:11px;max-width:90px;overflow:hidden;text-overflow:ellipsis;white-space:nowrap">${u.causa||'—'}</td>
+    <td style="font-size:11px;max-width:100px;overflow:hidden;text-overflow:ellipsis;white-space:nowrap">${u.comentario||'—'}</td>
+    <td><button class="btn danger" style="padding:2px 8px;font-size:11px" onclick="eliminar(${i})">✕</button></td>
+  </tr>`).join('');
+}
+
+function renderHistorial(data){
+  const tbody=document.getElementById('tbody-historial');
+  if(!data.length){tbody.innerHTML='<tr><td colspan="6" class="empty">Sin historial aún</td></tr>';return;}
+  tbody.innerHTML=[...data].reverse().map(h=>`<tr>
+    <td style="font-size:11px;white-space:nowrap">${h.fecha}</td>
+    <td><span class="badge pend">${h.folio}</span></td>
+    <td><b>ECO ${h.eco}</b></td>
+    <td style="font-size:11px">${h.lbox}</td>
+    <td>${badge(h.recupero)}</td>
+    <td class="${dClass(h.dias)}">${h.dias}</td>
+  </tr>`).join('');
+}
+
+function filtrarUnidades(){
+  const q=document.getElementById('search-uni').value.toLowerCase();
+  const fr=document.getElementById('filter-rec').value;
+  renderUnidades(units.filter(u=>(!q||(u.eco+u.lbox).toLowerCase().includes(q))&&(!fr||u.recupero===fr)));
+}
+
+function filtrarHistorial(){
+  const q=document.getElementById('search-hist').value.toLowerCase();
+  renderHistorial(hist.filter(h=>(h.eco+h.lbox+h.folio).toLowerCase().includes(q)));
+}
+
+function limpiarForm(){
+  ['f-eco','f-lbox','f-fw','f-dias','f-causa','f-comentario'].forEach(id=>document.getElementById(id).value='');
+  ['f-pos','f-desv','f-rlbox','f-rlink','f-rec','f-volt'].forEach(id=>document.getElementById(id).value='');
+}
+
+async function agregarUnidad(){
+  const eco=document.getElementById('f-eco').value.trim();
+  const lbox=document.getElementById('f-lbox').value.trim();
+  if(!eco||!lbox){notify('ECO y LBOX son obligatorios','err');return;}
+  const u={
+    fechaEjec:document.getElementById('f-fecha').value, eco, lbox,
+    fw:document.getElementById('f-fw').value.trim(),
+    fechaRep:document.getElementById('f-fecha-rep').value,
+    dias:document.getElementById('f-dias').value||'0',
+    pos:document.getElementById('f-pos').value,
+    desv:document.getElementById('f-desv').value,
+    rlbox:document.getElementById('f-rlbox').value,
+    rlink:document.getElementById('f-rlink').value,
+    recupero:document.getElementById('f-rec').value,
+    voltaje:document.getElementById('f-volt').value,
+    causa:document.getElementById('f-causa').value.trim(),
+    comentario:document.getElementById('f-comentario').value.trim(),
+  };
+  const btn=document.getElementById('btn-add');
+  btn.disabled=true; btn.textContent='Guardando...';
+  try {
+    await apiPost({action:'addUnit', data:u});
+    units.push(u);
+    limpiarForm();
+    renderCaptura(); renderDashboard();
+    notify('ECO '+eco+' guardado en Google Sheets ✓','ok');
+  } catch(e) {
+    // Si falla fetch (file://), guardar local y avisar
+    units.push(u);
+    renderCaptura(); renderDashboard();
+    notify('Guardado localmente. Sincroniza cuando tengas conexión.','info');
+  }
+  btn.disabled=false; btn.textContent='💾 Guardar en Sheets';
+}
+
+async function eliminar(i){
+  if(!confirm('¿Eliminar ECO '+units[i].eco+'?')) return;
+  units.splice(i,1);
+  try { await apiPost({action:'saveUnits', data:units}); }
+  catch(e) { notify('Eliminado localmente, sincroniza después','info'); }
+  renderCaptura(); renderDashboard(); renderUnidades(units);
+  notify('Unidad eliminada','ok');
+}
+
+async function limpiarReporte(){
+  const folio=prompt('Folio para guardar en historial (ej. INC-42253):','INC-');
+  if(folio===null) return;
+  if(!folio){notify('Folio requerido','err');return;}
+  const fecha=units[0]?.fechaEjec||new Date().toISOString().slice(0,10);
+  const newHist=units.map(u=>({fecha,folio,eco:u.eco,lbox:u.lbox,recupero:u.recupero,dias:u.dias}));
+  try {
+    await Promise.all([apiPost({action:'addHist',data:newHist}), apiPost({action:'clearUnits'})]);
+    hist=[...hist,...newHist]; units=[];
+    renderAll();
+    notify(newHist.length+' unidades guardadas con folio '+folio,'ok');
+  } catch(e) { notify('Error al limpiar. Verifica conexión.','err'); }
+}
+
+async function generarReporte(){
+  if(!units.length){notify('No hay unidades','err');return;}
+  if(typeof docx==='undefined'){notify('Librería no cargada aún','err');return;}
+  const btn=document.getElementById('btn-report');
+  btn.disabled=true; btn.textContent='Generando...';
+  try{
+    const fecha=units[0]?.fechaEjec||new Date().toISOString().slice(0,10);
+    const recuperadas=units.filter(u=>u.recupero==='SI');
+    const noRec=units.filter(u=>u.recupero==='NO');
+    const otros=units.filter(u=>u.recupero!=='SI'&&u.recupero!=='NO');
+    const reincU=units.filter(u=>isReinc(u.lbox));
+    const sinVolt=units.filter(u=>u.voltaje==='NO');
+    const {Document,Packer,Paragraph,TextRun,Table,TableRow,TableCell,
+      AlignmentType,BorderStyle,WidthType,ShadingType,VerticalAlign,PageOrientation}=docx;
+    const BLUE='1F5C8B';
+    const bd={style:BorderStyle.SINGLE,size:1,color:'CCCCCC'};
+    const borders={top:bd,bottom:bd,left:bd,right:bd};
+    const WS=[600,560,1100,800,820,460,590,690,590,590,690,640,1160,1420];
+    const HEADS=['Fecha ejec.','#ECO','LBOX','Firmware','Últ. reporte','Días','Posic.','Desvincular','R.Lbox','R.LINK','Recuperó','Voltaje','Causa','Comentario'];
+    const rc=v=>v==='SI'?'1A7340':v==='NO'?'A32D2D':'854F0B';
+    const dc=d=>{const n=parseInt(d)||0;return n>=8?'A32D2D':n>=4?'E69138':'1A7340';};
+    const th=(t,w)=>new TableCell({width:{size:w,type:WidthType.DXA},shading:{fill:BLUE,type:ShadingType.CLEAR},verticalAlign:VerticalAlign.CENTER,margins:{top:50,bottom:50,left:80,right:80},borders,children:[new Paragraph({alignment:AlignmentType.CENTER,children:[new TextRun({text:t,bold:true,color:'FFFFFF',size:16,font:'Arial'})]})]});
+    const td=(t,o={})=>new TableCell({width:o.w?{size:o.w,type:WidthType.DXA}:undefined,shading:o.bg?{fill:o.bg,type:ShadingType.CLEAR}:undefined,verticalAlign:VerticalAlign.CENTER,margins:{top:45,bottom:45,left:80,right:80},borders,children:[new Paragraph({alignment:AlignmentType.CENTER,children:[new TextRun({text:String(t||'—'),bold:o.bold||false,color:o.color||'1A1A1A',size:15,font:'Arial'})]})]});
+    const mkRow=(u,idx)=>new TableRow({children:[td(u.fechaEjec,{w:WS[0],bg:idx%2?'F5F5F5':null}),td('ECO '+u.eco,{w:WS[1],bg:idx%2?'F5F5F5':null,bold:true}),td(u.lbox,{w:WS[2],bg:idx%2?'F5F5F5':null}),td(u.fw,{w:WS[3],bg:idx%2?'F5F5F5':null}),td(u.fechaRep,{w:WS[4],bg:idx%2?'F5F5F5':null}),td(u.dias,{w:WS[5],bg:idx%2?'F5F5F5':null,color:dc(u.dias),bold:true}),td(u.pos,{w:WS[6],bg:idx%2?'F5F5F5':null}),td(u.desv,{w:WS[7],bg:idx%2?'F5F5F5':null}),td(u.rlbox,{w:WS[8],bg:idx%2?'F5F5F5':null}),td(u.rlink,{w:WS[9],bg:idx%2?'F5F5F5':null}),td(u.recupero,{w:WS[10],bg:idx%2?'F5F5F5':null,color:rc(u.recupero),bold:true}),td(u.voltaje,{w:WS[11],bg:idx%2?'F5F5F5':null}),td(u.causa,{w:WS[12],bg:idx%2?'F5F5F5':null}),td(u.comentario,{w:WS[13],bg:idx%2?'F5F5F5':null})]});
+    const mkTable=rows=>new Table({width:{size:WS.reduce((a,b)=>a+b,0),type:WidthType.DXA},columnWidths:WS,rows:[new TableRow({tableHeader:true,children:HEADS.map((h,i)=>th(h,WS[i]))}), ...rows.map(mkRow)]});
+    const p=(text,o={})=>new Paragraph({spacing:{before:o.before||60,after:o.after||60},children:[new TextRun({text,font:'Arial',size:o.size||20,bold:o.bold||false,color:o.color||'000000'})]});
+    const heading=(text,color=BLUE)=>new Paragraph({spacing:{before:200,after:100},children:[new TextRun({text,font:'Arial',size:24,bold:true,color})]});
+    const divider=()=>new Paragraph({spacing:{before:120,after:120},border:{bottom:{style:BorderStyle.SINGLE,size:6,color:BLUE,space:1}},children:[]});
+    const sumRows=[['Total de unidades revisadas',String(units.length),'000000'],['Recuperadas exitosamente',String(recuperadas.length),'1A7340'],['No recuperadas (revisión física)',String(noRec.length),'A32D2D'],['Con información incompleta',String(otros.length),'854F0B'],['Reincidentes de reportes anteriores',String(reincU.length),'A32D2D'],['Sin voltaje en Teltonika',String(sinVolt.length),'E69138']];
+    const sumTable = new Table({
+      width: {size: 5000, type: WidthType.DXA},
+      columnWidths: [3400, 1600],
+      rows: sumRows.map(([label, val, color], i) => new TableRow({
+        children: [
+          new TableCell({
+            borders, width: {size: 3400, type: WidthType.DXA},
+            shading: i%2 ? {fill:'F5F5F5', type: ShadingType.CLEAR} : undefined,
+            margins: {top:60, bottom:60, left:100, right:100},
+            children: [new Paragraph({children: [new TextRun({text: label, font:'Arial', size:18})]})]
+          }),
+          new TableCell({
+            borders, width: {size: 1600, type: WidthType.DXA},
+            shading: i%2 ? {fill:'F5F5F5', type: ShadingType.CLEAR} : undefined,
+            margins: {top:60, bottom:60, left:100, right:100},
+            children: [new Paragraph({alignment: AlignmentType.CENTER, children: [new TextRun({text: val, font:'Arial', size:20, bold:true, color})]})]
+          })
+        ]
+      }))
+    });
+    const children=[
+      p('Folio: PREVENCIÓN — '+fecha,{size:16,color:'888888',before:0,after:60}),
+      new Paragraph({spacing:{before:0,after:60},children:[new TextRun({text:'Informe de Prevención — Dispositivos LBOX sin Reportar',font:'Arial',size:32,bold:true,color:BLUE})]}),
+      p('Tipo: Asistencia y Soporte  |  Fecha de ejecución: '+fecha,{size:18,color:'555555',before:0,after:50}),
+      p('Para: Manuel Segura  |  CC: jpuente@alanis.com.mx, itrejo@alanis.com.mx, avillasenor@alanis.com.mx',{size:16,color:'555555',before:0,after:50}),
+      divider(),p('Estimado Manuel,',{bold:true,before:100,after:70}),
+      p('Se realizó el proceso de prevención correspondiente al '+fecha+'.',{before:0,after:140}),
+      heading('Resumen general'),sumTable,divider(),
+    ];
+    if(recuperadas.length){children.push(heading('Unidades recuperadas — '+recuperadas.length,'1A7340'));children.push(p('Reset remoto aplicado con resultado exitoso:',{before:0,after:100}));children.push(mkTable(recuperadas));children.push(divider());}
+    if(noRec.length){children.push(heading('No recuperadas — revisión física ('+noRec.length+')','A32D2D'));children.push(p('Requieren inspección en campo:',{before:0,after:100}));children.push(mkTable(noRec));if(reincU.length)children.push(new Paragraph({spacing:{before:100,after:60},children:[new TextRun({text:'Nota: '+reincU.length+' unidad(es) son reincidentes.',font:'Arial',size:18,bold:true,color:'A32D2D'})]}));children.push(divider());}
+    if(otros.length){children.push(heading('Información incompleta — '+otros.length,'854F0B'));children.push(mkTable(otros));children.push(divider());}
+    children.push(heading('Acciones requeridas'));
+    const acc=[];
+    if(noRec.length) acc.push('Enviar a revisión física: '+noRec.map(u=>'ECO '+u.eco).join(', ')+'.');
+    if(sinVolt.length) acc.push('Verificar alimentación eléctrica en: '+sinVolt.map(u=>'ECO '+u.eco).join(', ')+'.');
+    if(reincU.length) acc.push('Atención prioritaria a reincidentes: '+reincU.map(u=>'ECO '+u.eco).join(', ')+'.');
+    acc.push('Confirmar unidades retiradas de operación.');
+    acc.forEach((a,i)=>children.push(p((i+1)+'.  '+a,{before:40,after:30})));
+    children.push(divider());
+    children.push(p('Quedamos a sus órdenes.',{before:100,after:60}));
+    children.push(p('Atentamente,',{bold:true,before:60,after:40}));
+    children.push(p('Alexander Cedillo',{bold:true,before:0,after:20}));
+    children.push(p('KAM Asistencia — Inroute',{before:0,after:20,color:'555555'}));
+    children.push(p('marisol.angulo@inroute.com.mx',{before:0,after:20,color:BLUE}));
+    const docObj=new Document({styles:{default:{document:{run:{font:'Arial',size:20}}}},sections:[{properties:{page:{size:{width:15840,height:12240,orientation:PageOrientation.LANDSCAPE},margin:{top:720,right:800,bottom:720,left:800}}},children}]});
+    const buf=await Packer.toBuffer(docObj);
+    const blob=new Blob([buf],{type:'application/vnd.openxmlformats-officedocument.wordprocessingml.document'});
+    const a=document.createElement('a');
+    a.href=URL.createObjectURL(blob);
+    a.download='Informe_LBOX_'+fecha.replace(/-/g,'')+'.docx';
+    a.click();
+    notify('Reporte descargado ✓','ok');
+  } catch(e){ notify('Error: '+e.message,'err'); }
+  btn.disabled=false; btn.textContent='⬇ Generar .docx';
+}
+
+document.getElementById('f-fecha').value = new Date().toISOString().slice(0,10);
+syncAll();
+</script>
+</body>
+</html>
