@@ -23265,7 +23265,7 @@ body{font-family:Arial,sans-serif;font-size:14px;color:#1a1a1a;background:#f4f6f
       <div class="card">
         <div class="card-title">Unidades en este reporte (<span id="count-cap">0</span>)</div>
         <div class="scroll-x"><table class="tbl">
-          <thead><tr><th>#ECO</th><th>LBOX</th><th>FW</th><th>Días</th><th>Posic. LINK</th><th>Desvincular</th><th>Reset Lbox</th><th>Reset LINK</th><th>Recuperó</th><th>Voltaje</th><th>Causa</th><th>Comentario</th><th></th></tr></thead>
+          <thead><tr><th>#ECO</th><th>LBOX</th><th>Firmware</th><th>Días</th><th>Posic. LINK</th><th>Desvincular</th><th>Reset Lbox</th><th>Reset LINK</th><th>Recuperó</th><th>Voltaje</th><th>Causa</th><th>Comentario</th><th></th></tr></thead>
           <tbody id="tbody-captura"><tr><td colspan="9" class="empty">Cargando...</td></tr></tbody>
         </table></div>
       </div>
@@ -23693,10 +23693,10 @@ function renderCaptura(){
     <td style="white-space:nowrap">
       <b style="font-size:12px">ECO ${u.eco}</b>
       ${isReinc(u.lbox)?'<span class="tag-reinc">reinc.</span>':''}
-      <div style="font-size:10px;color:#999;margin-top:1px">${u.lbox}</div>
     </td>
-    <td style="font-size:10px;color:#555;max-width:90px;overflow:hidden;text-overflow:ellipsis;white-space:nowrap" title="${u.fw||''}">${u.fw||'—'}</td>
-    <td class="${dClass(u.dias)}" style="text-align:center;font-weight:700">${u.dias}d</td>
+    <td style="font-size:11px;color:#185FA5;white-space:nowrap">${u.lbox||'—'}</td>
+    <td style="font-size:10px;color:#555;max-width:100px;overflow:hidden;text-overflow:ellipsis;white-space:nowrap" title="${u.fw||''}">${u.fw||'—'}</td>
+    <td class="${dClass(u.dias)}" style="text-align:center;font-weight:700">${u.dias||'0'}d</td>
     <td>${sel('pos',i,u.pos||'—',SN)}</td>
     <td>${sel('desv',i,u.desv||'—',SIA)}</td>
     <td>${sel('rlbox',i,u.rlbox||'—',SIA)}</td>
