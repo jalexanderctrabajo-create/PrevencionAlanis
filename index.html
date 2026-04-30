@@ -23176,7 +23176,7 @@ body{font-family:Arial,sans-serif;font-size:14px;color:#1a1a1a;background:#f4f6f
         <thead><tr>
           <th style="width:32px"><input type="checkbox" id="chk-all" onchange="toggleAll(this)"></th>
           <th>#ECO</th><th>LBOX</th><th>Firmware</th>
-          <th>Últ. reporte</th><th>Días</th><th>Modo</th><th>Motor</th>
+          <th>Últ. reporte</th><th>Días</th><th>Posic. LINK</th><th>Modo</th>
         </tr></thead>
         <tbody id="tbody-import"></tbody>
       </table>
@@ -23540,8 +23540,8 @@ function renderImportTable() {
       '<td style="font-size:10px;color:#888">' + u.fw + '</td>' +
       '<td style="font-size:10px;white-space:nowrap">' + u.fechaRep + '</td>' +
       '<td style="font-weight:700;color:' + dc + '">' + u.dias + 'd</td>' +
+      '<td style="text-align:center">' + (u.pos==='SI' ? '<span class="badge si">SI</span>' : u.pos==='NO' ? '<span class="badge no">NO</span>' : '<span class="badge na">—</span>') + '</td>' +
       '<td style="font-size:10px">' + u.modo + '</td>' +
-      '<td style="font-size:10px">' + u.engineOn + '</td>' +
     '</tr>';
   }).join('');
   updateSelected();
@@ -23571,7 +23571,7 @@ async function confirmarImport() {
     const unit = {
       fechaEjec: today, eco: u.eco, lbox: u.lbox, fw: u.fw,
       fechaRep: u.fechaRep, dias: u.dias,
-      pos: '', desv: '', rlbox: '', rlink: '', recupero: '', voltaje: '',
+      pos: u.pos || '', desv: '', rlbox: '', rlink: '', recupero: '', voltaje: '',
       causa: '', comentario: '',
     };
     try { await apiPost({ action: 'addUnit', data: unit }); } catch(e) {}
