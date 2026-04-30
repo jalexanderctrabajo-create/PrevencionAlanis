@@ -23291,7 +23291,7 @@ body{font-family:Arial,sans-serif;font-size:14px;color:#1a1a1a;background:#f4f6f
         <button class="btn" onclick="syncAll()">↻ Actualizar</button>
       </div>
       <div class="card"><div class="scroll-x"><table class="tbl">
-        <thead><tr><th>Fecha reporte</th><th>Folio</th><th>#ECO</th><th>LBOX (serie)</th><th>Recuperó</th><th>Días</th></tr></thead>
+        <thead><tr><th>Fecha</th><th>Folio</th><th>#ECO</th><th>LBOX</th><th>Días</th><th>Posic.</th><th>Desvincular</th><th>Reset Lbox</th><th>Reset LINK</th><th>Recuperó</th><th>Voltaje</th><th>Causa</th><th>Comentario</th></tr></thead>
         <tbody id="tbody-historial"><tr><td colspan="6" class="empty">Cargando...</td></tr></tbody>
       </table></div></div>
     </div>
@@ -23728,14 +23728,21 @@ function renderUnidades(data){
 
 function renderHistorial(data){
   const tbody=document.getElementById('tbody-historial');
-  if(!data.length){tbody.innerHTML='<tr><td colspan="6" class="empty">Sin historial aún</td></tr>';return;}
+  if(!data.length){tbody.innerHTML='<tr><td colspan="13" class="empty">Sin historial aún</td></tr>';return;}
   tbody.innerHTML=[...data].reverse().map(h=>`<tr>
-    <td style="font-size:11px;white-space:nowrap">${h.fecha}</td>
-    <td><span class="badge pend">${h.folio}</span></td>
-    <td><b>ECO ${h.eco}</b></td>
-    <td style="font-size:11px">${h.lbox}</td>
+    <td style="font-size:11px;white-space:nowrap">${h.fecha||'—'}</td>
+    <td><span class="badge pend" style="font-size:10px">${h.folio||'—'}</span></td>
+    <td style="white-space:nowrap"><b style="font-size:11px">ECO ${h.eco}</b>${isReinc(h.lbox)?'<span class="tag-reinc">reinc.</span>':''}</td>
+    <td style="font-size:10px;color:#185FA5">${h.lbox||'—'}</td>
+    <td class="${dClass(h.dias)}" style="text-align:center;font-weight:700">${h.dias||'—'}d</td>
+    <td>${badge(h.pos)}</td>
+    <td>${badge(h.desv)}</td>
+    <td>${badge(h.rlbox)}</td>
+    <td>${badge(h.rlink)}</td>
     <td>${badge(h.recupero)}</td>
-    <td class="${dClass(h.dias)}">${h.dias}</td>
+    <td>${badge(h.voltaje)}</td>
+    <td style="font-size:11px;max-width:100px;overflow:hidden;text-overflow:ellipsis;white-space:nowrap" title="${h.causa||''}">${h.causa||'—'}</td>
+    <td style="font-size:11px;max-width:100px;overflow:hidden;text-overflow:ellipsis;white-space:nowrap" title="${h.comentario||''}">${h.comentario||'—'}</td>
   </tr>`).join('');
 }
 
@@ -23809,17 +23816,53 @@ async function eliminar(i){
   notify('Unidad eliminada','ok');
 }
 
+function getNextFolio() {
+  // Find highest INC number from historial
+  let max = 42252; // base from first known report
+  hist.forEach(h => {
+    if (h.folio && h.folio.startsWith('INC-')) {
+      const n = parseInt(h.folio.replace('INC-',''));
+      if (!isNaN(n) && n > max) max = n;
+    }
+  });
+  return 'INC-' + (max + 1);
+}
+
 async function limpiarReporte(){
-  const folio=prompt('Folio para guardar en historial (ej. INC-42253):','INC-');
-  if(folio===null) return;
-  if(!folio){notify('Folio requerido','err');return;}
-  const fecha=units[0]?.fechaEjec||new Date().toISOString().slice(0,10);
-  const newHist=units.map(u=>({fecha,folio,eco:u.eco,lbox:u.lbox,recupero:u.recupero,dias:u.dias}));
+  if(!units.length){ notify('No hay unidades en el reporte','err'); return; }
+  const nextFolio = getNextFolio();
+  const fecha = units[0]?.fechaEjec || new Date().toISOString().slice(0,10);
+  // Show confirmation modal
+  document.getElementById('modal-folio-numero').textContent = nextFolio;
+  document.getElementById('modal-folio-fecha').textContent = fecha;
+  document.getElementById('modal-folio-count').textContent = units.length;
+  document.getElementById('modal-folio').style.display = 'flex';
+}
+
+async function confirmarLimpiar() {
+  const folioInput = document.getElementById('folio-input').value.trim();
+  const folio = folioInput || document.getElementById('modal-folio-numero').textContent;
+  const fecha = units[0]?.fechaEjec || new Date().toISOString().slice(0,10);
+  document.getElementById('modal-folio').style.display = 'none';
+
+  const newHist = units.map(u => ({
+    fecha, folio,
+    eco: u.eco, lbox: u.lbox, fw: u.fw,
+    dias: u.dias, pos: u.pos, desv: u.desv,
+    rlbox: u.rlbox, rlink: u.rlink,
+    recupero: u.recupero, voltaje: u.voltaje,
+    causa: u.causa, comentario: u.comentario
+  }));
+
   try {
-    await Promise.all([apiPost({action:'addHist',data:newHist}), apiPost({action:'clearUnits'})]);
-    hist=[...hist,...newHist]; units=[];
+    await Promise.all([
+      apiPost({ action: 'addHist', data: newHist }),
+      apiPost({ action: 'clearUnits' })
+    ]);
+    hist = [...hist, ...newHist];
+    units = [];
     renderAll();
-    notify(newHist.length+' unidades guardadas con folio '+folio,'ok');
+    notify(newHist.length + ' unidades guardadas con folio ' + folio, 'ok');
   } catch(e) { notify('Error al limpiar. Verifica conexión.','err'); }
 }
 
@@ -23942,5 +23985,27 @@ setInterval(async () => {
   }
 }, 3 * 60 * 1000);
 </script>
+
+<!-- Modal confirmar folio -->
+<div id="modal-folio" style="display:none;position:fixed;inset:0;background:rgba(0,0,0,.5);z-index:9999;align-items:center;justify-content:center">
+  <div style="background:#fff;border-radius:12px;padding:32px;max-width:420px;width:90%;box-shadow:0 8px 32px rgba(0,0,0,.2)">
+    <div style="font-size:18px;font-weight:700;color:#1a3a5c;margin-bottom:8px">📋 Cerrar reporte</div>
+    <div style="font-size:13px;color:#666;margin-bottom:20px">
+      Se guardarán <b id="modal-folio-count"></b> unidades en el historial con fecha <b id="modal-folio-fecha"></b>.
+    </div>
+    <div style="background:#f0f4ff;border-radius:8px;padding:16px;margin-bottom:20px;text-align:center">
+      <div style="font-size:11px;color:#888;margin-bottom:4px">Folio asignado automáticamente</div>
+      <div id="modal-folio-numero" style="font-size:28px;font-weight:800;color:#185FA5;letter-spacing:1px"></div>
+    </div>
+    <div style="margin-bottom:20px">
+      <label style="font-size:12px;color:#666;display:block;margin-bottom:6px">¿Quieres usar un folio diferente? (opcional)</label>
+      <input id="folio-input" type="text" placeholder="ej. INC-42260" style="width:100%;padding:8px 12px;border:1px solid #d0d0d0;border-radius:6px;font-size:13px;box-sizing:border-box">
+    </div>
+    <div style="display:flex;gap:10px">
+      <button class="btn" style="flex:1" onclick="document.getElementById('modal-folio').style.display='none'">Cancelar</button>
+      <button class="btn primary" style="flex:2" onclick="confirmarLimpiar()">✅ Confirmar y cerrar reporte</button>
+    </div>
+  </div>
+</div>
 </body>
 </html>
