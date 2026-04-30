@@ -23649,15 +23649,15 @@ function renderDashboard(){
 }
 
 function sel(field, i, val, opts) {
-  var onch = "updateUnit(" + i + ',"' + field + '",this.value)';
-  var s = '<select onchange="' + onch + '" style="font-size:11px;padding:2px 4px;border:1px solid #d0d0d0;border-radius:4px;background:#fff;width:78px">';
-  opts.forEach(function(o){ s += '<option value="' + o + '"' + (val===o?' selected':'') + '>' + o + '</option>'; });
-  return s + '</select>';
+  var fn = "updateUnit(" + i + ",\"" + field + "\",this.value)";
+  var s = "<select onchange='" + fn + "' style='font-size:11px;padding:2px 4px;border:1px solid #d0d0d0;border-radius:4px;background:#fff;width:78px'>";
+  opts.forEach(function(o){ s += "<option value='" + o + "'" + (val===o?' selected':'') + ">" + o + "</option>"; });
+  return s + "</select>";
 }
 
 function inp(field, i, val, ph) {
-  var onch = "updateUnit(" + i + ',"' + field + '",this.value)';
-  return '<input type="text" value="' + escHtml(val||'') + '" placeholder="' + ph + '" onchange="' + onch + '" style="font-size:11px;padding:2px 5px;border:1px solid #d0d0d0;border-radius:4px;width:100px">';
+  var fn = "updateUnit(" + i + ",\"" + field + "\",this.value)";
+  return "<input type='text' value='" + escHtml(val||'') + "' placeholder='" + ph + "' onchange='" + fn + "' style='font-size:11px;padding:2px 5px;border:1px solid #d0d0d0;border-radius:4px;width:100px'>";
 }
 
 function escHtml(s){ return String(s).replace(/&/g,'&amp;').replace(/"/g,'&quot;'); }
