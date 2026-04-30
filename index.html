@@ -298,6 +298,194 @@ function rowsToObjects(rows){
   });
 }
 
+
+// ── FETCH LIVE DATA FROM APIs VIA APPS SCRIPT PROXY ──────────────────────
+async function fetchLiveData() {
+  const btn = document.getElementById('btn-live');
+  btn.disabled = true;
+  btn.textContent = 'Consultando APIs...';
+  notify('Consultando LBOX y Webfleet... puede tardar 20-30 segundos', 'info', 10000);
+
+  try {
+    const [lboxRes, wfRes] = await Promise.all([
+      jsonp({ action: 'fetchLbox' }),
+      jsonp({ action: 'fetchWF' })
+    ]);
+
+    if (lboxRes.error) throw new Error('LBOX: ' + lboxRes.error);
+    if (wfRes.error)   throw new Error('Webfleet: ' + wfRes.error);
+
+    const lboxUnits = lboxRes.data || [];
+    const wfMap     = wfRes.data   || {};
+
+    const crossed = lboxUnits.map(u => ({
+      ...u,
+      engineOn: (wfMap[u.eco] || {}).engineOn || '',
+      motion:   (wfMap[u.eco] || {}).motion   || '',
+      posText:  (wfMap[u.eco] || {}).posText   || '',
+    }));
+
+    importData = crossed.filter(u => parseInt(u.dias) >= 1);
+    importData.sort((a, b) => parseInt(b.dias) - parseInt(a.dias));
+
+    document.getElementById('import-count').textContent = importData.length;
+    document.getElementById('import-min-dias').value = '1';
+    filtrarImport();
+    document.getElementById('modal-import').style.display = 'flex';
+    notify('Datos obtenidos: ' + lboxUnits.length + ' dispositivos, ' + importData.length + ' con 1+ dias', 'ok', 5000);
+
+  } catch(err) {
+    notify('Error: ' + err.message, 'err', 6000);
+  }
+
+  btn.disabled = false;
+  btn.textContent = 'Obtener datos en vivo';
+}
+
+// ── IMPORT FROM EXCEL ─────────────────────────────────────────────────────
+let importData = [];
+let importFiltered = [];
+
+function importarExcel(input) {
+  const file = input.files[0];
+  if (!file) return;
+  input.value = '';
+  if (typeof XLSX === 'undefined') { notify('Libreria Excel no cargada', 'err'); return; }
+  const reader = new FileReader();
+  reader.onload = (e) => {
+    try {
+      const wb = XLSX.read(e.target.result, {type:'array', cellDates:true});
+      const lboxSheet = wb.Sheets['lboxS'];
+      if (!lboxSheet) { notify('No se encontro la hoja lboxS', 'err'); return; }
+      const lboxRows = XLSX.utils.sheet_to_json(lboxSheet, {header:1, raw:false, dateNF:'yyyy-mm-dd HH:MM'});
+      let headerIdx = -1;
+      for (let i = 0; i < lboxRows.length; i++) {
+        if (lboxRows[i] && lboxRows[i][0] === 'objectno') { headerIdx = i; break; }
+      }
+      if (headerIdx === -1) { notify('No se encontraron encabezados en lboxS', 'err'); return; }
+      const headers = lboxRows[headerIdx];
+      const hIdx = {};
+      headers.forEach((h, i) => { if (h) hIdx[h] = i; });
+      const datosSheet = wb.Sheets['Datos'];
+      const datosMap = {};
+      if (datosSheet) {
+        const datosRows = XLSX.utils.sheet_to_json(datosSheet, {header:1, raw:false});
+        let dHeaderIdx = -1;
+        for (let i = 0; i < datosRows.length; i++) {
+          if (datosRows[i] && datosRows[i][0] === 'Object No') { dHeaderIdx = i; break; }
+        }
+        if (dHeaderIdx >= 0) {
+          const dHeaders = datosRows[dHeaderIdx];
+          const dIdx = {};
+          dHeaders.forEach((h, i) => { if (h) dIdx[h] = i; });
+          for (let i = dHeaderIdx + 1; i < datosRows.length; i++) {
+            const r = datosRows[i];
+            if (r && r[dIdx['Object No']]) {
+              datosMap[String(r[dIdx['Object No']])] = {
+                engineOn: r[dIdx['EngineOn']] || '',
+                motion:   r[dIdx['Motion']]   || '',
+              };
+            }
+          }
+        }
+      }
+      importData = [];
+      for (let i = headerIdx + 1; i < lboxRows.length; i++) {
+        const r = lboxRows[i];
+        if (!r || !r[hIdx['objectno']]) continue;
+        const dias = parseInt(r[hIdx['Dias']]) || 0;
+        if (dias < 1) continue;
+        const eco = String(r[hIdx['objectno']]);
+        const dato = datosMap[eco] || {};
+        importData.push({
+          eco, lbox: r[hIdx['serieLBOX']] || '',
+          fw: r[hIdx['Version Firmware']] || '',
+          fechaRep: r[hIdx['fecha']] || '',
+          dias: String(dias),
+          modo: r[hIdx['modo']] || '',
+          vinculado: r[hIdx['vinculado']] || '',
+          engineOn: dato.engineOn || '',
+          motion: dato.motion || '',
+        });
+      }
+      importData.sort((a, b) => parseInt(b.dias) - parseInt(a.dias));
+      document.getElementById('import-count').textContent = importData.length;
+      document.getElementById('import-min-dias').value = '5';
+      filtrarImport();
+      document.getElementById('modal-import').style.display = 'flex';
+      notify('Archivo cargado: ' + importData.length + ' unidades con 1+ dias', 'ok');
+    } catch(err) { notify('Error al leer el archivo: ' + err.message, 'err'); }
+  };
+  reader.readAsArrayBuffer(file);
+}
+
+function filtrarImport() {
+  const q = (document.getElementById('import-search').value || '').toLowerCase();
+  const minDias = parseInt(document.getElementById('import-min-dias').value) || 1;
+  importFiltered = importData.filter(u =>
+    parseInt(u.dias) >= minDias && (!q || (u.eco + u.lbox).toLowerCase().includes(q))
+  );
+  renderImportTable();
+}
+
+function renderImportTable() {
+  const tbody = document.getElementById('tbody-import');
+  if (!importFiltered.length) { tbody.innerHTML = '<tr><td colspan="8" class="empty">Sin resultados</td></tr>'; return; }
+  tbody.innerHTML = importFiltered.map((u, i) => {
+    const reinc = isReinc(u.lbox);
+    const dc = parseInt(u.dias) >= 10 ? '#c0392b' : parseInt(u.dias) >= 5 ? '#b35900' : '#2d7a3a';
+    return '<tr style="background:' + (i%2?'#f9f9f9':'#fff') + '">' +
+      '<td style="text-align:center"><input type="checkbox" class="chk-import" data-idx="' + i + '" onchange="updateSelected()"></td>' +
+      '<td><b>ECO ' + u.eco + '</b>' + (reinc ? '<span class="tag-reinc">reinc.</span>' : '') + '</td>' +
+      '<td style="font-size:10px">' + u.lbox + '</td>' +
+      '<td style="font-size:10px;color:#888">' + u.fw + '</td>' +
+      '<td style="font-size:10px;white-space:nowrap">' + u.fechaRep + '</td>' +
+      '<td style="font-weight:700;color:' + dc + '">' + u.dias + 'd</td>' +
+      '<td style="font-size:10px">' + u.modo + '</td>' +
+      '<td style="font-size:10px">' + u.engineOn + '</td>' +
+    '</tr>';
+  }).join('');
+  updateSelected();
+}
+
+function updateSelected() {
+  document.getElementById('import-selected').textContent = document.querySelectorAll('.chk-import:checked').length;
+}
+
+function seleccionarTodos() { document.querySelectorAll('.chk-import').forEach(c => c.checked = true); updateSelected(); }
+function deseleccionarTodos() { document.querySelectorAll('.chk-import').forEach(c => c.checked = false); updateSelected(); }
+function toggleAll(chk) { document.querySelectorAll('.chk-import').forEach(c => c.checked = chk.checked); updateSelected(); }
+function cerrarModal() { document.getElementById('modal-import').style.display = 'none'; }
+
+async function confirmarImport() {
+  const selected = [];
+  document.querySelectorAll('.chk-import:checked').forEach(chk => {
+    selected.push(importFiltered[parseInt(chk.dataset.idx)]);
+  });
+  if (!selected.length) { notify('Selecciona al menos una unidad', 'err'); return; }
+  const today = new Date().toISOString().slice(0, 10);
+  const btn = document.querySelector('#modal-import .btn.primary');
+  btn.disabled = true; btn.textContent = 'Guardando...';
+  let added = 0;
+  for (const u of selected) {
+    if (units.some(x => x.lbox === u.lbox)) continue;
+    const unit = {
+      fechaEjec: today, eco: u.eco, lbox: u.lbox, fw: u.fw,
+      fechaRep: u.fechaRep, dias: u.dias,
+      pos: '', desv: '', rlbox: '', rlink: '', recupero: '', voltaje: '',
+      causa: '', comentario: '',
+    };
+    try { await apiPost({ action: 'addUnit', data: unit }); } catch(e) {}
+    units.push(unit);
+    added++;
+  }
+  cerrarModal();
+  renderCaptura(); renderDashboard();
+  showPage('captura');
+  notify(added + ' unidades importadas al reporte', 'ok');
+  btn.disabled = false; btn.textContent = 'Agregar al reporte';
+}
+
 async function syncAll(){
   setSyncStatus('loading');
   document.getElementById('btn-sync').disabled = true;
