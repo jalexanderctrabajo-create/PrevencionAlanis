@@ -23664,6 +23664,16 @@ function escHtml(s){ return String(s).replace(/&/g,'&amp;').replace(/"/g,'&quot;
 
 async function updateUnit(i, field, value) {
   units[i][field] = value;
+
+  // Si Posic. LINK = NO: Desvincular/Reset Lbox/Reset LINK = N/A, Recuperó = NO
+  if (field === 'pos' && value === 'NO') {
+    units[i].desv     = 'N/A';
+    units[i].rlbox    = 'N/A';
+    units[i].rlink    = 'N/A';
+    units[i].recupero = 'NO';
+    renderCaptura();
+  }
+
   renderDashboard();
   // Save to Sheets with isSaving flag to prevent auto-sync override
   isSaving = true;
