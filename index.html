@@ -23096,6 +23096,24 @@ body{font-family:Arial,sans-serif;font-size:14px;color:#1a1a1a;background:#f4f6f
 .nav-item:hover{background:#f0f4f9;color:#185FA5}
 .nav-item.active{color:#185FA5;border-left-color:#185FA5;background:#e8f0fb;font-weight:600}
 .main{flex:1;overflow-y:auto;display:flex;flex-direction:column;min-width:0}
+.dash-layout{display:flex;gap:16px;flex:1;min-height:0}
+.dash-left{flex:1;min-width:0;overflow-y:auto}
+.dash-right{width:340px;min-width:300px;display:flex;flex-direction:column;gap:12px;overflow-y:auto}
+.dash-widget{background:#fff;border-radius:10px;border:1px solid #e8eaf0;padding:14px}
+.dash-widget-title{font-size:12px;font-weight:700;color:#1a3a5c;margin-bottom:10px;display:flex;align-items:center;gap:6px}
+.reinc-row{display:flex;align-items:center;justify-content:space-between;padding:5px 0;border-bottom:1px solid #f0f0f0;font-size:11px}
+.reinc-row:last-child{border-bottom:none}
+.reinc-lbox{color:#185FA5;font-family:monospace;font-size:10px}
+.reinc-count{background:#e74c3c;color:#fff;border-radius:10px;padding:2px 7px;font-size:10px;font-weight:700}
+.pie-wrap{position:relative;display:flex;align-items:center;gap:12px}
+.causa-legend{flex:1;display:flex;flex-direction:column;gap:4px}
+.causa-item{display:flex;align-items:center;gap:5px;font-size:10px}
+.causa-dot{width:10px;height:10px;border-radius:50%;flex-shrink:0}
+.causa-label{flex:1;overflow:hidden;text-overflow:ellipsis;white-space:nowrap}
+.causa-pct{font-weight:700;color:#444;font-size:10px}
+.trend-row{display:flex;align-items:center;gap:8px;padding:4px 0;font-size:11px}
+.trend-bar-wrap{flex:1;background:#f0f0f0;border-radius:4px;height:8px;overflow:hidden}
+.trend-bar{height:100%;border-radius:4px;transition:width .4s}
 .topbar{background:#fff;border-bottom:1px solid #e0e0e0;padding:11px 20px;display:flex;align-items:center;justify-content:space-between;gap:8px;position:sticky;top:0;z-index:10}
 .topbar-title{font-size:15px;font-weight:600;white-space:nowrap}
 .topbar-actions{display:flex;gap:6px;flex-wrap:wrap}
@@ -23224,6 +23242,25 @@ body{font-family:Arial,sans-serif;font-size:14px;color:#1a1a1a;background:#f4f6f
   <div class="content">
 
     <div class="page active" id="page-dashboard">
+      <!-- Filtro por fecha -->
+      <div style="display:flex;align-items:center;gap:10px;margin-bottom:14px;flex-wrap:wrap">
+        <div style="font-size:12px;font-weight:600;color:#1a3a5c">📅 Período:</div>
+        <select id="filter-periodo" onchange="aplicarFiltroPeriodo()" style="padding:6px 10px;border:1px solid #d0d0d0;border-radius:7px;font-size:12px;background:#fff;cursor:pointer">
+          <option value="all">Todo el historial</option>
+          <option value="7">Últimos 7 días</option>
+          <option value="30" selected>Últimos 30 días</option>
+          <option value="90">Últimos 90 días</option>
+          <option value="custom">Rango personalizado</option>
+        </select>
+        <div id="custom-range" style="display:none;align-items:center;gap:6px">
+          <input type="date" id="fecha-desde" style="padding:5px 8px;border:1px solid #d0d0d0;border-radius:7px;font-size:12px">
+          <span style="color:#888;font-size:12px">→</span>
+          <input type="date" id="fecha-hasta" style="padding:5px 8px;border:1px solid #d0d0d0;border-radius:7px;font-size:12px">
+          <button onclick="aplicarFiltroPeriodo()" class="btn primary" style="padding:5px 12px;font-size:12px">Aplicar</button>
+        </div>
+        <div style="margin-left:auto;font-size:11px;color:#888" id="periodo-label">Mostrando: últimos 30 días</div>
+      </div>
+
       <div class="kpi-grid" id="kpi-grid"><div class="kpi"><div class="kpi-label">Conectando...</div><div class="kpi-val gray">—</div></div></div>
       <div class="two-col">
         <div class="card"><div class="card-title" style="color:#c0392b">🔴 No recuperadas</div><div id="dash-norec"><div class="empty">Cargando...</div></div></div>
@@ -23246,6 +23283,44 @@ body{font-family:Arial,sans-serif;font-size:14px;color:#1a1a1a;background:#f4f6f
         </div>
         <canvas id="chart-mensual" width="700" height="220" style="width:100%;max-width:700px"></canvas>
       </div>
+      </div><!-- end dash-left -->
+
+      <!-- PANEL DERECHO: 3 widgets -->
+      <div class="dash-right">
+
+        <!-- Widget 1: Top 10 Reincidentes -->
+        <div class="dash-widget">
+          <div class="dash-widget-title">🔁 Top Reincidentes
+            <span style="margin-left:auto;font-size:10px;font-weight:400;color:#888">apariciones en historial</span>
+          </div>
+          <div id="widget-reinc-top">
+            <div class="empty" style="font-size:11px">Cargando...</div>
+          </div>
+        </div>
+
+        <!-- Widget 2: Causas más frecuentes -->
+        <div class="dash-widget">
+          <div class="dash-widget-title">🥧 Causas frecuentes
+            <span style="margin-left:auto;font-size:10px;font-weight:400;color:#888">historial completo</span>
+          </div>
+          <div class="pie-wrap">
+            <canvas id="chart-causas" width="100" height="100"></canvas>
+            <div class="causa-legend" id="legend-causas">
+              <div class="empty" style="font-size:11px">Cargando...</div>
+            </div>
+          </div>
+        </div>
+
+        <!-- Widget 3: Estado del reporte actual -->
+        <div class="dash-widget">
+          <div class="dash-widget-title">📋 Progreso del reporte actual</div>
+          <div id="widget-progreso">
+            <div class="empty" style="font-size:11px">Sin unidades</div>
+          </div>
+        </div>
+
+      </div><!-- end dash-right -->
+      </div><!-- end dash-layout -->
 
     <div class="page" id="page-captura">
       <div class="card">
@@ -23587,6 +23662,68 @@ async function confirmarImport() {
   btn.disabled = false; btn.textContent = 'Agregar al reporte';
 }
 
+// ── FILTRO POR FECHA ─────────────────────────────────────────────────────
+let filteredHist = [];
+
+function getFiltroPeriodo() {
+  const sel = document.getElementById('filter-periodo');
+  if (!sel) return { desde: null, hasta: null };
+  const val = sel.value;
+  const hoy = new Date();
+  hoy.setHours(23,59,59,999);
+
+  if (val === 'all') return { desde: null, hasta: hoy };
+  if (val === 'custom') {
+    const d = document.getElementById('fecha-desde').value;
+    const h = document.getElementById('fecha-hasta').value;
+    return {
+      desde: d ? new Date(d + 'T00:00:00') : null,
+      hasta: h ? new Date(h + 'T23:59:59') : hoy
+    };
+  }
+  const dias = parseInt(val);
+  const desde = new Date(hoy);
+  desde.setDate(hoy.getDate() - dias);
+  desde.setHours(0,0,0,0);
+  return { desde, hasta: hoy };
+}
+
+function aplicarFiltroPeriodo() {
+  const sel = document.getElementById('filter-periodo');
+  const cr  = document.getElementById('custom-range');
+  const lbl = document.getElementById('periodo-label');
+
+  if (sel.value === 'custom') {
+    cr.style.display = 'flex';
+  } else {
+    cr.style.display = 'none';
+  }
+
+  const { desde, hasta } = getFiltroPeriodo();
+
+  // Filter historial by date range
+  filteredHist = hist.filter(h => {
+    if (!h.fecha) return false;
+    const d = new Date(h.fecha);
+    if (desde && d < desde) return false;
+    if (hasta && d > hasta) return false;
+    return true;
+  });
+
+  // Update label
+  const labels = { all: 'Todo el historial', '7': 'últimos 7 días', '30': 'últimos 30 días', '90': 'últimos 90 días', custom: 'rango personalizado' };
+  if (lbl) lbl.textContent = 'Mostrando: ' + (labels[sel.value] || sel.value) + ' — ' + filteredHist.length + ' registros';
+
+  renderDashboard();
+}
+
+function getHistForDash() {
+  // Use filtered if set, otherwise all
+  return filteredHist.length > 0 || document.getElementById('filter-periodo')?.value !== 'all'
+    ? filteredHist
+    : hist;
+}
+
 // ── CAMBIAR CUENTA ────────────────────────────────────────────────────────
 function cambiarCuenta(cuenta) {
   // Future: change API endpoints and Sheets tab per client
@@ -23625,7 +23762,8 @@ function renderGraficaMensual() {
 
   // Aggregate hist by month
   const monthly = {};
-  hist.forEach(h => {
+  const h4d = getHistForDash();
+  h4d.forEach(h => {
     if (!h.fecha) return;
     const key = h.fecha.slice(0,7); // YYYY-MM
     if (!monthly[key]) monthly[key] = { total:0, recuperados:0 };
@@ -23712,6 +23850,7 @@ function renderAll(){
 }
 
 function reincCount(lbox){ return hist.filter(h=>h.lbox===lbox).length; }
+function reincCountFiltered(lbox){ return getHistForDash().filter(h=>h.lbox===lbox).length; }
 function isReinc(lbox){ return reincCount(lbox) >= 5; }
 function dClass(d){
   const n=parseInt(d)||0;
@@ -23743,7 +23882,7 @@ function showPage(p){
 function renderDashboard(){
   const total=units.length, rec=units.filter(u=>u.recupero==='SI').length,
     noRec=units.filter(u=>u.recupero==='NO').length,
-    reinc=units.filter(u=>isReinc(u.lbox)).length,
+    reinc=units.filter(u=>reincCountFiltered(u.lbox)>=5).length,
     sinV=units.filter(u=>u.voltaje==='NO').length,
     linkN=units.filter(u=>u.pos==='NO').length;
   document.getElementById('kpi-grid').innerHTML=`
@@ -23805,6 +23944,149 @@ async function updateUnit(i, field, value) {
   try { await apiPost({ action: 'saveUnits', data: units }); } catch(e) {}
   isSaving = false;
   renderGraficaMensual();
+  renderWidgetReincTop();
+  renderWidgetCausas();
+  renderWidgetProgreso();
+}
+
+// ── WIDGET 1: TOP 10 REINCIDENTES ────────────────────────────────────────
+function renderWidgetReincTop() {
+  const el = document.getElementById('widget-reinc-top');
+  if (!el) return;
+
+  // Count appearances per LBOX in historial
+  const counts = {};
+  hist.forEach(h => {
+    if (!h.lbox) return;
+    counts[h.lbox] = (counts[h.lbox] || { eco: h.eco, lbox: h.lbox, n: 0 });
+    counts[h.lbox].n++;
+  });
+
+  const sorted = Object.values(counts).sort((a,b) => b.n - a.n).slice(0, 10);
+  if (!sorted.length) { el.innerHTML = '<div class="empty" style="font-size:11px">Sin historial</div>'; return; }
+
+  const max = sorted[0].n;
+  el.innerHTML = sorted.map((r,i) => {
+    const pct = Math.round((r.n/max)*100);
+    const color = r.n >= 5 ? '#e74c3c' : '#f39c12';
+    return '<div class="reinc-row">' +
+      '<div style="min-width:28px;font-size:10px;color:#aaa;font-weight:700">#' + (i+1) + '</div>' +
+      '<div style="flex:1">' +
+        '<div style="font-size:11px;font-weight:600;color:#1a3a5c">ECO ' + r.eco + '</div>' +
+        '<div class="reinc-lbox">' + r.lbox + '</div>' +
+        '<div style="margin-top:3px;background:#f0f0f0;border-radius:3px;height:4px;overflow:hidden">' +
+          '<div style="width:' + pct + '%;background:' + color + ';height:100%;border-radius:3px"></div>' +
+        '</div>' +
+      '</div>' +
+      '<span class="reinc-count" style="background:' + color + '">' + r.n + 'x</span>' +
+    '</div>';
+  }).join('');
+}
+
+// ── WIDGET 2: CAUSAS FRECUENTES ──────────────────────────────────────────
+function renderWidgetCausas() {
+  const canvas = document.getElementById('chart-causas');
+  const legend = document.getElementById('legend-causas');
+  if (!canvas || !legend) return;
+
+  // Count causes from historial + current units
+  const counts = {};
+  [...getHistForDash(), ...units].forEach(r => {
+    const c = (r.causa || '').trim();
+    if (!c || c === '—' || c.length < 2) return;
+    // Normalize long causes
+    const key = c.length > 25 ? c.slice(0,25)+'…' : c;
+    counts[key] = (counts[key] || 0) + 1;
+  });
+
+  const sorted = Object.entries(counts).sort((a,b) => b[1]-a[1]).slice(0, 6);
+  if (!sorted.length) {
+    legend.innerHTML = '<div class="empty" style="font-size:11px">Sin causas registradas</div>';
+    canvas.style.display = 'none';
+    return;
+  }
+
+  const COLORS = ['#185FA5','#27ae60','#e74c3c','#f39c12','#9b59b6','#1abc9c'];
+  const total = sorted.reduce((s,[,n]) => s+n, 0);
+
+  // Draw pie
+  const ctx = canvas.getContext('2d');
+  canvas.width = 90; canvas.height = 90;
+  let angle = -Math.PI/2;
+  sorted.forEach(([label, n], i) => {
+    const slice = (n/total) * 2 * Math.PI;
+    ctx.beginPath();
+    ctx.moveTo(45,45);
+    ctx.arc(45,45,42,angle,angle+slice);
+    ctx.closePath();
+    ctx.fillStyle = COLORS[i];
+    ctx.fill();
+    angle += slice;
+  });
+  // Center hole
+  ctx.beginPath();
+  ctx.arc(45,45,22,0,2*Math.PI);
+  ctx.fillStyle = '#fff';
+  ctx.fill();
+  ctx.fillStyle = '#1a3a5c';
+  ctx.font = 'bold 11px sans-serif';
+  ctx.textAlign = 'center';
+  ctx.textBaseline = 'middle';
+  ctx.fillText(total, 45, 45);
+
+  // Legend
+  legend.innerHTML = sorted.map(([label, n], i) => {
+    const pct = Math.round((n/total)*100);
+    return '<div class="causa-item">' +
+      '<div class="causa-dot" style="background:' + COLORS[i] + '"></div>' +
+      '<div class="causa-label" title="' + label + '">' + label + '</div>' +
+      '<div class="causa-pct">' + pct + '%</div>' +
+    '</div>';
+  }).join('');
+}
+
+// ── WIDGET 3: PROGRESO DEL REPORTE ACTUAL ────────────────────────────────
+function renderWidgetProgreso() {
+  const el = document.getElementById('widget-progreso');
+  if (!el) return;
+
+  if (!units.length) {
+    el.innerHTML = '<div class="empty" style="font-size:11px">Sin unidades en el reporte actual</div>';
+    return;
+  }
+
+  const total    = units.length;
+  const recup    = units.filter(u => u.recupero === 'SI').length;
+  const noRecup  = units.filter(u => u.recupero === 'NO').length;
+  const pendient = units.filter(u => !u.recupero || u.recupero === '—' || u.recupero === '').length;
+  const sinVolt  = units.filter(u => u.voltaje === 'NO').length;
+  const sinLink  = units.filter(u => u.pos === 'NO').length;
+  const completadas = units.filter(u => u.recupero && u.recupero !== '—' && u.recupero !== '').length;
+  const pct = Math.round((completadas/total)*100);
+
+  el.innerHTML = '<div style="margin-bottom:10px">' +
+    '<div style="display:flex;justify-content:space-between;font-size:11px;color:#666;margin-bottom:4px">' +
+      '<span>Progreso de captura</span><span style="font-weight:700;color:#185FA5">' + pct + '%</span>' +
+    '</div>' +
+    '<div style="background:#f0f0f0;border-radius:6px;height:10px;overflow:hidden">' +
+      '<div style="width:' + pct + '%;background:linear-gradient(90deg,#185FA5,#27ae60);height:100%;border-radius:6px;transition:width .4s"></div>' +
+    '</div>' +
+    '<div style="font-size:10px;color:#aaa;margin-top:3px">' + completadas + ' de ' + total + ' unidades con diagnóstico</div>' +
+  '</div>' +
+  [
+    { label: '✅ Recuperadas',   val: recup,    color: '#27ae60' },
+    { label: '❌ No recuperadas', val: noRecup,  color: '#e74c3c' },
+    { label: '⏳ Pendientes',    val: pendient, color: '#f39c12' },
+    { label: '⚡ Sin voltaje',   val: sinVolt,  color: '#e67e22' },
+    { label: '📡 Sin LINK',      val: sinLink,  color: '#9b59b6' },
+  ].map(r => {
+    const p = total > 0 ? Math.round((r.val/total)*100) : 0;
+    return '<div class="trend-row">' +
+      '<div style="width:105px;color:#555">' + r.label + '</div>' +
+      '<div class="trend-bar-wrap"><div class="trend-bar" style="width:' + p + '%;background:' + r.color + '"></div></div>' +
+      '<div style="width:26px;text-align:right;font-weight:700;color:' + r.color + ';font-size:11px">' + r.val + '</div>' +
+    '</div>';
+  }).join('');
 }
 
 function renderCaptura(){
@@ -24095,7 +24377,7 @@ async function generarReporte(){
 }
 
 document.getElementById('f-fecha').value = new Date().toISOString().slice(0,10);
-syncAll();
+syncAll().then(() => aplicarFiltroPeriodo());
 
 // Auto-sync every 3 minutes — only syncs HISTORIAL automatically
 // UNIDADES only syncs if Captura page is NOT active (to avoid overwriting edits)
