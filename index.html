@@ -23664,10 +23664,11 @@ function escHtml(s){ return String(s).replace(/&/g,'&amp;').replace(/"/g,'&quot;
 
 async function updateUnit(i, field, value) {
   units[i][field] = value;
-  // Save to Sheets
-  try { await apiPost({ action: 'saveUnits', data: units }); } catch(e) {}
-  // Re-render dashboard only (avoid re-rendering table which loses focus)
   renderDashboard();
+  // Save to Sheets with isSaving flag to prevent auto-sync override
+  isSaving = true;
+  try { await apiPost({ action: 'saveUnits', data: units }); } catch(e) {}
+  isSaving = false;
 }
 
 function renderCaptura(){
@@ -23900,18 +23901,28 @@ async function generarReporte(){
 document.getElementById('f-fecha').value = new Date().toISOString().slice(0,10);
 syncAll();
 
-// Auto-sync every 3 minutes
+// Auto-sync every 3 minutes — only syncs HISTORIAL automatically
+// UNIDADES only syncs if Captura page is NOT active (to avoid overwriting edits)
+let isSaving = false;
+
 setInterval(async () => {
   try {
-    const [uRes, hRes] = await Promise.all([
-      jsonp({ action: 'getUnits' }),
-      jsonp({ action: 'getHist' })
-    ]);
-    const newUnits = rowsToObjects(uRes);
-    const newHist  = rowsToObjects(hRes);
-    units = newUnits;
-    hist  = newHist;
-    renderAll();
+    // Always sync historial (needed for reincident detection)
+    const hRes = await jsonp({ action: 'getHist' });
+    hist = rowsToObjects(hRes);
+
+    // Only sync units if user is NOT on Captura page and not currently saving
+    const onCaptura = document.getElementById('page-captura').classList.contains('active');
+    if (!onCaptura && !isSaving) {
+      const uRes = await jsonp({ action: 'getUnits' });
+      units = rowsToObjects(uRes);
+      renderAll();
+    } else {
+      // Only re-render dashboard and historial, not captura
+      renderDashboard();
+      renderHistorial(hist);
+    }
+
     const now = new Date().toLocaleTimeString('es-MX', {hour:'2-digit', minute:'2-digit'});
     document.getElementById('sync-label').textContent = 'Sincronizado ' + now;
     document.getElementById('sync-dot').className = 'dot';
