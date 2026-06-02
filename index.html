@@ -23349,6 +23349,7 @@ body{font-family:Arial,sans-serif;font-size:14px;color:#1a1a1a;background:#f4f6f
           <option value="">Todos</option><option value="SI">Recuperados</option><option value="NO">No recuperados</option><option value="N/A">N/A</option>
         </select>
         <button class="btn danger" onclick="limpiarReporte()">🗑 Limpiar reporte</button>
+    <button class="btn primary" style="background:#1E8449;border-color:#1E8449;margin-left:8px" onclick="cerrarYEnviar()">📧 Cerrar y enviar al cliente</button>
       </div>
       <div class="card"><div class="scroll-x"><table class="tbl">
         <thead><tr><th>Fecha</th><th>#ECO</th><th>LBOX</th><th>FW</th><th>Últ. reporte</th><th>Días</th><th>Posic.</th><th>Desvincular</th><th>R.Lbox</th><th>R.LINK</th><th>Recuperó</th><th>Voltaje</th><th>Causa</th><th>Comentario</th><th></th></tr></thead>
@@ -23700,6 +23701,84 @@ function getHistForDash() {
   return filteredHist.length > 0 || document.getElementById('filter-periodo')?.value !== 'all'
     ? filteredHist
     : hist;
+}
+
+// ── CERRAR Y ENVIAR AL CLIENTE ───────────────────────────────────────────
+async function cerrarYEnviar() {
+  if (!units.length) { notify('No hay unidades en el reporte', 'err'); return; }
+
+  // Verificar campos mínimos
+  const incompletas = units.filter(u => !u.recupero || u.recupero === '—' || u.recupero === '');
+  if (incompletas.length > 0) {
+    if (!confirm(`⚠️ Hay ${incompletas.length} unidad(es) sin diagnóstico completo (campo Recuperó vacío).
+¿Deseas enviar el reporte de todas formas?`)) return;
+  }
+
+  const nextFolio = getNextFolio();
+  const fecha     = units[0]?.fechaEjec || new Date().toISOString().slice(0,10);
+
+  // Mostrar modal de confirmación con opción de envío
+  document.getElementById('modal-folio-numero').textContent = nextFolio;
+  document.getElementById('modal-folio-fecha').textContent  = fecha;
+  document.getElementById('modal-folio-count').textContent  = units.length;
+  document.getElementById('modal-envio-destino').textContent = 'msegura@alanis.com.mx';
+  document.getElementById('modal-envio-section').style.display = 'block';
+  document.getElementById('modal-folio').style.display = 'flex';
+  // Marcar que al confirmar también se envía
+  document.getElementById('modal-folio').dataset.enviar = 'true';
+}
+
+async function confirmarLimpiar() {
+  const folioInput = document.getElementById('folio-input').value.trim();
+  const folio      = folioInput || document.getElementById('modal-folio-numero').textContent;
+  const fecha      = units[0]?.fechaEjec || new Date().toISOString().slice(0,10);
+  const enviar     = document.getElementById('modal-folio').dataset.enviar === 'true';
+  document.getElementById('modal-folio').style.display = 'none';
+  document.getElementById('modal-folio').dataset.enviar = 'false';
+
+  const newHist = units.map(u => ({
+    fecha, folio,
+    eco: u.eco, lbox: u.lbox, fw: u.fw,
+    dias: u.dias, pos: u.pos, desv: u.desv,
+    rlbox: u.rlbox, rlink: u.rlink,
+    recupero: u.recupero, voltaje: u.voltaje,
+    causa: u.causa, comentario: u.comentario
+  }));
+
+  try {
+    // Guardar historial y limpiar unidades
+    await Promise.all([
+      apiPost({ action: 'addHist', data: newHist }),
+      apiPost({ action: 'clearUnits' })
+    ]);
+
+    // Enviar correo si se solicitó
+    if (enviar) {
+      notify('Enviando reporte por correo...', 'ok');
+      try {
+        const unitsEncoded = encodeURIComponent(JSON.stringify(units));
+        const res = await apiPost({
+          action: 'sendReport',
+          folio:  encodeURIComponent(folio),
+          fecha:  encodeURIComponent(fecha),
+          units:  unitsEncoded
+        });
+        if (res.ok) {
+          notify(`✅ Reporte ${folio} enviado a msegura@alanis.com.mx`, 'ok');
+        } else {
+          notify('Error al enviar correo: ' + (res.error || 'desconocido'), 'err');
+        }
+      } catch(e) {
+        notify('Error de conexión al enviar correo', 'err');
+      }
+    }
+
+    hist = [...hist, ...newHist];
+    units = [];
+    renderAll();
+    if (!enviar) notify(newHist.length + ' unidades guardadas con folio ' + folio, 'ok');
+
+  } catch(e) { notify('Error al limpiar. Verifica conexión.', 'err'); }
 }
 
 // ── CAMBIAR CUENTA ────────────────────────────────────────────────────────
@@ -24276,84 +24355,400 @@ async function generarReporte(){
   if(!docx||!docx.Document){notify('Error interno de librería docx','err');return;}
   const btn=document.getElementById('btn-report');
   btn.disabled=true; btn.textContent='Generando...';
-  try{
-    const fecha=units[0]?.fechaEjec||new Date().toISOString().slice(0,10);
-    const recuperadas=units.filter(u=>u.recupero==='SI');
-    const noRec=units.filter(u=>u.recupero==='NO');
-    const otros=units.filter(u=>u.recupero!=='SI'&&u.recupero!=='NO');
-    const reincU=units.filter(u=>isReinc(u.lbox));
-    const sinVolt=units.filter(u=>u.voltaje==='NO');
-    const {Document,Packer,Paragraph,TextRun,Table,TableRow,TableCell,
-      AlignmentType,BorderStyle,WidthType,ShadingType,VerticalAlign,PageOrientation}=docx;
-    const BLUE='1F5C8B';
-    const bd={style:BorderStyle.SINGLE,size:1,color:'CCCCCC'};
-    const borders={top:bd,bottom:bd,left:bd,right:bd};
-    const WS=[600,560,1100,800,820,460,590,690,590,590,690,640,1160,1420];
-    const HEADS=['Fecha ejec.','#ECO','LBOX','Firmware','Últ. reporte','Días','Posic.','Desvincular','R.Lbox','R.LINK','Recuperó','Voltaje','Causa','Comentario'];
-    const rc=v=>v==='SI'?'1A7340':v==='NO'?'A32D2D':'854F0B';
-    const dc=d=>{const n=parseInt(d)||0;return n>=8?'A32D2D':n>=4?'E69138':'1A7340';};
-    const th=(t,w)=>new TableCell({width:{size:w,type:WidthType.DXA},shading:{fill:BLUE,type:ShadingType.CLEAR},verticalAlign:VerticalAlign.CENTER,margins:{top:50,bottom:50,left:80,right:80},borders,children:[new Paragraph({alignment:AlignmentType.CENTER,children:[new TextRun({text:t,bold:true,color:'FFFFFF',size:16,font:'Arial'})]})]});
-    const td=(t,o={})=>new TableCell({width:o.w?{size:o.w,type:WidthType.DXA}:undefined,shading:o.bg?{fill:o.bg,type:ShadingType.CLEAR}:undefined,verticalAlign:VerticalAlign.CENTER,margins:{top:45,bottom:45,left:80,right:80},borders,children:[new Paragraph({alignment:AlignmentType.CENTER,children:[new TextRun({text:String(t||'—'),bold:o.bold||false,color:o.color||'1A1A1A',size:15,font:'Arial'})]})]});
-    const mkRow=(u,idx)=>new TableRow({children:[td(u.fechaEjec,{w:WS[0],bg:idx%2?'F5F5F5':null}),td('ECO '+u.eco,{w:WS[1],bg:idx%2?'F5F5F5':null,bold:true}),td(u.lbox,{w:WS[2],bg:idx%2?'F5F5F5':null}),td(u.fw,{w:WS[3],bg:idx%2?'F5F5F5':null}),td(u.fechaRep,{w:WS[4],bg:idx%2?'F5F5F5':null}),td(u.dias,{w:WS[5],bg:idx%2?'F5F5F5':null,color:dc(u.dias),bold:true}),td(u.pos,{w:WS[6],bg:idx%2?'F5F5F5':null}),td(u.desv,{w:WS[7],bg:idx%2?'F5F5F5':null}),td(u.rlbox,{w:WS[8],bg:idx%2?'F5F5F5':null}),td(u.rlink,{w:WS[9],bg:idx%2?'F5F5F5':null}),td(u.recupero,{w:WS[10],bg:idx%2?'F5F5F5':null,color:rc(u.recupero),bold:true}),td(u.voltaje,{w:WS[11],bg:idx%2?'F5F5F5':null}),td(u.causa,{w:WS[12],bg:idx%2?'F5F5F5':null}),td(u.comentario,{w:WS[13],bg:idx%2?'F5F5F5':null})]});
-    const mkTable=rows=>new Table({width:{size:WS.reduce((a,b)=>a+b,0),type:WidthType.DXA},columnWidths:WS,rows:[new TableRow({tableHeader:true,children:HEADS.map((h,i)=>th(h,WS[i]))}), ...rows.map(mkRow)]});
-    const p=(text,o={})=>new Paragraph({spacing:{before:o.before||60,after:o.after||60},children:[new TextRun({text,font:'Arial',size:o.size||20,bold:o.bold||false,color:o.color||'000000'})]});
-    const heading=(text,color=BLUE)=>new Paragraph({spacing:{before:200,after:100},children:[new TextRun({text,font:'Arial',size:24,bold:true,color})]});
-    const divider=()=>new Paragraph({spacing:{before:120,after:120},border:{bottom:{style:BorderStyle.SINGLE,size:6,color:BLUE,space:1}},children:[]});
-    const sumRows=[['Total de unidades revisadas',String(units.length),'000000'],['Recuperadas exitosamente',String(recuperadas.length),'1A7340'],['No recuperadas (revisión física)',String(noRec.length),'A32D2D'],['Con información incompleta',String(otros.length),'854F0B'],['Reincidentes de reportes anteriores',String(reincU.length),'A32D2D'],['Sin voltaje en Teltonika',String(sinVolt.length),'E69138']];
-    const sumTable = new Table({
-      width: {size: 5000, type: WidthType.DXA},
-      columnWidths: [3400, 1600],
-      rows: sumRows.map(([label, val, color], i) => new TableRow({
-        children: [
-          new TableCell({
-            borders, width: {size: 3400, type: WidthType.DXA},
-            shading: i%2 ? {fill:'F5F5F5', type: ShadingType.CLEAR} : undefined,
-            margins: {top:60, bottom:60, left:100, right:100},
-            children: [new Paragraph({children: [new TextRun({text: label, font:'Arial', size:18})]})]
-          }),
-          new TableCell({
-            borders, width: {size: 1600, type: WidthType.DXA},
-            shading: i%2 ? {fill:'F5F5F5', type: ShadingType.CLEAR} : undefined,
-            margins: {top:60, bottom:60, left:100, right:100},
-            children: [new Paragraph({alignment: AlignmentType.CENTER, children: [new TextRun({text: val, font:'Arial', size:20, bold:true, color})]})]
-          })
-        ]
-      }))
+
+  try {
+    // ── Constantes de estilo ──────────────────────────────
+    const BLUE='1A5276', BLUE_M='2874A6', BLUE_L='D6EAF8', BLUE_XL='EBF5FB';
+    const GREEN='1E8449', RED='922B21', AMBER='D35400';
+    const GRAY='F4F6F7', DARK='1C2833', MID='717D7E', WHITE='FFFFFF';
+
+    const {
+      Document, Packer, Paragraph, TextRun, Table, TableRow, TableCell,
+      AlignmentType, BorderStyle, WidthType, ShadingType, PageBreak
+    } = docx;
+
+    const bord = { style: BorderStyle.SINGLE, size: 1, color: 'D5D8DC' };
+    const borders = { top: bord, bottom: bord, left: bord, right: bord };
+    const noBord = { top:{style:BorderStyle.NONE}, bottom:{style:BorderStyle.NONE},
+                     left:{style:BorderStyle.NONE}, right:{style:BorderStyle.NONE} };
+
+    const sp = (n=100) => new Paragraph({ children:[], spacing:{ after:n } });
+    const hr = (color=BLUE, size=6) => new Paragraph({
+      border:{ bottom:{ style:BorderStyle.SINGLE, size, color, space:1 } },
+      children:[], spacing:{ after:0 }
     });
-    const children=[
-      p('Folio: PREVENCIÓN — '+fecha,{size:16,color:'888888',before:0,after:60}),
-      new Paragraph({spacing:{before:0,after:60},children:[new TextRun({text:'Informe de Prevención — Dispositivos LBOX sin Reportar',font:'Arial',size:32,bold:true,color:BLUE})]}),
-      p('Tipo: Asistencia y Soporte  |  Fecha de ejecución: '+fecha,{size:18,color:'555555',before:0,after:50}),
-      p('Para: Manuel Segura  |  CC: jpuente@alanis.com.mx, itrejo@alanis.com.mx, avillasenor@alanis.com.mx',{size:16,color:'555555',before:0,after:50}),
-      divider(),p('Estimado Manuel,',{bold:true,before:100,after:70}),
-      p('Se realizó el proceso de prevención correspondiente al '+fecha+'.',{before:0,after:140}),
-      heading('Resumen general'),sumTable,divider(),
-    ];
-    if(recuperadas.length){children.push(heading('Unidades recuperadas — '+recuperadas.length,'1A7340'));children.push(p('Reset remoto aplicado con resultado exitoso:',{before:0,after:100}));children.push(mkTable(recuperadas));children.push(divider());}
-    if(noRec.length){children.push(heading('No recuperadas — revisión física ('+noRec.length+')','A32D2D'));children.push(p('Requieren inspección en campo:',{before:0,after:100}));children.push(mkTable(noRec));if(reincU.length)children.push(new Paragraph({spacing:{before:100,after:60},children:[new TextRun({text:'Nota: '+reincU.length+' unidad(es) son reincidentes.',font:'Arial',size:18,bold:true,color:'A32D2D'})]}));children.push(divider());}
-    if(otros.length){children.push(heading('Información incompleta — '+otros.length,'854F0B'));children.push(mkTable(otros));children.push(divider());}
-    children.push(heading('Acciones requeridas'));
-    const acc=[];
-    if(noRec.length) acc.push('Enviar a revisión física: '+noRec.map(u=>'ECO '+u.eco).join(', ')+'.');
-    if(sinVolt.length) acc.push('Verificar alimentación eléctrica en: '+sinVolt.map(u=>'ECO '+u.eco).join(', ')+'.');
-    if(reincU.length) acc.push('Atención prioritaria a reincidentes: '+reincU.map(u=>'ECO '+u.eco).join(', ')+'.');
-    acc.push('Confirmar unidades retiradas de operación.');
-    acc.forEach((a,i)=>children.push(p((i+1)+'.  '+a,{before:40,after:30})));
-    children.push(divider());
-    children.push(p('Quedamos a sus órdenes.',{before:100,after:60}));
-    children.push(p('Atentamente,',{bold:true,before:60,after:40}));
-    children.push(p('Alexander Cedillo',{bold:true,before:0,after:20}));
-    children.push(p('KAM Asistencia — Inroute',{before:0,after:20,color:'555555'}));
-    children.push(p('marisol.angulo@inroute.com.mx',{before:0,after:20,color:BLUE}));
-    const docObj=new Document({styles:{default:{document:{run:{font:'Arial',size:20}}}},sections:[{properties:{page:{size:{width:15840,height:12240,orientation:PageOrientation.LANDSCAPE},margin:{top:720,right:800,bottom:720,left:800}}},children}]});
-    const blob=await Packer.toBlob(docObj);
-    const a=document.createElement('a');
-    a.href=URL.createObjectURL(blob);
-    a.download='Informe_LBOX_'+fecha.replace(/-/g,'')+'.docx';
+
+    function cell(text, fill=WHITE, bold=false, width=2000, color=DARK, size=18, align=AlignmentType.LEFT){
+      return new TableCell({
+        borders, width:{ size:width, type:WidthType.DXA },
+        shading:{ fill, type:ShadingType.CLEAR },
+        margins:{ top:80, bottom:80, left:140, right:140 },
+        children:[new Paragraph({ alignment:align, spacing:{after:0},
+          children:[new TextRun({ text:String(text||'—'), size, font:'Arial', bold, color })] })]
+      });
+    }
+
+    function p(text, opts={}){
+      return new Paragraph({
+        children:[new TextRun({ text, size:20, font:'Arial', color:DARK, ...opts })],
+        spacing:{ after:100 }
+      });
+    }
+
+    function headerRow(cols){
+      return new TableRow({
+        tableHeader: true,
+        children: cols.map(([txt,w]) => new TableCell({
+          borders,
+          width:{ size:w, type:WidthType.DXA },
+          shading:{ fill:BLUE, type:ShadingType.CLEAR },
+          margins:{ top:90, bottom:90, left:140, right:140 },
+          children:[new Paragraph({ alignment:AlignmentType.CENTER, spacing:{after:0},
+            children:[new TextRun({ text:txt, size:18, font:'Arial', bold:true, color:WHITE })] })]
+        }))
+      });
+    }
+
+    function reincCountLocal(lbox){ return hist.filter(h=>h.lbox===lbox).length; }
+    function reincBadge(n){
+      if(n>=5) return new TextRun({ text:' ⬤ reinc. ×'+n, size:16, font:'Arial', bold:true, color:RED });
+      if(n>0)  return new TextRun({ text:' ×'+n,           size:16, font:'Arial', bold:true, color:AMBER });
+      return new TextRun({ text:'', size:16 });
+    }
+
+    function cleanCausa(causa){
+      if(!causa) return '';
+      const trimmed = String(causa).trim();
+      if(!trimmed || trimmed.toLowerCase()==='causa') return '';
+      return trimmed;
+    }
+
+    function unitRow(u, i){
+      const bg = i%2===0 ? GRAY : WHITE;
+      const recColor = u.recupero==='SI' ? GREEN : RED;
+      const r = reincCountLocal(u.lbox);
+      const obs = cleanCausa(u.causa) || cleanCausa(u.comentario) || '';
+
+      return new TableRow({ children:[
+        new TableCell({
+          borders, width:{ size:1100, type:WidthType.DXA },
+          shading:{ fill:bg, type:ShadingType.CLEAR },
+          margins:{ top:80, bottom:80, left:140, right:100 },
+          children:[new Paragraph({ spacing:{after:0}, children:[
+            new TextRun({ text:'ECO '+u.eco, size:18, font:'Arial', bold:true, color:DARK }),
+            reincBadge(r)
+          ]})]
+        }),
+        cell(u.lbox || '—', bg, false, 1800, BLUE_M, 17),
+        cell(u.fw || '—',   bg, false, 1100, MID,    16),
+        cell((u.dias||'0')+'d', bg, false, 600, DARK, 18, AlignmentType.CENTER),
+        new TableCell({
+          borders, width:{ size:600, type:WidthType.DXA },
+          shading:{ fill:bg, type:ShadingType.CLEAR },
+          margins:{ top:80, bottom:80, left:80, right:80 },
+          children:[new Paragraph({ alignment:AlignmentType.CENTER, spacing:{after:0},
+            children:[new TextRun({
+              text: u.voltaje==='SI'?'SI':u.voltaje==='NO'?'NO':'—',
+              size:18, font:'Arial', bold:true,
+              color: u.voltaje==='SI'?GREEN:u.voltaje==='NO'?RED:MID
+            })]})]
+        }),
+        new TableCell({
+          borders, width:{ size:700, type:WidthType.DXA },
+          shading:{ fill:bg, type:ShadingType.CLEAR },
+          margins:{ top:80, bottom:80, left:80, right:80 },
+          children:[new Paragraph({ alignment:AlignmentType.CENTER, spacing:{after:0},
+            children:[new TextRun({
+              text: u.recupero || '—',
+              size:18, font:'Arial', bold:true, color: recColor
+            })]})]
+        }),
+        cell(obs, bg, false, 2760, DARK, 17),
+      ]});
+    }
+
+    function buildTable(unitsList){
+      const cols = [
+        ['#ECO',1100],['Serie LBOX',1800],['Firmware',1100],
+        ['Días',600],['Voltaje',600],['Recuperó',700],['Observación',2760]
+      ];
+      return new Table({
+        width:{ size:8660, type:WidthType.DXA },
+        columnWidths: cols.map(c=>c[1]),
+        rows:[ headerRow(cols), ...unitsList.map((u,i)=>unitRow(u,i)) ]
+      });
+    }
+
+    // ── Clasificación de unidades ─────────────────────────
+    const recuperadas        = units.filter(u => u.recupero==='SI');
+    const sinLinkConVoltaje  = units.filter(u => u.recupero!=='SI' && u.pos==='NO' && u.voltaje==='SI');
+    const sinVoltaje         = units.filter(u => u.recupero!=='SI' && u.voltaje==='NO');
+    const reincidentes       = units.filter(u => reincCountLocal(u.lbox) >= 5);
+
+    const total    = units.length;
+    const nRecup   = recuperadas.length;
+    const nNoRecup = units.filter(u => u.recupero==='NO').length;
+
+    // ── Folio y fecha ──────────────────────────────────────
+    let folio = getNextFolio();
+    const fechaISO = units[0]?.fechaEjec || new Date().toISOString().slice(0,10);
+    const fechaLarga = new Date(fechaISO + 'T12:00:00').toLocaleDateString('es-MX',
+      { year:'numeric', month:'long', day:'numeric' });
+
+    // ── KPI Table ──────────────────────────────────────────
+    function kpiTable(){
+      const items = [
+        ['Total revisadas', total,   BLUE_M],
+        ['Recuperadas',     nRecup,  GREEN],
+        ['No recuperadas',  nNoRecup, RED],
+        ['Reincidentes (5+)', reincidentes.length, AMBER],
+      ];
+      const w = Math.floor(9360 / items.length);
+      return new Table({
+        width:{ size:9360, type:WidthType.DXA },
+        columnWidths: items.map(()=>w),
+        rows:[new TableRow({ children: items.map(([lbl,val,col]) =>
+          new TableCell({
+            borders,
+            width:{ size:w, type:WidthType.DXA },
+            shading:{ fill:BLUE_XL, type:ShadingType.CLEAR },
+            margins:{ top:120, bottom:120, left:100, right:100 },
+            children:[
+              new Paragraph({ alignment:AlignmentType.CENTER, spacing:{after:20},
+                children:[new TextRun({ text:String(val), size:44, font:'Arial', bold:true, color:col })] }),
+              new Paragraph({ alignment:AlignmentType.CENTER, spacing:{after:0},
+                children:[new TextRun({ text:lbl, size:16, font:'Arial', color:MID })] }),
+            ]
+          })
+        )})]
+      });
+    }
+
+    // ── Sección de tabla con título ──────────────────────
+    function seccionTabla(numero, color, titulo, descripcion, lista, mensajeVacio){
+      const children = [
+        hr(color),
+        sp(80),
+        new Paragraph({ spacing:{ before:0, after:80 }, children:[
+          new TextRun({ text:'Tabla '+numero+' — ', size:24, font:'Arial', bold:true, color }),
+          new TextRun({ text:titulo, size:24, font:'Arial', bold:true, color:DARK }),
+        ]}),
+        p(descripcion),
+        sp(80),
+      ];
+      if(lista.length){
+        children.push(buildTable(lista));
+      } else {
+        children.push(p(mensajeVacio, { color:MID, italics:true }));
+      }
+      children.push(sp(200));
+      return children;
+    }
+
+    // ── DOCUMENTO ─────────────────────────────────────────
+    const doc = new Document({
+      styles:{ default:{ document:{ run:{ font:'Arial', size:20 } } } },
+      sections:[{
+        properties:{ page:{ size:{ width:12240, height:15840 },
+          margin:{ top:900, right:900, bottom:900, left:900 } } },
+        children:[
+
+          // ── ENCABEZADO ─────────────────────────────────
+          new Table({
+            width:{ size:9360, type:WidthType.DXA },
+            columnWidths:[2400, 6960],
+            rows:[new TableRow({ children:[
+              new TableCell({
+                borders: noBord,
+                width:{ size:2400, type:WidthType.DXA },
+                shading:{ fill:BLUE, type:ShadingType.CLEAR },
+                margins:{ top:200, bottom:200, left:200, right:200 },
+                children:[
+                  new Paragraph({ alignment:AlignmentType.CENTER, spacing:{after:40},
+                    children:[new TextRun({ text:'INROUTE', size:36, font:'Arial', bold:true, color:WHITE })] }),
+                  new Paragraph({ alignment:AlignmentType.CENTER, spacing:{after:0},
+                    children:[new TextRun({ text:'Telematics', size:20, font:'Arial', color:'B3D4F0' })] }),
+                ]
+              }),
+              new TableCell({
+                borders: noBord,
+                width:{ size:6960, type:WidthType.DXA },
+                shading:{ fill:BLUE_L, type:ShadingType.CLEAR },
+                margins:{ top:180, bottom:180, left:240, right:200 },
+                children:[
+                  new Paragraph({ spacing:{after:40},
+                    children:[new TextRun({ text:'Reporte de Prevención Proactiva LBOX',
+                      size:28, font:'Arial', bold:true, color:BLUE })] }),
+                  new Paragraph({ spacing:{after:20},
+                    children:[
+                      new TextRun({ text:'Folio: ', size:19, font:'Arial', color:MID }),
+                      new TextRun({ text:folio, size:19, font:'Arial', bold:true, color:BLUE }),
+                      new TextRun({ text:'     Fecha: ', size:19, font:'Arial', color:MID }),
+                      new TextRun({ text:fechaLarga, size:19, font:'Arial', bold:true, color:DARK }),
+                    ]
+                  }),
+                  new Paragraph({ spacing:{after:0},
+                    children:[new TextRun({ text:'Grupo Alanis  ·  Ciclo de prevención',
+                      size:18, font:'Arial', color:BLUE_M })] }),
+                ]
+              }),
+            ]})]
+          }),
+          sp(160),
+
+          // ── DATOS DEL REPORTE ──────────────────────────
+          new Table({
+            width:{ size:9360, type:WidthType.DXA },
+            columnWidths:[2200,2580,2200,2380],
+            rows:[
+              new TableRow({ children:[
+                cell('Cliente:',          GRAY, true, 2200, MID),
+                cell('Grupo Alanis',      WHITE, false, 2580, DARK),
+                cell('Responsable:',      GRAY, true, 2200, MID),
+                cell('Alexander Cedillo', WHITE, false, 2380, DARK),
+              ]}),
+              new TableRow({ children:[
+                cell('Periodo de revisión:', GRAY, true, 2200, MID),
+                cell(fechaLarga,             WHITE, false, 2580, DARK),
+                cell('Contacto Inroute:',    GRAY, true, 2200, MID),
+                cell('Consultor07@inroute.com.mx', WHITE, false, 2380, DARK),
+              ]}),
+              new TableRow({ children:[
+                cell('Total de unidades revisadas:', GRAY, true, 2200, MID),
+                cell(String(total),     WHITE, false, 2580, DARK),
+                cell('Folio:',          GRAY, true, 2200, MID),
+                cell(folio,             WHITE, true, 2380, BLUE_M),
+              ]}),
+            ]
+          }),
+          sp(180),
+
+          // ── KPIs ───────────────────────────────────────
+          kpiTable(),
+          sp(200),
+
+          // ── INTRODUCCIÓN ───────────────────────────────
+          hr(),
+          sp(100),
+          p('En atención al servicio de prevención proactiva de dispositivos LBOX instalados en su flota, a continuación se presenta el reporte correspondiente al ciclo del '+fechaLarga+'. Se revisaron en total '+total+' unidades, de las cuales '+nRecup+' recuperaron comunicación satisfactoriamente.'),
+          sp(80),
+          p('A continuación se detallan las unidades recuperadas y las que requieren atención, clasificadas según su condición de voltaje Teltonika, con el objetivo de orientar la prioridad de atención en campo.'),
+          sp(160),
+
+          // ── TABLA 1: RECUPERADAS ────────────────────────
+          ...seccionTabla(1, GREEN,
+            'Unidades recuperadas satisfactoriamente',
+            'Las siguientes '+recuperadas.length+' unidades recuperaron comunicación con la plataforma de forma satisfactoria durante este ciclo de prevención.',
+            recuperadas,
+            'No se registraron unidades recuperadas en este ciclo.'
+          ),
+
+          // ── TABLA 2: SIN LINK CON VOLTAJE ──────────────
+          new Paragraph({ children:[new PageBreak()] }),
+          ...seccionTabla(2, AMBER,
+            'Unidades sin comunicación LINK con voltaje presente',
+            'Las siguientes '+sinLinkConVoltaje.length+' unidades no reportan posicionamiento LINK; sin embargo, el voltaje de alimentación Teltonika es correcto. Este escenario sugiere una posible falla de comunicación, configuración o firmware que puede abordarse mediante intervención remota o revisión en sitio sin necesidad de revisión eléctrica.',
+            sinLinkConVoltaje,
+            'No se registraron unidades en esta categoría.'
+          ),
+
+          // ── TABLA 3: SIN VOLTAJE ───────────────────────
+          new Paragraph({ children:[new PageBreak()] }),
+          ...seccionTabla(3, RED,
+            'Unidades sin voltaje de alimentación Teltonika',
+            'Las siguientes '+sinVoltaje.length+' unidades no registran voltaje en el dispositivo Teltonika asociado. Esta condición impide la operación del LBOX y requiere revisión física prioritaria en campo para determinar si se trata de una falla eléctrica del vehículo, del arnés de conexión o del propio dispositivo.',
+            sinVoltaje,
+            'No se registraron unidades en esta categoría.'
+          ),
+
+          // ── REINCIDENTES ───────────────────────────────
+          hr(BLUE_M),
+          sp(80),
+          new Paragraph({ spacing:{ before:0, after:80 }, children:[
+            new TextRun({ text:'Unidades reincidentes (5 o más apariciones en historial)',
+              size:22, font:'Arial', bold:true, color:BLUE_M }),
+          ]}),
+          p('Se identificaron '+reincidentes.length+' unidades con historial de falla recurrente. Se recomienda priorizar su inspección física y considerar el reemplazo preventivo del dispositivo en caso de no lograr recuperación sostenida.'),
+          sp(80),
+          reincidentes.length
+            ? buildTable(reincidentes)
+            : p('No se registraron unidades reincidentes en este ciclo.', { color:MID, italics:true }),
+          sp(200),
+
+          // ── OBSERVACIONES ──────────────────────────────
+          hr(),
+          sp(100),
+          new Paragraph({ spacing:{ before:0, after:80 },
+            children:[new TextRun({ text:'Observaciones generales',
+              size:22, font:'Arial', bold:true, color:BLUE })] }),
+          ...[
+            'Las unidades clasificadas en Tabla 2 deberán ser programadas para revisión remota o en campo durante la semana en curso, con prioridad en aquellas con mayor número de días sin reporte.',
+            'Las unidades clasificadas en Tabla 3 requieren visita física a la brevedad. Se sugiere coordinar con el área de mantenimiento de flota para garantizar la intervención oportuna.',
+            'Las unidades reincidentes han presentado fallas repetidas en ciclos anteriores. Se recomienda evaluar el reemplazo preventivo del dispositivo LBOX y/o una revisión profunda del arnés eléctrico del vehículo.',
+            'Inroute permanece disponible para brindar soporte adicional y coordinar las acciones correctivas que se requieran.',
+          ].map(txt => new Paragraph({
+            indent:{ left:300 },
+            spacing:{ after:80 },
+            children:[
+              new TextRun({ text:'▸  ', size:20, font:'Arial', color:BLUE_M, bold:true }),
+              new TextRun({ text:txt, size:19, font:'Arial', color:DARK }),
+            ]
+          })),
+          sp(200),
+
+          // ── FIRMA ──────────────────────────────────────
+          hr(BLUE, 4),
+          sp(120),
+          new Table({
+            width:{ size:9360, type:WidthType.DXA },
+            columnWidths:[4680,4680],
+            rows:[new TableRow({ children:[
+              new TableCell({
+                borders: noBord,
+                width:{ size:4680, type:WidthType.DXA },
+                children:[
+                  p('Alexander Cedillo', { bold:true, color:DARK }),
+                  p('KAM Asistencia  ·  Inroute Telematics', { color:MID }),
+                  p('Consultor07@inroute.com.mx', { color:BLUE_M }),
+                ]
+              }),
+              new TableCell({
+                borders: noBord,
+                width:{ size:4680, type:WidthType.DXA },
+                children:[
+                  new Paragraph({ alignment:AlignmentType.RIGHT, spacing:{after:60},
+                    children:[new TextRun({ text:'Inroute Telematics',
+                      size:20, font:'Arial', bold:true, color:BLUE })] }),
+                  new Paragraph({ alignment:AlignmentType.RIGHT, spacing:{after:60},
+                    children:[new TextRun({ text:'Servicio de Prevención Proactiva LBOX',
+                      size:18, font:'Arial', color:MID })] }),
+                  new Paragraph({ alignment:AlignmentType.RIGHT, spacing:{after:0},
+                    children:[new TextRun({ text:fechaLarga, size:18, font:'Arial', color:MID })] }),
+                ]
+              }),
+            ]})]
+          }),
+        ]
+      }]
+    });
+
+    const blob = await Packer.toBlob(doc);
+    const url  = URL.createObjectURL(blob);
+    const a    = document.createElement('a');
+    a.href     = url;
+    a.download = 'Reporte_Prevencion_LBOX_' + folio + '.docx';
+    document.body.appendChild(a);
     a.click();
-    notify('Reporte descargado ✓','ok');
-  } catch(e){ notify('Error: '+e.message,'err'); }
-  btn.disabled=false; btn.textContent='⬇ Generar .docx';
+    setTimeout(() => { document.body.removeChild(a); URL.revokeObjectURL(url); }, 100);
+
+    notify('Reporte ' + folio + ' generado correctamente', 'ok');
+
+  } catch(e) {
+    console.error(e);
+    notify('Error al generar reporte: ' + e.message, 'err');
+  }
+  btn.disabled = false;
+  btn.textContent = '⬇ Generar .docx';
 }
 
 document.getElementById('f-fecha').value = new Date().toISOString().slice(0,10);
@@ -24402,12 +24797,15 @@ setInterval(async () => {
       <div style="font-size:11px;color:#888;margin-bottom:4px">Folio asignado automáticamente</div>
       <div id="modal-folio-numero" style="font-size:28px;font-weight:800;color:#185FA5;letter-spacing:1px"></div>
     </div>
-    <div style="margin-bottom:20px">
+    <div style="margin-bottom:14px">
       <label style="font-size:12px;color:#666;display:block;margin-bottom:6px">¿Quieres usar un folio diferente? (opcional)</label>
       <input id="folio-input" type="text" placeholder="ej. INC-42260" style="width:100%;padding:8px 12px;border:1px solid #d0d0d0;border-radius:6px;font-size:13px;box-sizing:border-box">
     </div>
+    <div id="modal-envio-section" style="display:none;background:#d5f5e3;border-radius:8px;padding:12px;margin-bottom:14px;font-size:12px;color:#1E8449">
+      📧 Se enviará el reporte por correo a <strong id="modal-envio-destino"></strong> al confirmar.
+    </div>
     <div style="display:flex;gap:10px">
-      <button class="btn" style="flex:1" onclick="document.getElementById('modal-folio').style.display='none'">Cancelar</button>
+      <button class="btn" style="flex:1" onclick="document.getElementById('modal-folio').style.display='none';document.getElementById('modal-envio-section').style.display='none'">Cancelar</button>
       <button class="btn primary" style="flex:2" onclick="confirmarLimpiar()">✅ Confirmar y cerrar reporte</button>
     </div>
   </div>
