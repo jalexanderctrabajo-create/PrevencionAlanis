@@ -23325,6 +23325,7 @@ body{font-family:'Barlow',-apple-system,sans-serif;font-size:14px;color:var(--in
       <button class="btn" onclick="document.getElementById('input-xlsx').click()" title="Importar desde Excel guardado">📥 Excel</button>
       <input type="file" id="input-xlsx" accept=".xlsm,.xlsx" style="display:none" onchange="importarExcel(this)">
       <button class="btn primary" onclick="generarReporte()" id="btn-report">⬇ Generar .docx</button>
+      <button class="btn" onclick="diagnostico()" style="background:#fff3cd;border-color:#ffc107">🔍 Diagnóstico</button>
     </div>
   </div>
   <div class="content">
@@ -23575,6 +23576,23 @@ function apiPost(body) {
 
 
 /* — Helpers de transformación de datos — */
+// Normaliza cualquier formato de fecha a 'YYYY-MM-DD'
+function normFecha(val){
+  if(!val) return '';
+  const s = String(val).trim();
+  // Ya está en formato ISO YYYY-MM-DD
+  if(/^\d{4}-\d{2}-\d{2}/.test(s)) return s.slice(0,10);
+  // Formato Date largo: "Sat Jun 14 2025 ..." o cualquier cosa parseable
+  const d = new Date(s);
+  if(!isNaN(d)){
+    const y = d.getFullYear();
+    const m = String(d.getMonth()+1).padStart(2,'0');
+    const day = String(d.getDate()).padStart(2,'0');
+    return y+'-'+m+'-'+day;
+  }
+  return s;
+}
+
 function rowsToObjects(rows){
   if(!rows || !Array.isArray(rows) || rows.length < 2) return [];
   const [headers, ...data] = rows;
@@ -23848,7 +23866,7 @@ function aplicarFiltroPeriodo() {
   // Filter historial by date range
   filteredHist = hist.filter(h => {
     if (!h.fecha) return false;
-    const d = new Date(h.fecha);
+    const d = new Date(normFecha(h.fecha));
     if (desde && d < desde) return false;
     if (hasta && d > hasta) return false;
     return true;
@@ -24038,7 +24056,7 @@ function renderGraficaMensual() {
   const h4d = getHistForDash();
   h4d.forEach(h => {
     if (!h.fecha) return;
-    const key = h.fecha.slice(0,7); // YYYY-MM
+    const key = normFecha(h.fecha).slice(0,7); // YYYY-MM
     if (!monthly[key]) monthly[key] = { total:0, recuperados:0 };
     monthly[key].total++;
     if ((h.recupero||'').toUpperCase() === 'SI') monthly[key].recuperados++;
@@ -24104,7 +24122,7 @@ function renderGraficaExito(){
   const monthly = {};
   hist.forEach(h => {
     if(!h.fecha) return;
-    const key = h.fecha.slice(0,7);
+    const key = normFecha(h.fecha).slice(0,7);
     if(!monthly[key]) monthly[key] = { rev:0, rec:0 };
     monthly[key].rev++;
     if((h.recupero||'').toUpperCase()==='SI') monthly[key].rec++;
@@ -24182,6 +24200,28 @@ async function syncAll(){
     notify('Error de conexión. Verifica que republicaste el Apps Script.', 'err', 5000);
   }
   document.getElementById('btn-sync').disabled = false;
+}
+
+function diagnostico(){
+  let msg = '=== DIAGNÓSTICO ===\n\n';
+  msg += 'HISTORIAL: ' + hist.length + ' registros\n';
+  if(hist.length > 0){
+    msg += 'Campos del primer registro:\n';
+    msg += JSON.stringify(Object.keys(hist[0])) + '\n\n';
+    msg += 'Ejemplo registro 1:\n' + JSON.stringify(hist[0], null, 1) + '\n\n';
+  }
+  msg += 'UNIDADES (reporte activo): ' + units.length + ' registros\n';
+  if(units.length > 0){
+    msg += 'Campos: ' + JSON.stringify(Object.keys(units[0])) + '\n';
+    msg += 'Ejemplo: ' + JSON.stringify(units[0], null, 1) + '\n';
+  }
+  // Cuántos hist tienen fecha y recupero válidos
+  const conFecha = hist.filter(h => h.fecha).length;
+  const conRec = hist.filter(h => (h.recupero||'').toUpperCase()==='SI').length;
+  msg += '\nHist con campo fecha: ' + conFecha + '\n';
+  msg += 'Hist con recupero=SI: ' + conRec;
+  alert(msg);
+  console.log(msg);
 }
 
 function renderAll(){
@@ -24317,6 +24357,13 @@ function renderDashboard(){
     <div class="bar-group"><div class="bar-val" style="color:#2d7a3a">${b1}</div><div class="bar" style="height:${h(b1)}px;background:#5cb85c"></div><div class="bar-label">1–3d</div></div>
     <div class="bar-group"><div class="bar-val" style="color:#b35900">${b2}</div><div class="bar" style="height:${h(b2)}px;background:#f0ad4e"></div><div class="bar-label">4–7d</div></div>
     <div class="bar-group"><div class="bar-val" style="color:#c0392b">${b3}</div><div class="bar" style="height:${h(b3)}px;background:#d9534f"></div><div class="bar-label">8+d</div></div>`;
+
+  // Redibujar gráficas y widgets del panel derecho
+  renderGraficaMensual();
+  renderGraficaExito();
+  renderWidgetReincTop();
+  renderWidgetCausas();
+  renderWidgetProgreso();
 }
 
 function sel(field, i, val, opts) {
@@ -24345,16 +24392,11 @@ async function updateUnit(i, field, value) {
     renderCaptura();
   }
 
-  renderDashboard();
+  renderDashboard();  // ya redibuja gráficas y widgets
   // Save to Sheets with isSaving flag to prevent auto-sync override
   isSaving = true;
   try { await apiPost({ action: 'saveUnits', data: units }); } catch(e) {}
   isSaving = false;
-  renderGraficaMensual();
-  renderGraficaExito();
-  renderWidgetReincTop();
-  renderWidgetCausas();
-  renderWidgetProgreso();
 }
 
 // ── WIDGET 1: TOP 10 REINCIDENTES ────────────────────────────────────────
