@@ -23862,10 +23862,11 @@ function aplicarFiltroPeriodo() {
 }
 
 function getHistForDash() {
-  // Use filtered if set, otherwise all
-  return filteredHist.length > 0 || document.getElementById('filter-periodo')?.value !== 'all'
-    ? filteredHist
-    : hist;
+  // El filtro de período fue removido del dashboard.
+  // Si existe el selector y hay un filtro activo, usa filteredHist; si no, usa todo el historial.
+  const sel = document.getElementById('filter-periodo');
+  if (sel && sel.value !== 'all' && filteredHist.length > 0) return filteredHist;
+  return hist;
 }
 
 // ── CERRAR Y ENVIAR AL CLIENTE ───────────────────────────────────────────
