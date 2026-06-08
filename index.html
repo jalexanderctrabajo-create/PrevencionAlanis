@@ -23607,14 +23607,42 @@ async function fetchLiveData() {
 
     const lboxUnits = lboxRes.data || [];
 
-    importData = lboxUnits.filter(u => parseInt(u.dias) >= 1);
+    // Calcula días sin reportar desde fechaDesicronizacion
+    function calcDiasDesde(fechaStr){
+      if(!fechaStr) return 0;
+      const f = new Date(fechaStr.replace(' ','T'));
+      if(isNaN(f)) return 0;
+      return Math.floor((Date.now() - f.getTime()) / 86400000);
+    }
+
+    // Mapea los campos reales de la API LBOX al formato de la app.
+    // Filtra solo los NO sincronizados (sincronizado === '0') = sin reportar.
+    importData = lboxUnits
+      .filter(u => String(u.sincronizado) === '0')
+      .map(u => {
+        const dias = calcDiasDesde(u.fechaDesicronizacion);
+        return {
+          eco:       String(u.objectno || ''),
+          lbox:      u.serieLBOX || '',
+          fw:        u.firmwareVersion || '',
+          fechaRep:  u.fechaDesicronizacion || u.fecha || '',
+          dias:      String(dias),
+          modo:      u.modo || '',
+          vinculado: u.vinculado || '',
+        };
+      })
+      .filter(u => u.eco && parseInt(u.dias) >= 1);
+
     importData.sort((a, b) => parseInt(b.dias) - parseInt(a.dias));
+
+    const totalDisp = lboxUnits.length;
+    const sinRep = lboxUnits.filter(u => String(u.sincronizado) === '0').length;
 
     document.getElementById('import-count').textContent = importData.length;
     document.getElementById('import-min-dias').value = '1';
     filtrarImport();
     document.getElementById('modal-import').style.display = 'flex';
-    notify('Datos obtenidos: ' + lboxUnits.length + ' dispositivos, ' + importData.length + ' con 1+ dias', 'ok', 5000);
+    notify('LBOX: ' + totalDisp + ' dispositivos, ' + sinRep + ' sin sincronizar, ' + importData.length + ' con 1+ días', 'ok', 6000);
 
   } catch(err) {
     notify('Error: ' + err.message, 'err', 6000);
@@ -24142,8 +24170,9 @@ async function syncAll(){
       jsonp({action:'getUnits'}),
       jsonp({action:'getHist'})
     ]);
-    units = rowsToObjects(uRes);
-    hist  = rowsToObjects(hRes);
+    // v5 devuelve {ok:true, units:[...]} y {ok:true, hist:[...]} como objetos
+    units = (uRes && uRes.units) ? uRes.units : rowsToObjects(uRes);
+    hist  = (hRes && hRes.hist)  ? hRes.hist  : rowsToObjects(hRes);
     setSyncStatus('ok');
     renderAll();
     notify('Sincronizado — '+units.length+' unidades', 'ok');
@@ -25071,13 +25100,13 @@ setInterval(async () => {
   try {
     // Always sync historial (needed for reincident detection)
     const hRes = await jsonp({ action: 'getHist' });
-    hist = rowsToObjects(hRes);
+    hist = (hRes && hRes.hist) ? hRes.hist : rowsToObjects(hRes);
 
     // Only sync units if user is NOT on Captura page and not currently saving
     const onCaptura = document.getElementById('page-captura').classList.contains('active');
     if (!onCaptura && !isSaving) {
       const uRes = await jsonp({ action: 'getUnits' });
-      units = rowsToObjects(uRes);
+      units = (uRes && uRes.units) ? uRes.units : rowsToObjects(uRes);
       renderAll();
     } else {
       // Only re-render dashboard and historial, not captura
