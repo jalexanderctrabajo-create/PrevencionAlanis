@@ -23276,7 +23276,7 @@ body{font-family:'Barlow',-apple-system,sans-serif;font-size:14px;color:var(--in
         <thead><tr>
           <th style="width:32px"><input type="checkbox" id="chk-all" onchange="toggleAll(this)"></th>
           <th>#ECO</th><th>LBOX</th><th>Firmware</th>
-          <th>Últ. reporte</th><th>Días</th><th>Posic. LINK</th><th>Modo</th>
+          <th>Últ. reporte</th><th title="Días desde desincronización (método app)">Días app</th><th title="Días desde último contacto (método Excel viejo)" style="background:#f0f4ff">Días Excel</th><th>Posic. LINK</th><th>Modo</th>
         </tr></thead>
         <tbody id="tbody-import"></tbody>
       </table>
@@ -23474,6 +23474,10 @@ const CONFIG = {
     usuario:  'its',
     password: 'Inroute2018',
   },
+
+  // Ajuste de zona horaria en horas (como las celdas H2/C13 del Excel viejo).
+  // 0 = sin ajuste. Si el servidor LBOX está en otra zona, ajusta aquí.
+  TZ_AJUSTE_HORAS: 0,
 };
 
 // Cargar credenciales guardadas en sesión (si las hay)
@@ -23623,7 +23627,22 @@ async function fetchLiveData() {
 
     if (lboxRes.error) throw new Error('LBOX: ' + lboxRes.error);
 
-    const lboxUnits = lboxRes.data || [];
+    // La respuesta puede venir como array directo, o anidada en .data/.lboxes/.result.
+    // Detecta el array de dispositivos sin importar la estructura exacta.
+    let lboxUnits = lboxRes.data;
+    if (!Array.isArray(lboxUnits)) {
+      if (lboxUnits && Array.isArray(lboxUnits.lboxes))      lboxUnits = lboxUnits.lboxes;
+      else if (lboxUnits && Array.isArray(lboxUnits.data))   lboxUnits = lboxUnits.data;
+      else if (lboxUnits && Array.isArray(lboxUnits.result)) lboxUnits = lboxUnits.result;
+      else if (Array.isArray(lboxRes))                        lboxUnits = lboxRes;
+      else lboxUnits = [];
+    }
+    if (!lboxUnits.length) {
+      notify('La API LBOX no devolvió dispositivos. Verifica las credenciales de la cuenta.', 'err', 6000);
+      document.getElementById('btn-live').disabled = false;
+      document.getElementById('btn-live').textContent = '🔄 Obtener datos en vivo';
+      return;
+    }
 
     // Calcula días sin reportar desde fechaDesicronizacion
     function calcDiasDesde(fechaStr){
@@ -23633,20 +23652,35 @@ async function fetchLiveData() {
       return Math.floor((Date.now() - f.getTime()) / 86400000);
     }
 
+    // Cálculo estilo-Excel: días desde el campo 'fecha' (último contacto)
+    // con ajuste opcional de zona horaria, replicando el macro VBA viejo.
+    function calcDiasExcel(fechaStr){
+      if(!fechaStr) return 0;
+      const f = new Date(String(fechaStr).replace(' ','T'));
+      if(isNaN(f)) return 0;
+      const ahora = new Date();
+      let ms = ahora.getTime() - f.getTime();
+      ms -= (CONFIG.TZ_AJUSTE_HORAS * 3600000);  // ajuste H2/C13 del Excel
+      return Math.floor(ms / 86400000);
+    }
+
     // Mapea los campos reales de la API LBOX al formato de la app.
     // Filtra solo los NO sincronizados (sincronizado === '0') = sin reportar.
     importData = lboxUnits
       .filter(u => String(u.sincronizado) === '0')
       .map(u => {
-        const dias = calcDiasDesde(u.fechaDesicronizacion);
+        const dias = calcDiasDesde(u.fechaDesicronizacion);       // método app
+        const diasExcel = calcDiasExcel(u.fecha);                  // método Excel viejo
         return {
-          eco:       String(u.objectno || ''),
-          lbox:      u.serieLBOX || '',
-          fw:        u.firmwareVersion || '',
-          fechaRep:  u.fechaDesicronizacion || u.fecha || '',
-          dias:      String(dias),
-          modo:      u.modo || '',
-          vinculado: u.vinculado || '',
+          eco:        String(u.objectno || ''),
+          lbox:       u.serieLBOX || '',
+          fw:         u.firmwareVersion || '',
+          fechaRep:   u.fechaDesicronizacion || u.fecha || '',
+          dias:       String(dias),
+          diasExcel:  String(diasExcel),
+          fechaContacto: u.fecha || '',
+          modo:       u.modo || '',
+          vinculado:  u.vinculado || '',
         };
       })
       .filter(u => u.eco && parseInt(u.dias) >= 1);
@@ -23758,10 +23792,16 @@ function filtrarImport() {
 
 function renderImportTable() {
   const tbody = document.getElementById('tbody-import');
-  if (!importFiltered.length) { tbody.innerHTML = '<tr><td colspan="8" class="empty">Sin resultados</td></tr>'; return; }
+  if (!importFiltered.length) { tbody.innerHTML = '<tr><td colspan="9" class="empty">Sin resultados</td></tr>'; return; }
   tbody.innerHTML = importFiltered.map((u, i) => {
     const reinc = isReinc(u.lbox);
     const dc = parseInt(u.dias) >= 10 ? '#c0392b' : parseInt(u.dias) >= 5 ? '#b35900' : '#2d7a3a';
+    // Comparación de métodos: app (fechaDesicronizacion) vs Excel (fecha)
+    const dApp = parseInt(u.dias) || 0;
+    const dExc = parseInt(u.diasExcel) || 0;
+    const difiere = Math.abs(dApp - dExc) > 1;  // tolerancia de 1 día
+    const cmpColor = difiere ? '#c0392b' : '#2d7a3a';
+    const cmpBg = difiere ? '#fdecea' : '#eafaf1';
     return '<tr style="background:' + (i%2?'#f9f9f9':'#fff') + '">' +
       '<td style="text-align:center"><input type="checkbox" class="chk-import" data-idx="' + i + '" onchange="updateSelected()"></td>' +
       '<td><b>ECO ' + u.eco + '</b>' + (reinc ? '<span class="tag-reinc">reinc.</span>' : '') + '</td>' +
@@ -23769,6 +23809,8 @@ function renderImportTable() {
       '<td style="font-size:10px;color:#888">' + u.fw + '</td>' +
       '<td style="font-size:10px;white-space:nowrap">' + u.fechaRep + '</td>' +
       '<td style="font-weight:700;color:' + dc + '">' + u.dias + 'd</td>' +
+      '<td style="text-align:center;background:' + cmpBg + '"><span style="font-weight:700;color:' + cmpColor + '">' + dExc + 'd</span>' +
+        (difiere ? '<br><span style="font-size:9px;color:#c0392b">Δ' + Math.abs(dApp-dExc) + 'd</span>' : '') + '</td>' +
       '<td style="text-align:center">' + (u.pos==='SI' ? '<span class="badge si">SI</span>' : u.pos==='NO' ? '<span class="badge no">NO</span>' : '<span class="badge na">—</span>') + '</td>' +
       '<td style="font-size:10px">' + u.modo + '</td>' +
     '</tr>';
