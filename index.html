@@ -23428,105 +23428,7 @@ body{font-family:'Barlow',-apple-system,sans-serif;font-size:14px;color:var(--in
     </div>
   </div>
 </div>
-  <!-- Modal Validacion Webfleet -->
-<div id="modal-webfleet" style="display:none;position:fixed;inset:0;background:rgba(0,0,0,0.5);z-index:105;align-items:center;justify-content:center">
-  <div style="background:#fff;border-radius:12px;padding:24px;width:800px;max-width:95vw;max-height:85vh;display:flex;flex-direction:column;gap:14px">
-    
-    <!-- Encabezado del Modal -->
-    <div style="display:flex;justify-content:space-between;align-items:center">
-      <div style="font-size:15px;font-weight:700;color:#185FA5">🛰️ Validación en Vivo Webfleet</div>
-      <button onclick="document.getElementById('modal-webfleet').style.display='none'" style="background:none;border:none;font-size:18px;cursor:pointer;color:#888">✕</button>
-    </div>
-    
-    <!-- Controles y Filtros -->
-    <div style="display:flex;gap:8px;align-items:center;flex-wrap:wrap">
-      <button class="btn success" onclick="obtenerTelemetriaMasiva()" id="btn-fetch-massive">🔄 Ejecutar Consulta Masiva</button>
-      
-      <select id="wf-filtro" onchange="wfFiltroActivo=this.value; renderTablaWebfleet()" style="font-size:12px;padding:5px 8px;border:1px solid #d0d0d0;border-radius:7px;margin-left:auto">
-        <option value="todos">Todos los estados</option>
-        <option value="activo">Solo Activos (0-15m)</option>
-        <option value="moderado">Moderados (16-60m)</option>
-        <option value="perdida">Posible Pérdida / Jamming (+60m)</option>
-      </select>
-    </div>
-<!-- Modal de Webfleet (Estructura HTML necesaria para los inputs) -->
-<div id="modal-webfleet" style="display:none; position:fixed; top:0; left:0; width:100%; height:100%; background:rgba(0,0,0,0.5); z-index:1000; justify-content:center; align-items:center;">
-  <div style="background:#fff; padding:24px; border-radius:8px; width:600px; max-width:95%; box-shadow:0 4px 15px rgba(0,0,0,0.2); font-family:Arial,sans-serif;">
-    <h3 style="margin-top:0; color:#1A5276;">Validación de Posición Webfleet</h3>
-    <p style="font-size:13px; color:#555;">Unidades base detectadas para validación: <strong id="wf-count-base">0</strong></p>
-    
-    <!-- Campos de credenciales -->
-    <div style="display: grid; grid-template-columns: 1fr 1fr; gap: 10px; margin-bottom: 12px;">
-      <div>
-        <label style="font-size:12px; font-weight:bold; display:block; margin-bottom:4px;">Cuenta Webfleet (account):</label>
-        <input type="text" id="wf-account" style="width:100%; padding:6px; box-sizing:border-box; border:1px solid #ccc; border-radius:4px;">
-      </div>
-      <div>
-        <label style="font-size:12px; font-weight:bold; display:block; margin-bottom:4px;">Usuario (username):</label>
-        <input type="text" id="wf-username" style="width:100%; padding:6px; box-sizing:border-box; border:1px solid #ccc; border-radius:4px;">
-      </div>
-    </div>
-    
-    <div style="display: grid; grid-template-columns: 1fr 1fr; gap: 10px; margin-bottom: 15px;">
-      <div>
-        <label style="font-size:12px; font-weight:bold; display:block; margin-bottom:4px;">Contraseña (password):</label>
-        <input type="password" id="wf-password" style="width:100%; padding:6px; box-sizing:border-box; border:1px solid #ccc; border-radius:4px;">
-      </div>
-      <div>
-        <label style="font-size:12px; font-weight:bold; display:block; margin-bottom:4px;">API Key (apikey):</label>
-        <input type="text" id="wf-apikey" style="width:100%; padding:6px; box-sizing:border-box; border:1px solid #ccc; border-radius:4px;">
-      </div>
-    </div>
-
-    <!-- Botones de acción principales -->
-    <div style="display: flex; justify-content: space-between; align-items: center; margin-bottom: 15px;">
-      <button id="btn-wf-consultar" onclick="consultarPosicionesWebfleet()" style="padding: 8px 16px; background:#1A5276; color:#fff; border:none; border-radius:4px; cursor:pointer; font-weight:bold;">🛰️ Consultar posición</button>
-      <button onclick="cerrarModalWebfleet()" style="padding: 8px 16px; background:#6c757d; color:#fff; border:none; border-radius:4px; cursor:pointer;">Cerrar</button>
-    </div>
-
-    <!-- Contenedor de la tabla de resultados (inicialmente oculto) -->
-    <div id="wf-resultados" style="display:none; border-top: 1px solid #eee; padding-top: 15px;">
-      <div style="max-height: 220px; overflow-y: auto; border: 1px solid #ddd; border-radius: 4px;">
-        <table style="width:100%; border-collapse: collapse; font-size: 12px;">
-          <thead>
-            <tr style="background:#1A5276; color:#fff; text-align: left;">
-              <th style="padding: 6px;"></th>
-              <th style="padding: 6px;">#ECO</th>
-              <th style="padding: 6px;">LBOX</th>
-              <th style="padding: 6px;">Objeto</th>
-              <th style="padding: 6px;">Última Pos.</th>
-              <th style="padding: 6px;">Desfase</th>
-              <th style="padding: 6px;">Vel.</th>
-              <th style="padding: 6px;">Ign.</th>
-              <th style="padding: 6px;">Estado</th>
-            </tr>
-          </thead>
-          <tbody id="wf-tbody"></tbody>
-        </table>
-      </div>
-      
-      <div style="margin-top: 12px; display: flex; justify-content: flex-end;">
-        <button onclick="ejecutarProtocoloSeguridad()" style="padding: 8px 14px; background:#922B21; color:#fff; border:none; border-radius:4px; cursor:pointer; font-weight:bold;">🚨 Ejecutar Protocolo de Seguridad</button>
-      </div>
-    </div>
-  </div>
-</div>
-    <!-- Tabla de Resultados -->
-    <div style="overflow-y:auto;flex:1;border:1px solid #e8e8e8;border-radius:8px">
-      <table class="tbl" style="font-size:11px; width:100%">
-        <thead>
-          <tr>
-            <th>#ECO</th><th>LBOX</th><th>Nombre</th><th>Últ. reporte</th><th>Desfase</th><th>Velocidad</th><th>Ignición</th><th>Estado</th>
-          </tr>
-        </thead>
-        <tbody id="wf-tbody">
-          <tr><td colspan="8" class="empty" style="text-align:center; padding:20px;">Presiona "Ejecutar Consulta Masiva" para descargar los datos de la flota.</td></tr>
-        </tbody>
-      </table>
-    </div>
-
-  </div>
-</div>
+  
 
 <script>
 /* ═══════════════════════════════════════════════════════════════════════════
@@ -24474,41 +24376,66 @@ function cerrarModalWebfleet() {
 /* ── RENDERIZADO DE TABLA WEBFLEET ───────────────────────────────────────── */
 
 function renderTablaWebfleet() {
-  const tbody = document.getElementById('wf-tbody'); 
+  const tbody = document.getElementById('wf-tbody');
   if (!tbody) return;
 
-  // Filtrado según el estado seleccionado en la interfaz
-  const filtrados = wfPosiciones.filter(u => {
-    if (typeof wfFiltroActivo === 'undefined' || wfFiltroActivo === 'todos') return true;
-    return u.estado === wfFiltroActivo;
+  const q = (document.getElementById('wf-search')?.value || '').toLowerCase();
+
+  // Filtrado por estado (botones rápidos) + búsqueda por ECO/LBOX
+  let filtrados = wfPosiciones.filter(u => {
+    if (typeof wfFiltroActivo !== 'undefined' && wfFiltroActivo !== 'todos' && u.estado !== wfFiltroActivo) return false;
+    if (q && !((u.eco||'')+(u.lbox||'')).toLowerCase().includes(q)) return false;
+    return true;
   });
 
   if (filtrados.length === 0) {
-    tbody.innerHTML = `<tr><td colspan="9" style="text-align:center; padding:15px; color:#666;">No hay unidades para mostrar.</td></tr>`;
+    tbody.innerHTML = '<tr><td colspan="9" style="text-align:center; padding:15px; color:#666;">No hay unidades para mostrar.</td></tr>';
+    updateWfSelected();
     return;
   }
 
-  tbody.innerHTML = filtrados.map(u => {
-    let badgeBg = '#6c757d'; // Default (Sin dato)
-    if (u.estado === 'activo') badgeBg = '#28a745';
-    else if (u.estado === 'moderado') badgeBg = '#ffc107';
-    else if (u.estado === 'perdida') badgeBg = '#dc3545';
+  const badgeMap = {
+    activo:   ['🟢 Activa',           '#eafaf1', '#1E8449'],
+    moderado: ['🟡 Moderado',         '#fdf3e0', '#b35900'],
+    perdida:  ['🔴 Posible pérdida',  '#fdecea', '#c0392b'],
+    sin_dato: ['⚪ Sin dato',         '#f2f2f2', '#888'],
+  };
 
-    return `
-      <tr>
-        <!-- Se agregó el checkbox para poder seleccionar la unidad en el protocolo de seguridad -->
-        <td><input type="checkbox" class="wf-chk-unidad" value="${u.eco}"></td>
-        <td><strong>${u.eco}</strong></td>
-        <td>${u.lbox || '-'}</td>
-        <td>${u.objectname || '-'}</td>
-        <td>${u.pos_time || 'Sin fecha'}</td>
-        <td>${u.minutos !== null ? u.minutos + ' min' : '-'}</td>
-        <td>${u.speed || '0'} km/h</td>
-        <td>${u.ignition == '1' ? '🟢 Encendido' : '🔴 Apagado'}</td>
-        <td><span style="padding: 3px 8px; border-radius: 4px; background: ${badgeBg}; color: #fff; font-size: 11px; font-weight: bold;">${u.estado.toUpperCase()}</span></td>
-      </tr>
-    `;
+  tbody.innerHTML = filtrados.map((u, i) => {
+    const [label, bg, color] = badgeMap[u.estado] || badgeMap.sin_dato;
+    return '<tr style="background:' + (i%2?'#f9f9f9':'#fff') + '">' +
+      '<td style="text-align:center"><input type="checkbox" class="wf-chk-unidad" value="' + u.eco + '" onchange="updateWfSelected()"></td>' +
+      '<td><b>ECO ' + u.eco + '</b></td>' +
+      '<td style="font-size:10px">' + (u.lbox || '—') + '</td>' +
+      '<td style="font-size:10px">' + (u.objectname || '—') + '</td>' +
+      '<td style="font-size:11px;white-space:nowrap">' + (u.pos_time || '—') + '</td>' +
+      '<td style="font-weight:700">' + (u.minutos !== null ? u.minutos + ' min' : '—') + '</td>' +
+      '<td style="text-align:center">' + (u.speed || '0') + ' km/h</td>' +
+      '<td style="text-align:center">' + (u.ignition == '1' ? '🟢' : '🔴') + '</td>' +
+      '<td style="text-align:center"><span style="background:' + bg + ';color:' + color + ';padding:3px 9px;border-radius:20px;font-size:10px;font-weight:600">' + label + '</span></td>' +
+    '</tr>';
   }).join('');
+
+  updateWfSelected();
+}
+
+function filtrarWebfleet(tipo){
+  wfFiltroActivo = tipo;
+  document.querySelectorAll('.wf-filtro-btn').forEach(b => b.classList.remove('active'));
+  const btn = document.getElementById('wf-filtro-' + tipo);
+  if(btn) btn.classList.add('active');
+  renderTablaWebfleet();
+}
+
+function toggleAllWebfleet(cb){
+  document.querySelectorAll('.wf-chk-unidad').forEach(c => c.checked = cb.checked);
+  updateWfSelected();
+}
+
+function updateWfSelected(){
+  const n = document.querySelectorAll('.wf-chk-unidad:checked').length;
+  const el = document.getElementById('wf-selected-count');
+  if(el) el.textContent = n;
 }
 
 /* ── CONSULTA A LA API DE WEBFLEET (Vía Proxy GAS) ───────────────────────── */
@@ -24536,16 +24463,15 @@ async function consultarPosicionesWebfleet() {
   }
 
   try {
-    const listaVehiculos = wfUnidadesBase.map(u => u.eco).join(',');
-
-    // Llamada JSONP al proxy de Apps Script
+    // El backend (fetchWebfleetPositions en Apps Script) consulta SIEMPRE la flota
+    // completa en una sola llamada — es más eficiente que iterar por objectno.
+    // El cruce contra las unidades de interés (wfUnidadesBase) se hace aquí abajo.
     const res = await jsonp({
       action: 'fetchWebfleetPositions',
       wf_account: account, 
       wf_username: username,
       wf_password: password, 
-      wf_apikey: apikey,
-      wf_objectno: listaVehiculos 
+      wf_apikey: apikey
     });
 
     if (res.error) throw new Error(res.error);
@@ -25657,8 +25583,13 @@ setInterval(async () => {
   </div>
 </div>
 <!-- Modal: Validación de posición Webfleet (paso previo a protocolo de seguridad) -->
+
+
+
+
+<!-- Modal: Validación de posición Webfleet (paso previo a protocolo de seguridad) -->
 <div id="modal-webfleet" style="display:none;position:fixed;inset:0;background:rgba(28,43,57,.6);z-index:9999;align-items:center;justify-content:center;padding:20px">
-  <div style="background:#fff;border-radius:14px;padding:24px;max-width:900px;width:100%;max-height:88vh;overflow-y:auto;box-shadow:0 12px 40px rgba(28,43,57,.3)">
+  <div style="background:#fff;border-radius:14px;padding:24px;max-width:920px;width:100%;max-height:88vh;overflow-y:auto;box-shadow:0 12px 40px rgba(28,43,57,.3)">
 
     <div style="display:flex;justify-content:space-between;align-items:flex-start;margin-bottom:6px">
       <div>
@@ -25698,9 +25629,9 @@ setInterval(async () => {
       <!-- Filtros rápidos por tiempo -->
       <div style="display:flex;gap:8px;margin-bottom:12px;flex-wrap:wrap;align-items:center">
         <button class="btn wf-filtro-btn active" id="wf-filtro-todos" onclick="filtrarWebfleet('todos')" style="font-size:11px">Todos</button>
-        <button class="btn wf-filtro-btn" id="wf-filtro-activo" onclick="filtrarWebfleet('activo')" style="font-size:11px;color:#1E8449">🟢 ≤2 min</button>
-        <button class="btn wf-filtro-btn" id="wf-filtro-moderado" onclick="filtrarWebfleet('moderado')" style="font-size:11px;color:#b35900">🟡 ≤5 min</button>
-        <button class="btn wf-filtro-btn" id="wf-filtro-perdida" onclick="filtrarWebfleet('perdida')" style="font-size:11px;color:#c0392b">🔴 &gt;5 min</button>
+        <button class="btn wf-filtro-btn" id="wf-filtro-activo" onclick="filtrarWebfleet('activo')" style="font-size:11px;color:#1E8449">🟢 Activo</button>
+        <button class="btn wf-filtro-btn" id="wf-filtro-moderado" onclick="filtrarWebfleet('moderado')" style="font-size:11px;color:#b35900">🟡 Moderado</button>
+        <button class="btn wf-filtro-btn" id="wf-filtro-perdida" onclick="filtrarWebfleet('perdida')" style="font-size:11px;color:#c0392b">🔴 Posible pérdida</button>
         <input id="wf-search" type="text" placeholder="Buscar ECO..." oninput="renderTablaWebfleet()" style="flex:1;min-width:120px;padding:6px 10px;border:1px solid var(--line);border-radius:7px;font-size:12px">
       </div>
 
@@ -25708,18 +25639,18 @@ setInterval(async () => {
         <table class="tbl" style="font-size:11px">
           <thead style="position:sticky;top:0;z-index:2"><tr>
             <th style="width:30px"><input type="checkbox" onchange="toggleAllWebfleet(this)"></th>
-            <th>#ECO</th><th>LBOX</th><th>Última posición (pos_time)</th>
-            <th>Transcurrido</th><th>Estado</th><th>Movimiento</th>
+            <th>#ECO</th><th>LBOX</th><th>Nombre</th><th>Última posición (pos_time)</th>
+            <th>Transcurrido</th><th>Velocidad</th><th>Ignición</th><th>Estado</th>
           </tr></thead>
-          <tbody id="tbody-webfleet"></tbody>
+          <tbody id="wf-tbody"></tbody>
         </table>
       </div>
 
       <div style="display:flex;justify-content:space-between;align-items:center;margin-top:14px">
         <div style="font-size:12px;color:var(--muted)"><b id="wf-selected-count">0</b> seleccionadas</div>
         <div style="display:flex;gap:8px">
-          <button class="btn" onclick="document.querySelectorAll('.chk-webfleet').forEach(c=>c.checked=true);updateWfSelected()">Seleccionar todos</button>
-          <button class="btn" onclick="document.querySelectorAll('.chk-webfleet').forEach(c=>c.checked=false);updateWfSelected()">Ninguno</button>
+          <button class="btn" onclick="document.querySelectorAll('.wf-chk-unidad').forEach(c=>c.checked=true);updateWfSelected()">Seleccionar todos</button>
+          <button class="btn" onclick="document.querySelectorAll('.wf-chk-unidad').forEach(c=>c.checked=false);updateWfSelected()">Ninguno</button>
           <button class="btn primary" onclick="ejecutarProtocoloSeguridad()">Continuar con seleccionadas →</button>
         </div>
       </div>
@@ -25730,7 +25661,6 @@ setInterval(async () => {
     </div>
   </div>
 </div>
-
 
 </body>
 </html>
