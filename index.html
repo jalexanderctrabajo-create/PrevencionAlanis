@@ -23428,6 +23428,44 @@ body{font-family:'Barlow',-apple-system,sans-serif;font-size:14px;color:var(--in
     </div>
   </div>
 </div>
+  <!-- Modal Validacion Webfleet -->
+<div id="modal-webfleet" style="display:none;position:fixed;inset:0;background:rgba(0,0,0,0.5);z-index:105;align-items:center;justify-content:center">
+  <div style="background:#fff;border-radius:12px;padding:24px;width:800px;max-width:95vw;max-height:85vh;display:flex;flex-direction:column;gap:14px">
+    
+    <!-- Encabezado del Modal -->
+    <div style="display:flex;justify-content:space-between;align-items:center">
+      <div style="font-size:15px;font-weight:700;color:#185FA5">🛰️ Validación en Vivo Webfleet</div>
+      <button onclick="document.getElementById('modal-webfleet').style.display='none'" style="background:none;border:none;font-size:18px;cursor:pointer;color:#888">✕</button>
+    </div>
+    
+    <!-- Controles y Filtros -->
+    <div style="display:flex;gap:8px;align-items:center;flex-wrap:wrap">
+      <button class="btn success" onclick="obtenerTelemetriaMasiva()" id="btn-fetch-massive">🔄 Ejecutar Consulta Masiva</button>
+      
+      <select id="wf-filtro" onchange="wfFiltroActivo=this.value; renderTablaWebfleet()" style="font-size:12px;padding:5px 8px;border:1px solid #d0d0d0;border-radius:7px;margin-left:auto">
+        <option value="todos">Todos los estados</option>
+        <option value="activo">Solo Activos (0-15m)</option>
+        <option value="moderado">Moderados (16-60m)</option>
+        <option value="perdida">Posible Pérdida / Jamming (+60m)</option>
+      </select>
+    </div>
+
+    <!-- Tabla de Resultados -->
+    <div style="overflow-y:auto;flex:1;border:1px solid #e8e8e8;border-radius:8px">
+      <table class="tbl" style="font-size:11px; width:100%">
+        <thead>
+          <tr>
+            <th>#ECO</th><th>LBOX</th><th>Nombre</th><th>Últ. reporte</th><th>Desfase</th><th>Velocidad</th><th>Ignición</th><th>Estado</th>
+          </tr>
+        </thead>
+        <tbody id="wf-tbody">
+          <tr><td colspan="8" class="empty" style="text-align:center; padding:20px;">Presiona "Ejecutar Consulta Masiva" para descargar los datos de la flota.</td></tr>
+        </tbody>
+      </table>
+    </div>
+
+  </div>
+</div>
 
 <script>
 /* ═══════════════════════════════════════════════════════════════════════════
