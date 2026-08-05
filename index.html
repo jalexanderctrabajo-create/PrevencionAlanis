@@ -24377,22 +24377,14 @@ async function consultarPosicionesWebfleet(){
   const btn = document.getElementById('btn-wf-consultar');
   btn.disabled = true; btn.textContent = 'Consultando Webfleet...';
 
-  try {
-    // 1. Extraer los números económicos (objectno) de las unidades base
-    // Separados por comas, tal como lo requiere el parámetro 'objectno' de Webfleet
+ try {
     const listaVehiculos = wfUnidadesBase.map(u => u.eco).join(',');
 
-    // 2. Enviar la petición a tu backend INCLUYENDO la lista de vehículos
     const res = await jsonp({
       action: 'fetchWebfleetPositions',
-      wf_account: account, 
-      wf_username: username,
-      wf_password: password, 
-      wf_apikey: apikey,
-      wf_objectno: listaVehiculos // NUEVO PARÁMETRO
-    });
-
-    if(res.error) throw new Error(res.error);
+      wf_account: account, wf_username: username,
+      wf_password: password, wf_apikey: apikey,
+      wf_objectno: listaVehiculos 
     });
 
     if(res.error) throw new Error(res.error);
@@ -24427,74 +24419,12 @@ async function consultarPosicionesWebfleet(){
     renderTablaWebfleet();
     notify('Posiciones obtenidas: ' + wfPosiciones.length + ' unidades', 'ok');
 
-  } catch(e) {
+  } catch(e) { // <--- ESTO ES LO QUE TE FALTA, CERRAR EL TRY Y ABRIR EL CATCH
     notify('Error al consultar Webfleet: ' + e.message, 'err');
   }
+  
   btn.disabled = false; btn.textContent = '🛰️ Consultar posición';
-}
-
-function filtrarWebfleet(tipo){
-  wfFiltroActivo = tipo;
-  document.querySelectorAll('.wf-filtro-btn').forEach(b => b.classList.remove('active'));
-  const btn = document.getElementById('wf-filtro-' + tipo);
-  if(btn) btn.classList.add('active');
-  renderTablaWebfleet();
-}
-
-function renderTablaWebfleet(){
-  const tbody = document.getElementById('tbody-webfleet');
-  const q = (document.getElementById('wf-search')?.value || '').toLowerCase();
-
-  let data = wfPosiciones;
-  if(wfFiltroActivo !== 'todos') data = data.filter(p => p.estado === wfFiltroActivo);
-  if(q) data = data.filter(p => (p.eco+p.lbox).toLowerCase().includes(q));
-
-  if(!data.length){
-    tbody.innerHTML = '<tr><td colspan="7" class="empty">Sin resultados</td></tr>';
-    document.getElementById('wf-selected-count').textContent = '0';
-    return;
-  }
-
-  const badgeMap = {
-    activo:   ['🟢 Activa',    '#eafaf1', '#1E8449'],
-    moderado: ['🟡 Moderado',  '#fdf3e0', '#b35900'],
-    perdida:  ['🔴 Posible pérdida', '#fdecea', '#c0392b'],
-    sin_dato: ['⚪ Sin dato',  '#f2f2f2', '#888'],
-  };
-
-  tbody.innerHTML = data.map((p, i) => {
-    const [label, bg, color] = badgeMap[p.estado] || badgeMap.sin_dato;
-    const detenido = p.standstill === '1' ? 'Detenido' : p.standstill === '0' ? 'En movimiento' : '—';
-    const detColor = p.standstill === '1' ? '#1E8449' : p.standstill === '0' ? '#c0392b' : '#888';
-    return '<tr style="background:' + (i%2?'#f9f9f9':'#fff') + '">' +
-      '<td style="text-align:center"><input type="checkbox" class="chk-webfleet" data-eco="' + p.eco + '" onchange="updateWfSelected()"></td>' +
-      '<td><b>ECO ' + p.eco + '</b></td>' +
-      '<td style="font-size:10px">' + (p.lbox||'—') + '</td>' +
-      '<td style="font-size:11px;white-space:nowrap">' + (p.pos_time || '—') + '</td>' +
-      '<td style="font-weight:700">' + (p.minutos !== null ? p.minutos + ' min' : '—') + '</td>' +
-      '<td style="text-align:center"><span style="background:' + bg + ';color:' + color + ';padding:3px 9px;border-radius:20px;font-size:10px;font-weight:600">' + label + '</span></td>' +
-      '<td style="text-align:center;font-size:11px;color:' + detColor + ';font-weight:600">' + detenido + '</td>' +
-    '</tr>';
-  }).join('');
-
-  updateWfSelected();
-}
-
-function toggleAllWebfleet(cb){
-  document.querySelectorAll('.chk-webfleet').forEach(c => c.checked = cb.checked);
-  updateWfSelected();
-}
-
-function updateWfSelected(){
-  const n = document.querySelectorAll('.chk-webfleet:checked').length;
-  const el = document.getElementById('wf-selected-count');
-  if(el) el.textContent = n;
-}
-
-function getWfSeleccionadas(){
-  const ecos = Array.from(document.querySelectorAll('.chk-webfleet:checked')).map(c => c.dataset.eco);
-  return wfPosiciones.filter(p => ecos.includes(p.eco));
-}
+} // <--- Y cerrar la función
 
 /* ─────────────────────────────────────────────────────────────────────────
    PUNTO DE INTEGRACIÓN — Fase siguiente del protocolo de seguridad
