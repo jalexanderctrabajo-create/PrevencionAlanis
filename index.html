@@ -24478,8 +24478,8 @@ async function consultarPosicionesWebfleet() {
     const posMap = {};
     (res.posiciones || []).forEach(p => { posMap[String(p.objectno)] = p; });
 
-    const ahora = Date.now();
-
+    const ahora = res.server_time;
+    
     // Webfleet, con useISO8601=false, devuelve pos_time como epoch Unix en
     // SEGUNDOS (ej. "1735307000"), no como fecha de texto. Si en algún momento
     // cambia a useISO8601=true vendría como "YYYY-MM-DDTHH:MM:SS", así que esta
