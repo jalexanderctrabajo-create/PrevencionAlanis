@@ -24327,12 +24327,11 @@ function renderAll(){
      4. Filtro rápido: ≤2min activo / ≤5min moderado / >5min posible pérdida.
      5. Selección manual o "Seleccionar todos" → habilita la fase siguiente.
 
-   NOTA DE SEGURIDAD: este módulo llega hasta la SELECCIÓN de unidades.
-   El envío de comando a Salida 4 (paro de motor) NO está implementado aquí:
-   requiere (a) el endpoint documentado de comando remoto de Webfleet/LBOX,
-   que hoy no está disponible, y (b) un interlock físico que impida enviar
-   el comando si standstill=0 (vehículo en movimiento). Ver ejecutarProtocoloSeguridad()
-   más abajo para el punto de integración marcado. ─────────────────────────── */
+   Este módulo valida la última posición reportada por Webfleet (pos_time)
+   y usa ese dato para CORREGIR el campo 'dias' (tiempo sin reportar) de las
+   unidades seleccionadas antes de que entren al reporte de prevención.
+   No ejecuta ninguna acción sobre el vehículo (no hay envío de comandos),
+   por lo que no aplica ninguna restricción por movimiento/ignición. ─────── */
 
 // Variables globales de estado para Webfleet
 let wfUnidadesBase = [];   // unidades de entrada (desde LBOX o Excel) a validar
@@ -24408,7 +24407,7 @@ function renderTablaWebfleet() {
       '<td><b>ECO ' + u.eco + '</b></td>' +
       '<td style="font-size:10px">' + (u.lbox || '—') + '</td>' +
       '<td style="font-size:10px">' + (u.objectname || '—') + '</td>' +
-      '<td style="font-size:11px;white-space:nowrap">' + (u.pos_time || '—') + '</td>' +
+      '<td style="font-size:11px;white-space:nowrap">' + (u.pos_time_legible || u.pos_time || '—') + '</td>' +
       '<td style="font-weight:700">' + (u.minutos !== null ? u.minutos + ' min' : '—') + '</td>' +
       '<td style="text-align:center">' + (u.speed || '0') + ' km/h</td>' +
       '<td style="text-align:center">' + (u.ignition == '1' ? '🟢' : '🔴') + '</td>' +
@@ -24481,6 +24480,21 @@ async function consultarPosicionesWebfleet() {
     (res.posiciones || []).forEach(p => { posMap[String(p.objectno)] = p; });
 
     const ahora = Date.now();
+
+    // Webfleet, con useISO8601=false, devuelve pos_time como epoch Unix en
+    // SEGUNDOS (ej. "1735307000"), no como fecha de texto. Si en algún momento
+    // cambia a useISO8601=true vendría como "YYYY-MM-DDTHH:MM:SS", así que esta
+    // función soporta ambos formatos.
+    function parsePosTime(raw){
+      if (raw === null || raw === undefined || raw === '') return null;
+      const s = String(raw).trim();
+      if (/^\d+$/.test(s)) {
+        // Epoch en segundos → milisegundos
+        return new Date(parseInt(s, 10) * 1000);
+      }
+      const d = new Date(s.replace(' ', 'T'));
+      return isNaN(d.getTime()) ? null : d;
+    }
     
     wfPosiciones = wfUnidadesBase.map(u => {
       const p = posMap[String(u.eco)];
@@ -24492,8 +24506,8 @@ async function consultarPosicionesWebfleet() {
         };
       }
       
-      const t = new Date(String(p.pos_time).replace(' ', 'T'));
-      const minutos = isNaN(t) ? null : Math.floor((ahora - t.getTime()) / 60000);
+      const t = parsePosTime(p.pos_time);
+      const minutos = t ? Math.floor((ahora - t.getTime()) / 60000) : null;
       let estado = 'sin_dato';
       
       if (minutos !== null) {
@@ -24506,7 +24520,8 @@ async function consultarPosicionesWebfleet() {
         eco: u.eco, 
         lbox: u.lbox || '', 
         objectname: p.objectname || '',
-        pos_time: p.pos_time, 
+        pos_time: p.pos_time,
+        pos_time_legible: t ? t.toLocaleString('es-MX') : (p.pos_time || '—'),
         minutos: minutos, 
         estado: estado,
         standstill: p.standstill, 
@@ -24539,28 +24554,44 @@ function getWfSeleccionadas() {
   return wfPosiciones.filter(u => ecosSeleccionados.includes(String(u.eco)));
 }
 
+/* Aplica el tiempo transcurrido validado por Webfleet a las unidades
+   seleccionadas y lo escribe de vuelta en el campo 'dias' (y 'fechaRep')
+   de esas mismas unidades — son las mismas referencias que viven en
+   importData/importFiltered, así que el cambio se refleja automáticamente
+   en la tabla de "Obtener datos en vivo" y en los filtros por días.
+   Esta validación NO ejecuta ninguna acción sobre el vehículo, por lo que
+   no aplica ninguna restricción por movimiento/ignición. */
 function ejecutarProtocoloSeguridad() {
   const seleccionadas = getWfSeleccionadas();
-  
+
   if (!seleccionadas.length) {
     notify('Selecciona al menos una unidad de la tabla', 'err');
     return;
   }
 
-  // Interlock de seguridad: bloquea unidades en movimiento
-  const enMovimiento = seleccionadas.filter(p => p.standstill !== '1');
-  if (enMovimiento.length) {
-    notify('⚠️ ' + enMovimiento.length + ' unidad(es) seleccionada(s) están en movimiento. ' +
-      'Por seguridad, el protocolo no puede ejecutarse sobre vehículos en movimiento. ' +
-      'Espera a que se detengan o desmárcalas.', 'err', 8000);
-    return;
+  let actualizadas = 0, sinDato = 0;
+  seleccionadas.forEach(p => {
+    const u = wfUnidadesBase.find(x => String(x.eco) === String(p.eco));
+    if (!u) return;
+    if (p.minutos === null) { sinDato++; return; }
+    const diasCalculados = Math.floor(p.minutos / 1440); // 1440 min = 1 día
+    u.dias = String(diasCalculados);
+    u.fechaRep = p.pos_time_legible || p.pos_time || u.fechaRep || '';
+    actualizadas++;
+  });
+
+  let msg = '✅ ' + actualizadas + ' unidad(es) actualizadas con el tiempo transcurrido desde Webfleet.';
+  if (sinDato) msg += ' (' + sinDato + ' sin dato de posición, sin cambios).';
+  notify(msg, 'ok', 6000);
+
+  cerrarModalWebfleet();
+
+  // Reabre la tabla de importación para que el usuario confirme y agregue al reporte
+  const modalImport = document.getElementById('modal-import');
+  if (modalImport && typeof renderImportTable === 'function') {
+    renderImportTable();
+    modalImport.style.display = 'flex';
   }
-
-  notify('Envío de comando (Salida 4) aún no implementado: falta el endpoint documentado ' +
-    'de comando remoto. Unidades listas y validadas como detenidas: ' + seleccionadas.length +
-    '. Contacta al equipo LBOX/Webfleet para obtener el endpoint de escritura.', 'info', 10000);
-
-  console.log('Unidades validadas y listas para protocolo de seguridad:', seleccionadas);
 }
 
 /* ── LÓGICA DE NEGOCIO Y UTILIDADES (Métricas visuales) ──────────────────── */
@@ -25651,7 +25682,7 @@ setInterval(async () => {
         <div style="display:flex;gap:8px">
           <button class="btn" onclick="document.querySelectorAll('.wf-chk-unidad').forEach(c=>c.checked=true);updateWfSelected()">Seleccionar todos</button>
           <button class="btn" onclick="document.querySelectorAll('.wf-chk-unidad').forEach(c=>c.checked=false);updateWfSelected()">Ninguno</button>
-          <button class="btn primary" onclick="ejecutarProtocoloSeguridad()">Continuar con seleccionadas →</button>
+          <button class="btn primary" onclick="ejecutarProtocoloSeguridad()">✅ Aplicar tiempo al reporte</button>
         </div>
       </div>
     </div>
