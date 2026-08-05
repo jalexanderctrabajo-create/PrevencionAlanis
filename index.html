@@ -24378,10 +24378,21 @@ async function consultarPosicionesWebfleet(){
   btn.disabled = true; btn.textContent = 'Consultando Webfleet...';
 
   try {
+    // 1. Extraer los números económicos (objectno) de las unidades base
+    // Separados por comas, tal como lo requiere el parámetro 'objectno' de Webfleet
+    const listaVehiculos = wfUnidadesBase.map(u => u.eco).join(',');
+
+    // 2. Enviar la petición a tu backend INCLUYENDO la lista de vehículos
     const res = await jsonp({
       action: 'fetchWebfleetPositions',
-      wf_account: account, wf_username: username,
-      wf_password: password, wf_apikey: apikey
+      wf_account: account, 
+      wf_username: username,
+      wf_password: password, 
+      wf_apikey: apikey,
+      wf_objectno: listaVehiculos // NUEVO PARÁMETRO
+    });
+
+    if(res.error) throw new Error(res.error);
     });
 
     if(res.error) throw new Error(res.error);
