@@ -778,7 +778,7 @@ var __async = (__this, __arguments, generator) => {
       selectedUnits: [],
       webfleetConfig: null,
       isRefreshing: false,
-      googleAppsScriptUrl: 'https://script.google.com/macros/d/YOUR_DEPLOYMENT_ID/usercallback',
+      googleAppsScriptUrl: 'https://script.google.com/macros/s/AKfycbyV_0BjBf5VLLgt1uSTNHfo-t20TiFHXOOXxopmWwoIHpdgp3QWi0-kpZJi2Uede8TRQQ/exec',
       
       // Inicialización
       init: function() {
@@ -862,32 +862,56 @@ var __async = (__this, __arguments, generator) => {
         btn.disabled = true;
         btn.innerHTML = '⏳ Actualizando...';
 
-        // Simulación de datos para demostración
-        setTimeout(() => {
-          this.handleUnitsData({
-            success: true,
-            units: [
-              { id: 'U001', plate: 'ABC-123', speed: 0, standstill: '1', inactivityTime: 5, lastPosition: 'Centro', ignition: '0' },
-              { id: 'U002', plate: 'XYZ-789', speed: 45, standstill: '0', inactivityTime: 0, lastPosition: 'Ruta Norte', ignition: '1' },
-              { id: 'U003', plate: 'QWE-456', speed: 0, standstill: '1', inactivityTime: 120, lastPosition: 'Estacionamiento', ignition: '0' }
-            ]
-          });
+        // Llamada a Google Apps Script via JSONP
+        const params = new URLSearchParams({
+          action: 'getUnits',
+          account: this.webfleetConfig.account,
+          username: this.webfleetConfig.username,
+          password: this.webfleetConfig.password,
+          apikey: this.webfleetConfig.apikey || ''
+        });
+
+        const url = `${this.googleAppsScriptUrl}?${params}&callback=LBOX.handleUnitsData`;
+
+        const script = document.createElement('script');
+        script.src = url;
+        script.onerror = () => {
+          this.showAlert('❌ Error al conectar con el servidor.', 'danger');
+          this.updateConnectionStatus(false);
           btn.disabled = false;
           btn.innerHTML = '🔄 Actualizar Datos';
           this.isRefreshing = false;
-        }, 1500);
+          document.body.removeChild(script);
+        };
+        document.body.appendChild(script);
+
+        // Timeout de 15 segundos
+        setTimeout(() => {
+          if (this.isRefreshing) {
+            this.showAlert('⏱️ Timeout: La solicitud tardó demasiado tiempo.', 'warning');
+            btn.disabled = false;
+            btn.innerHTML = '🔄 Actualizar Datos';
+            this.isRefreshing = false;
+            document.body.removeChild(script);
+          }
+        }, 15000);
       },
 
       // Manejar respuesta de datos
       handleUnitsData: function(data) {
-        if (data.success && data.units) {
+        const btn = document.getElementById('btnRefresh');
+        btn.disabled = false;
+        btn.innerHTML = '🔄 Actualizar Datos';
+        this.isRefreshing = false;
+
+        if (data && data.success && data.units) {
           this.units = data.units;
           this.renderUnitsTable();
           this.updateConnectionStatus(true);
-          this.showAlert('✅ Datos actualizados correctamente.', 'success');
+          this.showAlert('✅ Datos actualizados correctamente (' + data.units.length + ' unidades).', 'success');
           document.getElementById('lastUpdate').textContent = new Date().toLocaleTimeString();
         } else {
-          this.showAlert('❌ ' + (data.error || 'Error al obtener datos'), 'danger');
+          this.showAlert('❌ ' + (data?.error || 'Error al obtener datos'), 'danger');
           this.updateConnectionStatus(false);
         }
       },
@@ -985,10 +1009,45 @@ var __async = (__this, __arguments, generator) => {
 
       // Enviar comando de parada
       sendStopCommand: function(unitIds) {
-        this.showAlert('✅ Comando de parada enviado a: ' + unitIds.join(', '), 'success');
-        this.selectedUnits = [];
-        document.querySelectorAll('tbody input[type="checkbox"]').forEach(cb => cb.checked = false);
-        setTimeout(() => this.fetchUnitsData(), 1000);
+        const btn = document.getElementById('btnStopEngine');
+        btn.disabled = true;
+        btn.innerHTML = '⏳ Procesando...';
+
+        const params = new URLSearchParams({
+          action: 'stopEngine',
+          unitIds: unitIds.join(','),
+          account: this.webfleetConfig.account,
+          username: this.webfleetConfig.username,
+          password: this.webfleetConfig.password
+        });
+
+        const url = `${this.googleAppsScriptUrl}?${params}&callback=LBOX.handleStopResponse`;
+
+        const script = document.createElement('script');
+        script.src = url;
+        script.onerror = () => {
+          this.showAlert('❌ Error enviando comando.', 'danger');
+          btn.disabled = false;
+          btn.innerHTML = '⛔ Parar Motores';
+          document.body.removeChild(script);
+        };
+        document.body.appendChild(script);
+      },
+
+      // Manejar respuesta de parada
+      handleStopResponse: function(data) {
+        const btn = document.getElementById('btnStopEngine');
+        btn.disabled = false;
+        btn.innerHTML = '⛔ Parar Motores';
+
+        if (data && data.success) {
+          this.showAlert('✅ ' + (data.message || 'Comando ejecutado correctamente.'), 'success');
+          this.selectedUnits = [];
+          document.querySelectorAll('tbody input[type="checkbox"]').forEach(cb => cb.checked = false);
+          setTimeout(() => this.fetchUnitsData(), 1000);
+        } else {
+          this.showAlert('❌ ' + (data?.error || 'Error al ejecutar comando'), 'danger');
+        }
       },
 
       // Actualizar estado de conexión
