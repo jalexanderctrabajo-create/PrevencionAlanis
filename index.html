@@ -23499,6 +23499,10 @@ const CONFIG = {
   WF_UMBRAL_ACTIVO:    2,   // ≤2 min  → comunicación reciente
   WF_UMBRAL_MODERADO:  5,   // ≤5 min  → retraso moderado
                              // >5 min  → posible pérdida de señal / inhibición
+
+  // Umbral para marcar automáticamente "Posiciona" SI/NO (campo pos / Posic. LINK).
+  // <2 min desde la última posición = SI. ≥2 min o sin dato = NO.
+  WF_UMBRAL_POSICIONA_MIN: 2,
 };
 
 // Cargar credenciales Webfleet guardadas en sesión (si las hay)
@@ -24338,12 +24342,6 @@ let wfUnidadesBase = [];   // unidades de entrada (desde LBOX o Excel) a validar
 let wfPosiciones   = [];   // resultado de Webfleet ya cruzado con wfUnidadesBase
 let wfFiltroActivo = 'todos'; // 'todos' | 'activo' | 'moderado' | 'perdida'
 
-// Configuración por defecto (Asegúrate de que el objeto global CONFIG exista)
-window.CONFIG = window.CONFIG || {};
-CONFIG.WF_UMBRAL_ACTIVO = CONFIG.WF_UMBRAL_ACTIVO || 15;
-CONFIG.WF_UMBRAL_MODERADO = CONFIG.WF_UMBRAL_MODERADO || 60;
-CONFIG.UMBRAL_REINCIDENTE = CONFIG.UMBRAL_REINCIDENTE || 5;
-
 /* ── FUNCIONES DEL MODAL ─────────────────────────────────────────────────── */
 
 function abrirValidacionWebfleet(unidades) {
@@ -24388,7 +24386,7 @@ function renderTablaWebfleet() {
   });
 
   if (filtrados.length === 0) {
-    tbody.innerHTML = '<tr><td colspan="9" style="text-align:center; padding:15px; color:#666;">No hay unidades para mostrar.</td></tr>';
+    tbody.innerHTML = '<tr><td colspan="10" style="text-align:center; padding:15px; color:#666;">No hay unidades para mostrar.</td></tr>';
     updateWfSelected();
     return;
   }
@@ -24412,6 +24410,7 @@ function renderTablaWebfleet() {
       '<td style="text-align:center">' + (u.speed || '0') + ' km/h</td>' +
       '<td style="text-align:center">' + (u.ignition == '1' ? '🟢' : '🔴') + '</td>' +
       '<td style="text-align:center"><span style="background:' + bg + ';color:' + color + ';padding:3px 9px;border-radius:20px;font-size:10px;font-weight:600">' + label + '</span></td>' +
+      '<td style="text-align:center"><span style="font-weight:700;color:' + (u.posiciona==='SI'?'#1E8449':'#c0392b') + '">' + u.posiciona + '</span></td>' +
     '</tr>';
   }).join('');
 
@@ -24502,7 +24501,8 @@ async function consultarPosicionesWebfleet() {
       if (!p || !p.pos_time) {
         return { 
           eco: u.eco, lbox: u.lbox || '', objectname: '', pos_time: '', 
-          minutos: null, standstill: '', ignition: '', speed: '', estado: 'sin_dato' 
+          minutos: null, standstill: '', ignition: '', speed: '', estado: 'sin_dato',
+          posiciona: 'NO'
         };
       }
       
@@ -24515,6 +24515,10 @@ async function consultarPosicionesWebfleet() {
                : minutos <= CONFIG.WF_UMBRAL_MODERADO ? 'moderado'
                : 'perdida';
       }
+
+      // Marca automática SI/NO: <2 min desde la última posición = SI (posiciona),
+      // 2+ min o sin dato = NO. Esto alimenta directamente el campo 'pos' del reporte.
+      const posiciona = (minutos !== null && minutos < CONFIG.WF_UMBRAL_POSICIONA_MIN) ? 'SI' : 'NO';
       
       return {
         eco: u.eco, 
@@ -24524,6 +24528,7 @@ async function consultarPosicionesWebfleet() {
         pos_time_legible: t ? t.toLocaleString('es-MX') : (p.pos_time || '—'),
         minutos: minutos, 
         estado: estado,
+        posiciona: posiciona,
         standstill: p.standstill, 
         ignition: p.ignition, 
         speed: p.speed
@@ -24569,10 +24574,15 @@ function ejecutarProtocoloSeguridad() {
     return;
   }
 
-  let actualizadas = 0, sinDato = 0;
+  let actualizadas = 0, sinDato = 0, marcadasSI = 0, marcadasNO = 0;
   seleccionadas.forEach(p => {
     const u = wfUnidadesBase.find(x => String(x.eco) === String(p.eco));
     if (!u) return;
+
+    // Marca automática Posic. LINK: <2 min = SI, 2+ min o sin dato = NO
+    u.pos = p.posiciona || 'NO';
+    if (u.pos === 'SI') marcadasSI++; else marcadasNO++;
+
     if (p.minutos === null) { sinDato++; return; }
     const diasCalculados = Math.floor(p.minutos / 1440); // 1440 min = 1 día
     u.dias = String(diasCalculados);
@@ -24580,9 +24590,10 @@ function ejecutarProtocoloSeguridad() {
     actualizadas++;
   });
 
-  let msg = '✅ ' + actualizadas + ' unidad(es) actualizadas con el tiempo transcurrido desde Webfleet.';
-  if (sinDato) msg += ' (' + sinDato + ' sin dato de posición, sin cambios).';
-  notify(msg, 'ok', 6000);
+  let msg = '✅ Posic. LINK marcada automáticamente: ' + marcadasSI + ' SI · ' + marcadasNO + ' NO. ' +
+    actualizadas + ' con días recalculados.';
+  if (sinDato) msg += ' (' + sinDato + ' sin dato de posición).';
+  notify(msg, 'ok', 7000);
 
   cerrarModalWebfleet();
 
@@ -25671,7 +25682,7 @@ setInterval(async () => {
           <thead style="position:sticky;top:0;z-index:2"><tr>
             <th style="width:30px"><input type="checkbox" onchange="toggleAllWebfleet(this)"></th>
             <th>#ECO</th><th>LBOX</th><th>Nombre</th><th>Última posición (pos_time)</th>
-            <th>Transcurrido</th><th>Velocidad</th><th>Ignición</th><th>Estado</th>
+            <th>Transcurrido</th><th>Velocidad</th><th>Ignición</th><th>Estado</th><th>Posiciona</th>
           </tr></thead>
           <tbody id="wf-tbody"></tbody>
         </table>
