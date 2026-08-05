@@ -24358,6 +24358,43 @@ function abrirValidacionWebfleet(unidades){
 function cerrarModalWebfleet(){
   document.getElementById('modal-webfleet').style.display = 'none';
 }
+  /* ── FUNCIÓN PARA RENDERIZAR LA TABLA DE WEBFLEET ────────────────────────── */
+function renderTablaWebfleet() {
+  const tbody = document.getElementById('wf-tbody'); // Asegúrate de que tu <tbody> tenga este id en el HTML
+  if (!tbody) return;
+
+  // Filtramos según el estado activo si tu interfaz usa filtros
+  const filtrados = wfPosiciones.filter(u => {
+    if (typeof wfFiltroActivo === 'undefined' || wfFiltroActivo === 'todos') return true;
+    return u.estado === wfFiltroActivo;
+  });
+
+  if (filtrados.length === 0) {
+    tbody.innerHTML = `<tr><td colspan="8" style="text-align:center; padding:15px; color:#666;">No hay unidades para mostrar.</td></tr>`;
+    return;
+  }
+
+  tbody.innerHTML = filtrados.map(u => {
+    // Definimos un color para el estado de la señal
+    let badgeBg = '#6c757d';
+    if (u.estado === 'activo') badgeBg = '#28a745';
+    else if (u.estado === 'moderado') badgeBg = '#ffc107';
+    else if (u.estado === 'perdida') badgeBg = '#dc3545';
+
+    return `
+      <tr>
+        <td><strong>${u.eco}</strong></td>
+        <td>${u.lbox || '-'}</td>
+        <td>${u.objectname || '-'}</td>
+        <td>${u.pos_time || 'Sin fecha'}</td>
+        <td>${u.minutos !== null ? u.minutos + ' min' : '-'}</td>
+        <td>${u.speed || '0'} km/h</td>
+        <td>${u.ignition == '1' ? '🟢 Encendido' : '🔴 Apagado'}</td>
+        <td><span style="padding: 3px 8px; border-radius: 4px; background: ${badgeBg}; color: #fff; font-size: 11px; font-weight: bold;">${u.estado.toUpperCase()}</span></td>
+      </tr>
+    `;
+  }).join('');
+}
 
 /* Ejecuta la consulta a Webfleet y cruza pos_time contra wfUnidadesBase */
 async function consultarPosicionesWebfleet(){
