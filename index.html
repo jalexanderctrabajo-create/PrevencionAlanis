@@ -24371,56 +24371,72 @@ function renderAll(){
    el comando si standstill=0 (vehículo en movimiento). Ver ejecutarProtocoloSeguridad()
    más abajo para el punto de integración marcado. ─────────────────────────── */
 
+// Variables globales de estado para Webfleet
 let wfUnidadesBase = [];   // unidades de entrada (desde LBOX o Excel) a validar
 let wfPosiciones   = [];   // resultado de Webfleet ya cruzado con wfUnidadesBase
 let wfFiltroActivo = 'todos'; // 'todos' | 'activo' | 'moderado' | 'perdida'
 
-/* Abre el modal de validación con una lista de unidades base.
-   unidades: [{eco, lbox, ...}] — normalmente importFiltered (LBOX) o un Excel cargado. */
-function abrirValidacionWebfleet(unidades){
+// Configuración por defecto (Asegúrate de que el objeto global CONFIG exista)
+window.CONFIG = window.CONFIG || {};
+CONFIG.WF_UMBRAL_ACTIVO = CONFIG.WF_UMBRAL_ACTIVO || 15;
+CONFIG.WF_UMBRAL_MODERADO = CONFIG.WF_UMBRAL_MODERADO || 60;
+CONFIG.UMBRAL_REINCIDENTE = CONFIG.UMBRAL_REINCIDENTE || 5;
+
+/* ── FUNCIONES DEL MODAL ─────────────────────────────────────────────────── */
+
+function abrirValidacionWebfleet(unidades) {
   wfUnidadesBase = (unidades || []).filter(u => u.eco);
-  if(!wfUnidadesBase.length){
+  
+  if (!wfUnidadesBase.length) {
     notify('No hay unidades para validar. Carga datos en vivo o un Excel primero.', 'err');
     return;
   }
+  
   document.getElementById('modal-webfleet').style.display = 'flex';
+  
   // Prellenar credenciales guardadas
-  document.getElementById('wf-account').value  = CONFIG.WEBFLEET.account  || '';
-  document.getElementById('wf-username').value = CONFIG.WEBFLEET.username || '';
-  document.getElementById('wf-password').value = CONFIG.WEBFLEET.password || '';
-  document.getElementById('wf-apikey').value   = CONFIG.WEBFLEET.apikey   || '';
+  document.getElementById('wf-account').value  = CONFIG.WEBFLEET?.account  || '';
+  document.getElementById('wf-username').value = CONFIG.WEBFLEET?.username || '';
+  document.getElementById('wf-password').value = CONFIG.WEBFLEET?.password || '';
+  document.getElementById('wf-apikey').value   = CONFIG.WEBFLEET?.apikey   || '';
+  
+  // Ocultar resultados previos y actualizar contador
   document.getElementById('wf-resultados').style.display = 'none';
-  document.getElementById('wf-count-base').textContent = wfUnidadesBase.length;
+  const countBaseElement = document.getElementById('wf-count-base');
+  if (countBaseElement) countBaseElement.textContent = wfUnidadesBase.length;
 }
 
-function cerrarModalWebfleet(){
+function cerrarModalWebfleet() {
   document.getElementById('modal-webfleet').style.display = 'none';
 }
-  /* ── FUNCIÓN PARA RENDERIZAR LA TABLA DE WEBFLEET ────────────────────────── */
+
+/* ── RENDERIZADO DE TABLA WEBFLEET ───────────────────────────────────────── */
+
 function renderTablaWebfleet() {
-  const tbody = document.getElementById('wf-tbody'); // Asegúrate de que tu <tbody> tenga este id en el HTML
+  const tbody = document.getElementById('wf-tbody'); 
   if (!tbody) return;
 
-  // Filtramos según el estado activo si tu interfaz usa filtros
+  // Filtrado según el estado seleccionado en la interfaz
   const filtrados = wfPosiciones.filter(u => {
     if (typeof wfFiltroActivo === 'undefined' || wfFiltroActivo === 'todos') return true;
     return u.estado === wfFiltroActivo;
   });
 
   if (filtrados.length === 0) {
-    tbody.innerHTML = `<tr><td colspan="8" style="text-align:center; padding:15px; color:#666;">No hay unidades para mostrar.</td></tr>`;
+    tbody.innerHTML = `<tr><td colspan="9" style="text-align:center; padding:15px; color:#666;">No hay unidades para mostrar.</td></tr>`;
     return;
   }
 
   tbody.innerHTML = filtrados.map(u => {
-    // Definimos un color para el estado de la señal
-    let badgeBg = '#6c757d';
+    let badgeBg = '#6c757d'; // Default (Sin dato)
     if (u.estado === 'activo') badgeBg = '#28a745';
     else if (u.estado === 'moderado') badgeBg = '#ffc107';
     else if (u.estado === 'perdida') badgeBg = '#dc3545';
 
     return `
       <tr>
+        <!-- Se agregó el checkbox para poder seleccionar la unidad en el protocolo de seguridad -->
+        <td><input type="checkbox" class="wf-chk-unidad" value="${u.eco}"></td>
         <td><strong>${u.eco}</strong></td>
         <td>${u.lbox || '-'}</td>
         <td>${u.objectname || '-'}</td>
@@ -24434,58 +24450,81 @@ function renderTablaWebfleet() {
   }).join('');
 }
 
-/* Ejecuta la consulta a Webfleet y cruza pos_time contra wfUnidadesBase */
-async function consultarPosicionesWebfleet(){
+/* ── CONSULTA A LA API DE WEBFLEET (Vía Proxy GAS) ───────────────────────── */
+
+async function consultarPosicionesWebfleet() {
   const account  = document.getElementById('wf-account').value.trim();
   const username = document.getElementById('wf-username').value.trim();
   const password = document.getElementById('wf-password').value.trim();
   const apikey   = document.getElementById('wf-apikey').value.trim();
 
-  if(!account || !username || !password || !apikey){
+  if (!account || !username || !password || !apikey) {
     notify('Completa las 4 credenciales de Webfleet', 'err');
     return;
   }
 
   CONFIG.WEBFLEET = { account, username, password, apikey };
-  try { sessionStorage.setItem('lbox_webfleet', JSON.stringify(CONFIG.WEBFLEET)); } catch(e){}
+  try { 
+    sessionStorage.setItem('lbox_webfleet', JSON.stringify(CONFIG.WEBFLEET)); 
+  } catch(e) {}
 
   const btn = document.getElementById('btn-wf-consultar');
-  btn.disabled = true; btn.textContent = 'Consultando Webfleet...';
+  if(btn) {
+    btn.disabled = true; 
+    btn.textContent = 'Consultando Webfleet...';
+  }
 
- try {
+  try {
     const listaVehiculos = wfUnidadesBase.map(u => u.eco).join(',');
 
+    // Llamada JSONP al proxy de Apps Script
     const res = await jsonp({
       action: 'fetchWebfleetPositions',
-      wf_account: account, wf_username: username,
-      wf_password: password, wf_apikey: apikey,
+      wf_account: account, 
+      wf_username: username,
+      wf_password: password, 
+      wf_apikey: apikey,
       wf_objectno: listaVehiculos 
     });
 
-    if(res.error) throw new Error(res.error);
+    if (res.error) throw new Error(res.error);
 
+    // Mapeo de resultados
     const posMap = {};
     (res.posiciones || []).forEach(p => { posMap[String(p.objectno)] = p; });
 
     const ahora = Date.now();
+    
     wfPosiciones = wfUnidadesBase.map(u => {
       const p = posMap[String(u.eco)];
-      if(!p || !p.pos_time){
-        return { eco:u.eco, lbox:u.lbox||'', objectname:'', pos_time:'', minutos:null,
-                 standstill:'', ignition:'', speed:'', estado:'sin_dato' };
+      
+      if (!p || !p.pos_time) {
+        return { 
+          eco: u.eco, lbox: u.lbox || '', objectname: '', pos_time: '', 
+          minutos: null, standstill: '', ignition: '', speed: '', estado: 'sin_dato' 
+        };
       }
-      const t = new Date(String(p.pos_time).replace(' ','T'));
+      
+      const t = new Date(String(p.pos_time).replace(' ', 'T'));
       const minutos = isNaN(t) ? null : Math.floor((ahora - t.getTime()) / 60000);
       let estado = 'sin_dato';
-      if(minutos !== null){
+      
+      if (minutos !== null) {
         estado = minutos <= CONFIG.WF_UMBRAL_ACTIVO ? 'activo'
                : minutos <= CONFIG.WF_UMBRAL_MODERADO ? 'moderado'
                : 'perdida';
       }
+      
       return {
-        eco: u.eco, lbox: u.lbox || '', objectname: p.objectname || '',
-        pos_time: p.pos_time, minutos, estado,
-        standstill: p.standstill, ignition: p.ignition, speed: p.speed,
+        eco: u.eco, 
+        lbox: u.lbox || '', 
+        objectname: p.objectname || '',
+        pos_time: p.pos_time, 
+        minutos: minutos, 
+        estado: estado,
+        standstill: p.standstill, 
+        ignition: p.ignition, 
+        speed: p.speed
       };
     });
 
@@ -24494,39 +24533,36 @@ async function consultarPosicionesWebfleet(){
     renderTablaWebfleet();
     notify('Posiciones obtenidas: ' + wfPosiciones.length + ' unidades', 'ok');
 
-  } catch(e) { // <--- ESTO ES LO QUE TE FALTA, CERRAR EL TRY Y ABRIR EL CATCH
+  } catch(e) { 
     notify('Error al consultar Webfleet: ' + e.message, 'err');
+  } finally {
+    if(btn) {
+      btn.disabled = false; 
+      btn.textContent = '🛰️ Consultar posición';
+    }
   }
-  
-  btn.disabled = false; btn.textContent = '🛰️ Consultar posición';
-} // <--- Y cerrar la función
+}
 
-/* ─────────────────────────────────────────────────────────────────────────
-   PUNTO DE INTEGRACIÓN — Fase siguiente del protocolo de seguridad
-   ─────────────────────────────────────────────────────────────────────────
-   NO IMPLEMENTADO A PROPÓSITO. El envío de un comando a Salida 4 (paro de
-   motor) requiere:
-     1. El endpoint documentado de comando remoto (Webfleet FLEET.connect
-        remoteControlObject / getRemoteAuxDeviceConfig con acción de
-        escritura, o el equivalente en LBOX/robota) — hoy no disponible.
-     2. Un interlock de seguridad físico: NUNCA enviar el comando si
-        standstill !== '1' (vehículo no detenido). Esta función ya trae
-        p.standstill listo para esa validación.
-     3. Confirmación explícita del operador (doble clic / modal de
-        confirmación) dado que es una acción irreversible sobre un vehículo.
+/* ── PROTOCOLO DE SEGURIDAD ──────────────────────────────────────────────── */
 
-   Cuando tengas el endpoint documentado, este es el punto donde se conecta:
-   ───────────────────────────────────────────────────────────────────────── */
-function ejecutarProtocoloSeguridad(){
+// Función auxiliar necesaria para capturar los checkboxes seleccionados en la tabla
+function getWfSeleccionadas() {
+  const checkboxes = document.querySelectorAll('.wf-chk-unidad:checked');
+  const ecosSeleccionados = Array.from(checkboxes).map(chk => chk.value);
+  return wfPosiciones.filter(u => ecosSeleccionados.includes(String(u.eco)));
+}
+
+function ejecutarProtocoloSeguridad() {
   const seleccionadas = getWfSeleccionadas();
-  if(!seleccionadas.length){
-    notify('Selecciona al menos una unidad', 'err');
+  
+  if (!seleccionadas.length) {
+    notify('Selecciona al menos una unidad de la tabla', 'err');
     return;
   }
 
   // Interlock de seguridad: bloquea unidades en movimiento
   const enMovimiento = seleccionadas.filter(p => p.standstill !== '1');
-  if(enMovimiento.length){
+  if (enMovimiento.length) {
     notify('⚠️ ' + enMovimiento.length + ' unidad(es) seleccionada(s) están en movimiento. ' +
       'Por seguridad, el protocolo no puede ejecutarse sobre vehículos en movimiento. ' +
       'Espera a que se detengan o desmárcalas.', 'err', 8000);
@@ -24540,28 +24576,31 @@ function ejecutarProtocoloSeguridad(){
   console.log('Unidades validadas y listas para protocolo de seguridad:', seleccionadas);
 }
 
-/* ▓▓ 4. LÓGICA DE NEGOCIO ▓▓ ──────────────────────────────────────────────── */
-function reincCount(lbox){ return hist.filter(h=>h.lbox===lbox).length; }
-function reincCountFiltered(lbox){ return getHistForDash().filter(h=>h.lbox===lbox).length; }
-function isReinc(lbox){ return reincCount(lbox) >= CONFIG.UMBRAL_REINCIDENTE; }
-function dClass(d){
-  const n=parseInt(d)||0;
-  if(n<=7)  return 'days-ok';
-  if(n<=30) return 'days-warn';
+/* ── LÓGICA DE NEGOCIO Y UTILIDADES (Métricas visuales) ──────────────────── */
+
+function reincCount(lbox) { return hist.filter(h => h.lbox === lbox).length; }
+function reincCountFiltered(lbox) { return getHistForDash().filter(h => h.lbox === lbox).length; }
+function isReinc(lbox) { return reincCount(lbox) >= CONFIG.UMBRAL_REINCIDENTE; }
+
+function dClass(d) {
+  const n = parseInt(d) || 0;
+  if (n <= 7)  return 'days-ok';
+  if (n <= 30) return 'days-warn';
   return 'days-crit';
 }
-function prioIcon(d){
-  const n=parseInt(d)||0;
-  if(n>30) return '🔴';
-  if(n>7)  return '🟡';
+
+function prioIcon(d) {
+  const n = parseInt(d) || 0;
+  if (n > 30) return '🔴';
+  if (n > 7)  return '🟡';
   return '🟢';
 }
-function badge(v){
-  if(v==='SI'||v==='SI/A') return '<span class="badge si">'+v+'</span>';
-  if(v==='NO') return '<span class="badge no">NO</span>';
-  return '<span class="badge na">'+(v||'—')+'</span>';
-}
 
+function badge(v) {
+  if (v === 'SI' || v === 'SI/A') return '<span class="badge si">' + v + '</span>';
+  if (v === 'NO') return '<span class="badge no">NO</span>';
+  return '<span class="badge na">' + (v || '—') + '</span>';
+}
 
 
 /* — Drill-down: click en KPI → tabla Unidades filtrada — */
