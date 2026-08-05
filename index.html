@@ -24518,7 +24518,31 @@ async function consultarPosicionesWebfleet() {
 
       // Marca automática SI/NO: <2 min desde la última posición = SI (posiciona),
       // 2+ min o sin dato = NO. Esto alimenta directamente el campo 'pos' del reporte.
-      const posiciona = (minutos !== null && minutos < CONFIG.WF_UMBRAL_POSICIONA_MIN) ? 'SI' : 'NO';
+      //const posiciona = (minutos !== null && minutos < CONFIG.WF_UMBRAL_POSICIONA_MIN) ? 'SI' : 'NO';
+      // NUEVA LÓGICA
+let posiciona = 'NO';
+
+if (minutos !== null) {
+  // 1. Si el reporte es reciente (menor al umbral normal de ~2 min), está posicionando.
+  if (minutos < CONFIG.WF_UMBRAL_POSICIONA_MIN) {
+    posiciona = 'SI';
+  } 
+  // 2. Si excede el umbral estricto, revisamos si es porque el vehículo está apagado/detenido.
+  else {
+    // Extraemos estados (asegurando convertirlos a texto para evitar fallas por tipo de dato)
+    const motorApagado = (String(p.ignition) === '0');
+    const estaDetenido = (String(p.standstill) === '1' || String(p.speed) === '0');
+    
+    // Definimos un umbral de tolerancia para unidades apagadas (ej. 1440 min = 24 horas). 
+    // Los GPS dormidos suelen reportar cada 1, 6 o 24 hrs. Ajusta este número según tus equipos LBOX.
+    const umbralUnidadApagada = 1440; 
+    
+    // Si la unidad está apagada o detenida Y está dentro de la tolerancia de reposo, la consideramos válida.
+    if ((motorApagado || estaDetenido) && minutos <= umbralUnidadApagada) {
+      posiciona = 'SI';
+    }
+  }
+}
       
       return {
         eco: u.eco, 
