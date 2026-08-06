@@ -24478,18 +24478,30 @@ async function consultarPosicionesWebfleet() {
     const posMap = {};
     (res.posiciones || []).forEach(p => { posMap[String(p.objectno)] = p; });
 
-    const ahora = res.server_time;
-    
+    // 'server_time' viene del backend (reloj de Google). Si el Apps Script
+    // desplegado en producción es una versión anterior que aún no lo envía,
+    // 'res.server_time' llegaría undefined y ROMPERÍA todo el cálculo en
+    // silencio (NaN en todas las comparaciones → todo cae en 'NO'). Por eso
+    // esta protección es obligatoria: si falta, usamos la hora local como
+    // respaldo y avisamos, en vez de fallar silenciosamente.
+    let ahora = res.server_time;
+    if (typeof ahora !== 'number' || isNaN(ahora)) {
+      console.warn('⚠️ El backend no envió server_time — usando hora local del navegador como respaldo. ' +
+        'Verifica que el Apps Script esté desplegado con la versión más reciente (Implementar → Gestionar implementaciones → Versión nueva).');
+      ahora = Date.now();
+    }
+
     // Webfleet, con useISO8601=false, devuelve pos_time como epoch Unix en
-    // SEGUNDOS (ej. "1735307000"), no como fecha de texto. Si en algún momento
-    // cambia a useISO8601=true vendría como "YYYY-MM-DDTHH:MM:SS", así que esta
-    // función soporta ambos formatos.
+    // SEGUNDOS (ej. "1735307000"), no como fecha de texto. Esta función también
+    // soporta epoch en milisegundos (13 dígitos) y fechas ISO/"YYYY-MM-DD HH:MM:SS"
+    // por si la configuración de la cuenta Webfleet cambia en el futuro.
     function parsePosTime(raw){
       if (raw === null || raw === undefined || raw === '') return null;
       const s = String(raw).trim();
       if (/^\d+$/.test(s)) {
-        // Epoch en segundos → milisegundos
-        return new Date(parseInt(s, 10) * 1000);
+        const n = parseInt(s, 10);
+        // 13 dígitos ≈ epoch en milisegundos; 10 dígitos ≈ epoch en segundos
+        return new Date(s.length >= 13 ? n : n * 1000);
       }
       const d = new Date(s.replace(' ', 'T'));
       return isNaN(d.getTime()) ? null : d;
@@ -24561,6 +24573,14 @@ if (minutos !== null) {
     document.getElementById('wf-resultados').style.display = 'block';
     wfFiltroActivo = 'todos';
     renderTablaWebfleet();
+
+    // Diagnóstico visible: si server_time no vino del backend, usar hora local
+    // igual permite calcular, pero avisamos porque conviene redesplegar el Apps Script.
+    if (typeof res.server_time !== 'number' || isNaN(res.server_time)) {
+      notify('⚠️ El backend no envió la hora del servidor (server_time). Se usó la hora local del navegador. ' +
+        'Redespliega el Apps Script (Versión nueva) para usar el reloj de Google.', 'err', 9000);
+    }
+
     notify('Posiciones obtenidas: ' + wfPosiciones.length + ' unidades', 'ok');
 
   } catch(e) { 
