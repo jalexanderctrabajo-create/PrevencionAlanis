@@ -23313,6 +23313,7 @@ body{font-family:'Barlow',-apple-system,sans-serif;font-size:14px;color:var(--in
   <div class="nav-item" onclick="showPage('captura')" id="nav-captura"><span class="ico">➕</span> Captura</div>
   <div class="nav-item" onclick="showPage('unidades')" id="nav-unidades"><span class="ico">📋</span> Unidades</div>
   <div class="nav-item" onclick="showPage('historial')" id="nav-historial"><span class="ico">🕓</span> Historial</div>
+  <div class="nav-item" onclick="showPage('mensual')" id="nav-mensual"><span class="ico">📅</span> Mensual</div>
   <div class="user-info">
     <div class="user-name">Alexander Cedillo</div>
     <div class="user-role">KAM Asistencia</div>
@@ -23425,6 +23426,71 @@ body{font-family:'Barlow',-apple-system,sans-serif;font-size:14px;color:var(--in
         <thead><tr><th>Fecha</th><th>Folio</th><th>#ECO</th><th>LBOX</th><th>Días</th><th>Posic.</th><th>Desvincular</th><th>Reset Lbox</th><th>Reset LINK</th><th>Recuperó</th><th>Voltaje</th><th>Causa</th><th>Comentario</th></tr></thead>
         <tbody id="tbody-historial"><tr><td colspan="6" class="empty">Cargando...</td></tr></tbody>
       </table></div></div>
+    </div>
+
+    <div class="page" id="page-mensual">
+      <!-- ── Filtros (siempre adelante) ────────────────────────────── -->
+      <div class="card" style="margin-bottom:16px">
+        <div class="card-title">🔎 Filtros</div>
+        <div style="display:flex;gap:10px;flex-wrap:wrap;align-items:flex-end">
+          <div>
+            <label style="font-size:11px;color:var(--muted);font-weight:600;display:block;margin-bottom:4px">Desde</label>
+            <input type="month" id="mf-desde" onchange="renderMensual()" style="padding:7px 10px;border:1px solid #d0d0d0;border-radius:7px;font-size:12px">
+          </div>
+          <div>
+            <label style="font-size:11px;color:var(--muted);font-weight:600;display:block;margin-bottom:4px">Hasta</label>
+            <input type="month" id="mf-hasta" onchange="renderMensual()" style="padding:7px 10px;border:1px solid #d0d0d0;border-radius:7px;font-size:12px">
+          </div>
+          <div>
+            <label style="font-size:11px;color:var(--muted);font-weight:600;display:block;margin-bottom:4px">Mes específico</label>
+            <select id="mf-mes" onchange="onMesEspecificoChange()" style="padding:7px 10px;border:1px solid #d0d0d0;border-radius:7px;font-size:12px;background:#fff;min-width:160px">
+              <option value="">Todos los meses</option>
+            </select>
+          </div>
+          <div>
+            <label style="font-size:11px;color:var(--muted);font-weight:600;display:block;margin-bottom:4px">Causas del mes</label>
+            <select id="mf-causa-mes" onchange="renderChartCausasNoRec()" style="padding:7px 10px;border:1px solid #d0d0d0;border-radius:7px;font-size:12px;background:#fff;min-width:160px">
+              <option value="">Todos los meses (apiladas)</option>
+            </select>
+          </div>
+          <button class="btn" onclick="limpiarFiltrosMensual()">✕ Limpiar filtros</button>
+          <button class="btn success" onclick="exportarMensualExcel()" style="margin-left:auto">📥 Exportar resumen</button>
+        </div>
+        <div id="mf-resumen-label" style="font-size:11px;color:var(--muted);margin-top:8px"></div>
+      </div>
+
+      <!-- ── KPIs históricos ───────────────────────────────────────── -->
+      <div class="kpi-grid" id="kpi-grid-mensual"></div>
+
+      <!-- ── Tabla mensual ─────────────────────────────────────────── -->
+      <div class="card" style="margin-bottom:16px">
+        <div class="card-title">🗓️ Revisiones por mes</div>
+        <div class="scroll-x"><table class="tbl">
+          <thead><tr><th>Mes</th><th>Revisadas</th><th>Recuperadas</th><th>No recuperadas</th><th>% Éxito</th><th>Reincidentes (5+)</th></tr></thead>
+          <tbody id="tbody-mensual"><tr><td colspan="6" class="empty">Cargando...</td></tr></tbody>
+        </table></div>
+      </div>
+
+      <!-- ── Gráfica: revisadas vs recuperadas por mes (desde el inicio) ── -->
+      <div class="card" style="margin-bottom:16px">
+        <div class="card-title">📊 Revisadas vs Recuperadas — histórico completo</div>
+        <div style="display:flex;gap:16px;font-size:11px;color:#666;margin-bottom:8px">
+          <span>🟦 Revisadas &nbsp; 🟩 Recuperadas</span>
+        </div>
+        <div class="scroll-x" style="overflow-x:auto">
+          <canvas id="chart-mensual-completo" height="240" style="height:240px"></canvas>
+        </div>
+      </div>
+
+      <!-- ── Gráfica: razones de no recuperación por mes ─────────────── -->
+      <div class="card">
+        <div class="card-title">🧩 Razones de no recuperación por mes</div>
+        <div style="font-size:11px;color:var(--muted);margin-bottom:8px">Distribución de causas entre las unidades no recuperadas, mes a mes desde el inicio del historial</div>
+        <div class="scroll-x" style="overflow-x:auto">
+          <canvas id="chart-causas-mes" height="240" style="height:240px"></canvas>
+        </div>
+        <div id="legend-causas-mes" style="margin-top:12px;display:flex;flex-wrap:wrap;gap:10px"></div>
+      </div>
     </div>
   </div>
 </div>
@@ -24269,6 +24335,338 @@ function renderGraficaExito(){
   labelsShort.forEach((l,i)=> ctx.fillText(l, pts[i].x, H-padB+16));
 }
 
+/* ▓▓ 6.5 DASHBOARDS MENSUALES (histórico completo desde el inicio) ▓▓ ─────
+   Panel independiente del Dashboard principal: agrega TODO el historial
+   (sin límite de 12 meses) agrupado por mes, con filtros de rango de
+   fechas / mes específico, tabla resumen, comparación revisadas vs
+   recuperadas y desglose de causas de no recuperación por mes. ────────── */
+
+const MESES_LARGO = ['','Enero','Febrero','Marzo','Abril','Mayo','Junio','Julio','Agosto','Septiembre','Octubre','Noviembre','Diciembre'];
+const MESES_CORTO = ['','Ene','Feb','Mar','Abr','May','Jun','Jul','Ago','Sep','Oct','Nov','Dic'];
+const CAUSAS_COLORS = ['#185FA5','#27ae60','#e74c3c','#f39c12','#9b59b6','#1abc9c','#e67e22','#7f8c8d'];
+
+function mesLabelLargo(key){ const [y,m]=key.split('-'); return MESES_LARGO[parseInt(m)]+' '+y; }
+function mesLabelCorto(key){ const [y,m]=key.split('-'); return MESES_CORTO[parseInt(m)]+' '+y.slice(2); }
+
+// Agrupa TODO el historial por mes (YYYY-MM), sin límite de meses.
+function agruparHistPorMes(registros){
+  const monthly = {};
+  registros.forEach(h=>{
+    if(!h.fecha) return;
+    const key = normFecha(h.fecha).slice(0,7);
+    if(!/^\d{4}-\d{2}$/.test(key)) return;
+    if(!monthly[key]) monthly[key] = { total:0, rec:0, noRec:0, causas:{}, lboxes:{} };
+    const m = monthly[key];
+    m.total++;
+    const rec = (h.recupero||'').toUpperCase();
+    if(rec==='SI') m.rec++;
+    else if(rec==='NO'){
+      m.noRec++;
+      const c = (h.causa||'').trim();
+      const key2 = c && c.length>=2 ? (c.length>28 ? c.slice(0,28)+'…' : c) : 'Sin causa registrada';
+      m.causas[key2] = (m.causas[key2]||0) + 1;
+    }
+    if(h.lbox) m.lboxes[h.lbox] = (m.lboxes[h.lbox]||0)+1;
+  });
+  return monthly;
+}
+
+// Devuelve la lista de meses (YYYY-MM) filtrada por el rango desde/hasta.
+function mesesFiltrados(){
+  const monthly = agruparHistPorMes(hist);
+  let keys = Object.keys(monthly).sort();
+  const desde = document.getElementById('mf-desde')?.value || '';
+  const hasta = document.getElementById('mf-hasta')?.value || '';
+  const mesEsp = document.getElementById('mf-mes')?.value || '';
+  if(mesEsp) keys = keys.filter(k=>k===mesEsp);
+  else {
+    if(desde) keys = keys.filter(k=>k>=desde);
+    if(hasta) keys = keys.filter(k=>k<=hasta);
+  }
+  return { monthly, keys };
+}
+
+// Rellena los selectores de mes (mf-mes / mf-causa-mes) con los meses disponibles en hist.
+function poblarSelectoresMensual(){
+  const monthly = agruparHistPorMes(hist);
+  const keys = Object.keys(monthly).sort();
+  const selMes = document.getElementById('mf-mes');
+  const selCausa = document.getElementById('mf-causa-mes');
+  if(selMes){
+    const actual = selMes.value;
+    selMes.innerHTML = '<option value="">Todos los meses</option>' +
+      keys.map(k=>`<option value="${k}">${mesLabelLargo(k)}</option>`).join('');
+    if(keys.includes(actual)) selMes.value = actual;
+  }
+  if(selCausa){
+    const actual = selCausa.value;
+    selCausa.innerHTML = '<option value="">Todos los meses (apiladas)</option>' +
+      keys.map(k=>`<option value="${k}">${mesLabelLargo(k)}</option>`).join('');
+    if(keys.includes(actual)) selCausa.value = actual;
+  }
+}
+
+function onMesEspecificoChange(){
+  // Si se elige un mes específico, sincroniza también el filtro de causas y limpia desde/hasta
+  const mesEsp = document.getElementById('mf-mes').value;
+  if(mesEsp){
+    document.getElementById('mf-desde').value = '';
+    document.getElementById('mf-hasta').value = '';
+    const selCausa = document.getElementById('mf-causa-mes');
+    if(selCausa) selCausa.value = mesEsp;
+  }
+  renderMensual();
+}
+
+function limpiarFiltrosMensual(){
+  document.getElementById('mf-desde').value = '';
+  document.getElementById('mf-hasta').value = '';
+  document.getElementById('mf-mes').value = '';
+  document.getElementById('mf-causa-mes').value = '';
+  renderMensual();
+}
+
+// Punto de entrada: redibuja todo el panel "Dashboards mensuales".
+function renderMensual(){
+  if(!document.getElementById('page-mensual')) return;
+  poblarSelectoresMensual();
+  renderKpisMensual();
+  renderTablaMensual();
+  renderChartMensualCompleto();
+  renderChartCausasNoRec();
+}
+
+function renderKpisMensual(){
+  const el = document.getElementById('kpi-grid-mensual');
+  const lbl = document.getElementById('mf-resumen-label');
+  if(!el) return;
+  const { monthly, keys } = mesesFiltrados();
+  if(!keys.length){
+    el.innerHTML = '<div class="kpi"><div class="kpi-label">Sin historial</div><div class="kpi-val gray">—</div></div>';
+    if(lbl) lbl.textContent = 'No hay registros en el historial todavía.';
+    return;
+  }
+  let total=0, rec=0, noRec=0;
+  const pctPorMes = keys.map(k=>{
+    const m = monthly[k];
+    total += m.total; rec += m.rec; noRec += m.noRec;
+    return { k, pct: m.total>0 ? (m.rec/m.total)*100 : 0 };
+  });
+  const pctGlobal = total>0 ? Math.round((rec/total)*100) : 0;
+  const mejor = pctPorMes.reduce((a,b)=> b.pct>a.pct ? b : a, pctPorMes[0]);
+  const peor  = pctPorMes.reduce((a,b)=> b.pct<a.pct ? b : a, pctPorMes[0]);
+  // Reincidentes (5+) considerando LBOX que aparecen en >=5 registros dentro del rango filtrado
+  const reincConteo = {};
+  keys.forEach(k=>{ Object.entries(monthly[k].lboxes).forEach(([lbox,n])=>{ reincConteo[lbox]=(reincConteo[lbox]||0)+n; }); });
+  const reincTotal = Object.values(reincConteo).filter(n=>n>=CONFIG.UMBRAL_REINCIDENTE).length;
+
+  el.innerHTML = `
+    <div class="kpi"><div class="kpi-label">Meses con datos</div><div class="kpi-val blue">${keys.length}</div></div>
+    <div class="kpi"><div class="kpi-label">Total revisadas</div><div class="kpi-val blue">${total}</div></div>
+    <div class="kpi"><div class="kpi-label">Recuperadas</div><div class="kpi-val green">${rec}</div></div>
+    <div class="kpi"><div class="kpi-label">No recuperadas</div><div class="kpi-val red">${noRec}</div></div>
+    <div class="kpi" title="% de éxito acumulado en el rango seleccionado"><div class="kpi-label">% Éxito acumulado</div><div class="kpi-val green">${pctGlobal}%</div></div>
+    <div class="kpi" title="LBOX con 5 o más apariciones en el rango"><div class="kpi-label">Reincidentes (5+)</div><div class="kpi-val amber">${reincTotal}</div></div>
+    <div class="kpi" title="Mes con mayor % de éxito"><div class="kpi-label">Mejor mes</div><div class="kpi-val green">${mesLabelCorto(mejor.k)} · ${Math.round(mejor.pct)}%</div></div>
+    <div class="kpi" title="Mes con menor % de éxito"><div class="kpi-label">Mes más difícil</div><div class="kpi-val red">${mesLabelCorto(peor.k)} · ${Math.round(peor.pct)}%</div></div>`;
+
+  if(lbl) lbl.textContent = 'Mostrando ' + keys.length + ' mes(es) — desde ' + mesLabelLargo(keys[0]) + ' hasta ' + mesLabelLargo(keys[keys.length-1]) + ' — ' + total + ' registros.';
+}
+
+function renderTablaMensual(){
+  const tbody = document.getElementById('tbody-mensual');
+  if(!tbody) return;
+  const { monthly, keys } = mesesFiltrados();
+  if(!keys.length){ tbody.innerHTML = '<tr><td colspan="6" class="empty">Sin registros en el historial</td></tr>'; return; }
+  tbody.innerHTML = keys.slice().reverse().map(k=>{
+    const m = monthly[k];
+    const pct = m.total>0 ? Math.round((m.rec/m.total)*100) : 0;
+    const reinc = Object.values(m.lboxes).filter(n=>n>=CONFIG.UMBRAL_REINCIDENTE).length;
+    const pctColor = pct>=70 ? '#27ae60' : pct>=40 ? '#f39c12' : '#e74c3c';
+    return `<tr>
+      <td><b>${mesLabelLargo(k)}</b></td>
+      <td>${m.total}</td>
+      <td style="color:#27ae60;font-weight:600">${m.rec}</td>
+      <td style="color:#e74c3c;font-weight:600">${m.noRec}</td>
+      <td style="color:${pctColor};font-weight:700">${pct}%</td>
+      <td>${reinc||'—'}</td>
+    </tr>`;
+  }).join('');
+}
+
+// Gráfica de barras revisadas vs recuperadas, TODOS los meses desde el inicio (sin slice).
+function renderChartMensualCompleto(){
+  const canvas = document.getElementById('chart-mensual-completo');
+  if(!canvas) return;
+  const { monthly, keys } = mesesFiltrados();
+  const ctx = canvas.getContext('2d');
+
+  const minWidthPerMonth = 64;
+  const W = Math.max(canvas.parentElement.clientWidth, keys.length*minWidthPerMonth);
+  const H = 240;
+  canvas.width = W; canvas.height = H;
+  ctx.clearRect(0,0,W,H);
+  if(!keys.length) return;
+
+  const totals = keys.map(k=>monthly[k].total);
+  const recups = keys.map(k=>monthly[k].rec);
+  const labelsShort = keys.map(mesLabelCorto);
+
+  const padL=44, padR=20, padT=24, padB=42;
+  const chartW = W-padL-padR, chartH = H-padT-padB;
+  const barW = chartW/keys.length;
+  const maxVal = Math.max(...totals, 1);
+
+  ctx.strokeStyle='#eee'; ctx.lineWidth=1;
+  for(let i=0;i<=4;i++){
+    const y = padT + chartH - (chartH*i/4);
+    ctx.beginPath(); ctx.moveTo(padL,y); ctx.lineTo(W-padR,y); ctx.stroke();
+    ctx.fillStyle='#aaa'; ctx.font='10px sans-serif'; ctx.textAlign='right';
+    ctx.fillText(Math.round(maxVal*i/4), padL-6, y+3);
+  }
+
+  keys.forEach((k,i)=>{
+    const x = padL + i*barW + barW*0.12;
+    const bw = barW*0.36;
+    const hTotal = (totals[i]/maxVal)*chartH;
+    ctx.fillStyle='#185FA5'; ctx.fillRect(x, padT+chartH-hTotal, bw, hTotal);
+    ctx.fillStyle='#1a3a5c'; ctx.font='9px sans-serif'; ctx.textAlign='center';
+    if(totals[i]>0) ctx.fillText(totals[i], x+bw/2, padT+chartH-hTotal-4);
+
+    const hRecup = (recups[i]/maxVal)*chartH;
+    ctx.fillStyle='#27ae60'; ctx.fillRect(x+bw+3, padT+chartH-hRecup, bw, hRecup);
+    ctx.fillStyle='#1e6b3a';
+    if(recups[i]>0) ctx.fillText(recups[i], x+bw+3+bw/2, padT+chartH-hRecup-4);
+
+    ctx.fillStyle='#666'; ctx.font='9px sans-serif'; ctx.textAlign='center';
+    ctx.fillText(labelsShort[i], padL + i*barW + barW/2, H-padB+16);
+  });
+}
+
+// Gráfica de causas de no recuperación por mes (barras apiladas) o pastel para un solo mes.
+function renderChartCausasNoRec(){
+  const canvas = document.getElementById('chart-causas-mes');
+  const legend = document.getElementById('legend-causas-mes');
+  if(!canvas || !legend) return;
+  const monthly = agruparHistPorMes(hist);
+  const mesSel = document.getElementById('mf-causa-mes')?.value || '';
+  const ctx = canvas.getContext('2d');
+
+  // Top causas globales (para asignar colores consistentes)
+  const causasGlobales = {};
+  Object.values(monthly).forEach(m=>{
+    Object.entries(m.causas).forEach(([c,n])=>{ causasGlobales[c]=(causasGlobales[c]||0)+n; });
+  });
+  const topCausas = Object.entries(causasGlobales).sort((a,b)=>b[1]-a[1]).slice(0,7).map(e=>e[0]);
+  const colorDe = c => { const idx = topCausas.indexOf(c); return idx>=0 ? CAUSAS_COLORS[idx] : CAUSAS_COLORS[CAUSAS_COLORS.length-1]; };
+  const nombreCorto = c => topCausas.includes(c) ? c : 'Otras causas';
+
+  if(mesSel){
+    // ── Vista de un solo mes: pastel ──
+    const m = monthly[mesSel];
+    const W = Math.max(canvas.parentElement.clientWidth, 260), H = 240;
+    canvas.width = W; canvas.height = H;
+    ctx.clearRect(0,0,W,H);
+    if(!m || !Object.keys(m.causas).length){
+      legend.innerHTML = '<div class="empty" style="font-size:11px">Sin causas de no recuperación en ' + mesLabelLargo(mesSel) + '</div>';
+      return;
+    }
+    const entries = Object.entries(m.causas).sort((a,b)=>b[1]-a[1]);
+    const total = entries.reduce((s,[,n])=>s+n,0);
+    const cx = W/2, cy = H/2, r = Math.min(W,H)/2 - 20;
+    let angle = -Math.PI/2;
+    entries.forEach(([c,n])=>{
+      const slice = (n/total)*2*Math.PI;
+      ctx.beginPath(); ctx.moveTo(cx,cy); ctx.arc(cx,cy,r,angle,angle+slice); ctx.closePath();
+      ctx.fillStyle = colorDe(c); ctx.fill();
+      angle += slice;
+    });
+    ctx.beginPath(); ctx.arc(cx,cy,r*0.5,0,2*Math.PI); ctx.fillStyle='#fff'; ctx.fill();
+    ctx.fillStyle='#1a3a5c'; ctx.font='bold 14px sans-serif'; ctx.textAlign='center'; ctx.textBaseline='middle';
+    ctx.fillText(total, cx, cy);
+    legend.innerHTML = entries.map(([c,n])=>{
+      const pct = Math.round((n/total)*100);
+      return '<div class="causa-item" style="min-width:160px">' +
+        '<div class="causa-dot" style="background:'+colorDe(c)+'"></div>' +
+        '<div class="causa-label" title="'+c+'">'+c+'</div>' +
+        '<div class="causa-pct">'+n+' · '+pct+'%</div></div>';
+    }).join('');
+    return;
+  }
+
+  // ── Vista apilada: todos los meses desde el inicio ──
+  const keysConCausas = Object.keys(monthly).sort().filter(k=>Object.keys(monthly[k].causas).length>0);
+  const minWidthPerMonth = 64;
+  const W = Math.max(canvas.parentElement.clientWidth, keysConCausas.length*minWidthPerMonth), H = 240;
+  canvas.width = W; canvas.height = H;
+  ctx.clearRect(0,0,W,H);
+  if(!keysConCausas.length){
+    legend.innerHTML = '<div class="empty" style="font-size:11px">Sin causas de no recuperación registradas</div>';
+    return;
+  }
+
+  const padL=40, padR=20, padT=20, padB=42;
+  const chartW = W-padL-padR, chartH = H-padT-padB;
+  const barW = chartW/keysConCausas.length;
+  const maxVal = Math.max(...keysConCausas.map(k=>monthly[k].noRec), 1);
+
+  ctx.strokeStyle='#eee'; ctx.lineWidth=1;
+  for(let i=0;i<=4;i++){
+    const y = padT + chartH - (chartH*i/4);
+    ctx.beginPath(); ctx.moveTo(padL,y); ctx.lineTo(W-padR,y); ctx.stroke();
+    ctx.fillStyle='#aaa'; ctx.font='10px sans-serif'; ctx.textAlign='right';
+    ctx.fillText(Math.round(maxVal*i/4), padL-6, y+3);
+  }
+
+  keysConCausas.forEach((k,i)=>{
+    const m = monthly[k];
+    const entries = Object.entries(m.causas).sort((a,b)=>b[1]-a[1]);
+    const x = padL + i*barW + barW*0.2;
+    const bw = barW*0.6;
+    let yAcum = padT+chartH;
+    entries.forEach(([c,n])=>{
+      const hSeg = (n/maxVal)*chartH;
+      ctx.fillStyle = colorDe(c);
+      ctx.fillRect(x, yAcum-hSeg, bw, hSeg);
+      yAcum -= hSeg;
+    });
+    ctx.fillStyle='#666'; ctx.font='9px sans-serif'; ctx.textAlign='center';
+    ctx.fillText(mesLabelCorto(k), padL + i*barW + barW/2, H-padB+16);
+    ctx.fillStyle='#1a3a5c'; ctx.font='9px sans-serif';
+    if(m.noRec>0) ctx.fillText(m.noRec, x+bw/2, padT+chartH-(m.noRec/maxVal)*chartH-4);
+  });
+
+  legend.innerHTML = topCausas.map((c,i)=>{
+    const n = causasGlobales[c];
+    return '<div class="causa-item" style="min-width:160px">' +
+      '<div class="causa-dot" style="background:'+CAUSAS_COLORS[i]+'"></div>' +
+      '<div class="causa-label" title="'+c+'">'+c+'</div>' +
+      '<div class="causa-pct">'+n+'</div></div>';
+  }).join('') + (Object.keys(causasGlobales).length>topCausas.length ? '<div class="causa-item" style="min-width:160px"><div class="causa-dot" style="background:'+CAUSAS_COLORS[CAUSAS_COLORS.length-1]+'"></div><div class="causa-label">Otras causas</div></div>' : '');
+}
+
+// Exporta el resumen mensual (tabla) a Excel.
+function exportarMensualExcel(){
+  if(!hist.length){ notify('No hay historial para exportar', 'err'); return; }
+  if(typeof XLSX === 'undefined'){ notify('Librería Excel no cargada', 'err'); return; }
+  const { monthly, keys } = mesesFiltrados();
+  if(!keys.length){ notify('No hay datos en el rango seleccionado', 'err'); return; }
+  const headers = ['Mes','Revisadas','Recuperadas','No recuperadas','% Éxito','Reincidentes (5+)'];
+  const rows = keys.map(k=>{
+    const m = monthly[k];
+    const pct = m.total>0 ? Math.round((m.rec/m.total)*100) : 0;
+    const reinc = Object.values(m.lboxes).filter(n=>n>=CONFIG.UMBRAL_REINCIDENTE).length;
+    return [mesLabelLargo(k), m.total, m.rec, m.noRec, pct+'%', reinc];
+  });
+  const wb = XLSX.utils.book_new();
+  const ws = XLSX.utils.aoa_to_sheet([headers, ...rows]);
+  ws['!cols'] = [18,12,12,14,10,16].map(w=>({wch:w}));
+  XLSX.utils.book_append_sheet(wb, ws, 'Resumen mensual');
+  const fecha = new Date().toISOString().slice(0,10);
+  XLSX.writeFile(wb, 'Dashboard_Mensual_LBOX_' + fecha + '.xlsx');
+  notify('Resumen mensual exportado (' + keys.length + ' meses)', 'ok');
+}
+
 
 async function syncAll(){
   setSyncStatus('loading');
@@ -24318,7 +24716,16 @@ function renderAll(){
   renderCaptura();
   renderUnidades(units);
   renderHistorial(hist);
+  renderMensual();
 }
+
+let _resizeTMensual;
+window.addEventListener('resize', () => {
+  clearTimeout(_resizeTMensual);
+  _resizeTMensual = setTimeout(() => {
+    if (document.getElementById('page-mensual')?.classList.contains('active')) renderMensual();
+  }, 200);
+});
 
 
 /* ▓▓ 3.5 VALIDACIÓN DE POSICIÓN WEBFLEET ▓▓ ────────────────────────────────
@@ -24736,7 +25143,8 @@ function showPage(p){
   document.getElementById('nav-'+p).classList.add('active');
   const rp=document.getElementById('right-panel');
   if(rp){p==='dashboard'?rp.classList.add('visible'):rp.classList.remove('visible');}
-  const titles={dashboard:'Dashboard',captura:'Captura de unidades',unidades:'Unidades del reporte',historial:'Historial de reportes'};
+  const titles={dashboard:'Dashboard',captura:'Captura de unidades',unidades:'Unidades del reporte',historial:'Historial de reportes',mensual:'Dashboards mensuales'};
+  if(p==='mensual') renderMensual();
   document.getElementById('page-title').textContent = titles[p]||p;
 }
 
