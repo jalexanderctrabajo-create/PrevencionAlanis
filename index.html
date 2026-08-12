@@ -23167,6 +23167,8 @@ body{font-family:'Barlow',-apple-system,sans-serif;font-size:14px;color:var(--in
 .badge.no{background:var(--red-l);color:#9A2520}
 .badge.na{background:#EDF1F3;color:var(--muted)}
 .badge.pend{background:var(--lime-l);color:var(--lime-d)}
+.badge.link{background:#F1EAFB;color:#6C3FA6}
+.badge.inhib{background:#FFF3E0;color:#B35900}
 
 /* ── FORMULARIO ──────────────────────────────────────────── */
 .form-grid{display:grid;grid-template-columns:repeat(auto-fit,minmax(165px,1fr));gap:12px;margin-bottom:14px}
@@ -23392,8 +23394,8 @@ body{font-family:'Barlow',-apple-system,sans-serif;font-size:14px;color:var(--in
       <div class="card">
         <div class="card-title">Unidades en este reporte (<span id="count-cap">0</span>)</div>
         <div class="scroll-x"><table class="tbl">
-          <thead><tr><th>#ECO</th><th>LBOX</th><th>Firmware</th><th>Días</th><th>Posic. LINK</th><th>Desvincular</th><th>Reset Lbox</th><th>Reset LINK</th><th>Recuperó</th><th>Voltaje</th><th>Causa</th><th>Comentario</th><th>Nota interna</th><th></th></tr></thead>
-          <tbody id="tbody-captura"><tr><td colspan="9" class="empty">Cargando...</td></tr></tbody>
+          <thead><tr><th>#ECO</th><th>LBOX</th><th>Firmware</th><th>Días</th><th>Posic. LINK</th><th>Desvincular</th><th>Reset Lbox</th><th>Reset LINK</th><th>Recuperó</th><th>Voltaje</th><th>Atribución</th><th>Causa</th><th>Comentario</th><th>Nota interna</th><th></th></tr></thead>
+          <tbody id="tbody-captura"><tr><td colspan="15" class="empty">Cargando...</td></tr></tbody>
         </table></div>
       </div>
     </div>
@@ -23409,8 +23411,8 @@ body{font-family:'Barlow',-apple-system,sans-serif;font-size:14px;color:var(--in
     <button class="btn primary" style="background:#1E8449;border-color:#1E8449;margin-left:8px" onclick="cerrarYEnviar()">📧 Cerrar y enviar al cliente</button>
       </div>
       <div class="card"><div class="scroll-x"><table class="tbl">
-        <thead><tr><th>Fecha</th><th>#ECO</th><th>LBOX</th><th>FW</th><th>Últ. reporte</th><th>Días</th><th>Posic.</th><th>Desvincular</th><th>R.Lbox</th><th>R.LINK</th><th>Recuperó</th><th>Voltaje</th><th>Causa</th><th>Comentario</th><th></th></tr></thead>
-        <tbody id="tbody-unidades"><tr><td colspan="15" class="empty">Cargando...</td></tr></tbody>
+        <thead><tr><th>Fecha</th><th>#ECO</th><th>LBOX</th><th>FW</th><th>Últ. reporte</th><th>Días</th><th>Posic.</th><th>Desvincular</th><th>R.Lbox</th><th>R.LINK</th><th>Recuperó</th><th>Voltaje</th><th>Atribución</th><th>Causa</th><th>Comentario</th><th></th></tr></thead>
+        <tbody id="tbody-unidades"><tr><td colspan="16" class="empty">Cargando...</td></tr></tbody>
       </table></div></div>
     </div>
 
@@ -23423,8 +23425,8 @@ body{font-family:'Barlow',-apple-system,sans-serif;font-size:14px;color:var(--in
         <button class="btn success" onclick="exportarHistorialExcel()">📥 Exportar Excel</button>
       </div>
       <div class="card"><div class="scroll-x"><table class="tbl">
-        <thead><tr><th>Fecha</th><th>Folio</th><th>#ECO</th><th>LBOX</th><th>Días</th><th>Posic.</th><th>Desvincular</th><th>Reset Lbox</th><th>Reset LINK</th><th>Recuperó</th><th>Voltaje</th><th>Causa</th><th>Comentario</th></tr></thead>
-        <tbody id="tbody-historial"><tr><td colspan="6" class="empty">Cargando...</td></tr></tbody>
+        <thead><tr><th>Fecha</th><th>Folio</th><th>#ECO</th><th>LBOX</th><th>Días</th><th>Posic.</th><th>Desvincular</th><th>Reset Lbox</th><th>Reset LINK</th><th>Recuperó</th><th>Voltaje</th><th>Atribución</th><th>Causa</th><th>Comentario</th></tr></thead>
+        <tbody id="tbody-historial"><tr><td colspan="14" class="empty">Cargando...</td></tr></tbody>
       </table></div></div>
     </div>
 
@@ -24181,18 +24183,18 @@ function exportarHistorialExcel() {
   if (!hist.length) { notify('No hay historial para exportar', 'err'); return; }
   if (typeof XLSX === 'undefined') { notify('Librería Excel no cargada', 'err'); return; }
 
-  const headers = ['Fecha','Folio','ECO','LBOX','Firmware','Días','Posic.LINK','Desvincular','Reset Lbox','Reset LINK','Recuperó','Voltaje','Causa','Comentario','Agente'];
+  const headers = ['Fecha','Folio','ECO','LBOX','Firmware','Días','Posic.LINK','Desvincular','Reset Lbox','Reset LINK','Recuperó','Voltaje','Atribución','Causa','Comentario','Agente'];
   const rows = hist.map(h => [
     h.fecha||'', h.folio||'', h.eco||'', h.lbox||'', h.fw||'',
     h.dias||'', h.pos||'', h.desv||'', h.rlbox||'', h.rlink||'',
-    h.recupero||'', h.voltaje||'', h.causa||'', h.comentario||'', h.agente||''
+    h.recupero||'', h.voltaje||'', calcAtribucion(h.pos,h.recupero)||'—', h.causa||'', h.comentario||'', h.agente||''
   ]);
 
   const wb = XLSX.utils.book_new();
   const ws = XLSX.utils.aoa_to_sheet([headers, ...rows]);
 
   // Column widths
-  ws['!cols'] = [10,14,8,16,10,6,10,12,10,10,10,10,20,20,16].map(w=>({wch:w}));
+  ws['!cols'] = [10,14,8,16,10,6,10,12,10,10,10,10,16,20,20,16].map(w=>({wch:w}));
 
   XLSX.utils.book_append_sheet(wb, ws, 'Historial');
   const fecha = new Date().toISOString().slice(0,10);
@@ -24371,6 +24373,47 @@ function agruparHistPorMes(registros){
   return monthly;
 }
 
+// Agrupa TODO el historial por fecha de revisión exacta (YYYY-MM-DD), sin límite de fechas.
+// A diferencia de agruparHistPorMes, aquí cada "fecha de revisión" (h.fecha) es su propio grupo,
+// sin colapsar los registros de un mismo mes en un solo bucket.
+function agruparHistPorFecha(registros){
+  const daily = {};
+  registros.forEach(h=>{
+    if(!h.fecha) return;
+    const key = normFecha(h.fecha).slice(0,10);
+    if(!/^\d{4}-\d{2}-\d{2}$/.test(key)) return;
+    if(!daily[key]) daily[key] = { total:0, rec:0, noRec:0 };
+    const d = daily[key];
+    d.total++;
+    const rec = (h.recupero||'').toUpperCase();
+    if(rec==='SI') d.rec++;
+    else if(rec==='NO') d.noRec++;
+  });
+  return daily;
+}
+
+// Devuelve las fechas de revisión (YYYY-MM-DD) filtradas por el rango de meses desde/hasta
+// o el mes específico seleccionado en los filtros del panel "Dashboards mensuales".
+function fechasFiltradas(){
+  const daily = agruparHistPorFecha(hist);
+  let keys = Object.keys(daily).sort();
+  const desde = document.getElementById('mf-desde')?.value || '';
+  const hasta = document.getElementById('mf-hasta')?.value || '';
+  const mesEsp = document.getElementById('mf-mes')?.value || '';
+  if(mesEsp) keys = keys.filter(k=>k.slice(0,7)===mesEsp);
+  else {
+    if(desde) keys = keys.filter(k=>k.slice(0,7)>=desde);
+    if(hasta) keys = keys.filter(k=>k.slice(0,7)<=hasta);
+  }
+  return { daily, keys };
+}
+
+// Etiqueta corta "DD Mon" para una fecha de revisión (YYYY-MM-DD).
+function fechaLabelCorto(key){
+  const [y,m,d] = key.split('-');
+  return d + ' ' + MESES_CORTO[parseInt(m)];
+}
+
 // Devuelve la lista de meses (YYYY-MM) filtrada por el rango desde/hasta.
 function mesesFiltrados(){
   const monthly = agruparHistPorMes(hist);
@@ -24494,23 +24537,25 @@ function renderTablaMensual(){
   }).join('');
 }
 
-// Gráfica de barras revisadas vs recuperadas, TODOS los meses desde el inicio (sin slice).
+// Gráfica de barras revisadas vs recuperadas, dividida por fecha de revisión exacta
+// (una barra por cada día en que se cerró un reporte), TODO el histórico desde el
+// inicio dentro del rango de meses filtrado (sin slice).
 function renderChartMensualCompleto(){
   const canvas = document.getElementById('chart-mensual-completo');
   if(!canvas) return;
-  const { monthly, keys } = mesesFiltrados();
+  const { daily, keys } = fechasFiltradas();
   const ctx = canvas.getContext('2d');
 
-  const minWidthPerMonth = 64;
-  const W = Math.max(canvas.parentElement.clientWidth, keys.length*minWidthPerMonth);
+  const minWidthPerFecha = 56;
+  const W = Math.max(canvas.parentElement.clientWidth, keys.length*minWidthPerFecha);
   const H = 240;
   canvas.width = W; canvas.height = H;
   ctx.clearRect(0,0,W,H);
   if(!keys.length) return;
 
-  const totals = keys.map(k=>monthly[k].total);
-  const recups = keys.map(k=>monthly[k].rec);
-  const labelsShort = keys.map(mesLabelCorto);
+  const totals = keys.map(k=>daily[k].total);
+  const recups = keys.map(k=>daily[k].rec);
+  const labelsShort = keys.map(fechaLabelCorto);
 
   const padL=44, padR=20, padT=24, padB=42;
   const chartW = W-padL-padR, chartH = H-padT-padB;
@@ -24528,15 +24573,17 @@ function renderChartMensualCompleto(){
   keys.forEach((k,i)=>{
     const x = padL + i*barW + barW*0.12;
     const bw = barW*0.36;
+    // Barra "Revisadas": el total de unidades se muestra siempre arriba de la barra.
     const hTotal = (totals[i]/maxVal)*chartH;
-    ctx.fillStyle='#185FA5'; ctx.fillRect(x, padT+chartH-hTotal, bw, hTotal);
-    ctx.fillStyle='#1a3a5c'; ctx.font='9px sans-serif'; ctx.textAlign='center';
-    if(totals[i]>0) ctx.fillText(totals[i], x+bw/2, padT+chartH-hTotal-4);
+    ctx.fillStyle='#185FA5'; ctx.fillRect(x, padT+chartH-hTotal, bw, Math.max(hTotal,0));
+    ctx.fillStyle='#1a3a5c'; ctx.font='bold 9px sans-serif'; ctx.textAlign='center';
+    ctx.fillText(totals[i], x+bw/2, padT+chartH-hTotal-4);
 
+    // Barra "Recuperadas": su propio total también se muestra arriba de la barra.
     const hRecup = (recups[i]/maxVal)*chartH;
-    ctx.fillStyle='#27ae60'; ctx.fillRect(x+bw+3, padT+chartH-hRecup, bw, hRecup);
-    ctx.fillStyle='#1e6b3a';
-    if(recups[i]>0) ctx.fillText(recups[i], x+bw+3+bw/2, padT+chartH-hRecup-4);
+    ctx.fillStyle='#27ae60'; ctx.fillRect(x+bw+3, padT+chartH-hRecup, bw, Math.max(hRecup,0));
+    ctx.fillStyle='#1e6b3a'; ctx.font='bold 9px sans-serif';
+    ctx.fillText(recups[i], x+bw+3+bw/2, padT+chartH-hRecup-4);
 
     ctx.fillStyle='#666'; ctx.font='9px sans-serif'; ctx.textAlign='center';
     ctx.fillText(labelsShort[i], padL + i*barW + barW/2, H-padB+16);
@@ -25081,6 +25128,25 @@ function badge(v) {
   return '<span class="badge na">' + (v || '—') + '</span>';
 }
 
+// Atribución de la falla en función de "posición LINK" y "se recuperó":
+//  - Sin posición LINK ("pos"==='NO')                              -> "Link"
+//  - Con posición LINK pero no se recuperó ("pos"==='SI' y "recupero"==='NO') -> "Posible inhibición"
+//  - Cualquier otro caso (recuperada, o datos incompletos)          -> sin atribución
+function calcAtribucion(pos, recupero) {
+  const p = (pos || '').toUpperCase();
+  const r = (recupero || '').toUpperCase();
+  if (p === 'NO') return 'Link';
+  if (p === 'SI' && r === 'NO') return 'Posible inhibición';
+  return '';
+}
+
+function atribBadge(pos, recupero) {
+  const a = calcAtribucion(pos, recupero);
+  if (a === 'Link') return '<span class="badge link">📡 Link</span>';
+  if (a === 'Posible inhibición') return '<span class="badge inhib">⚠️ Posible inhibición</span>';
+  return '<span class="badge na">—</span>';
+}
+
 
 /* — Drill-down: click en KPI → tabla Unidades filtrada — */
 let drillFiltro = null;   // filtro activo aplicado desde un KPI
@@ -25373,7 +25439,7 @@ function renderWidgetProgreso() {
 function renderCaptura(){
   document.getElementById('count-cap').textContent=units.length;
   const tbody=document.getElementById('tbody-captura');
-  if(!units.length){tbody.innerHTML='<tr><td colspan="13" class="empty">Sin unidades aún. Usa el botón "Obtener datos en vivo" o captura manualmente.</td></tr>';return;}
+  if(!units.length){tbody.innerHTML='<tr><td colspan="15" class="empty">Sin unidades aún. Usa el botón "Obtener datos en vivo" o captura manualmente.</td></tr>';return;}
   const SN  = ['—','SI','NO','N/A'];
   const SIA = ['—','SI/A','NO','N/A'];
   const SV  = ['—','SI','NO','No aplica'];
@@ -25391,6 +25457,7 @@ function renderCaptura(){
     <td>${sel('rlink',i,u.rlink||'—',SIA)}</td>
     <td>${sel('recupero',i,u.recupero||'—',SN)}</td>
     <td>${sel('voltaje',i,u.voltaje||'—',SV)}</td>
+    <td>${atribBadge(u.pos,u.recupero)}</td>
     <td>${inp('causa',i,u.causa,'causa')}</td>
     <td>${inp('comentario',i,u.comentario,'comentario')}</td>
     <td>${inp('nota',i,u.nota,'nota interna')}</td>
@@ -25402,7 +25469,7 @@ function renderCaptura(){
 /* ▓▓ 8. UNIDADES ▓▓ ──────────────────────────────────────────────────────── */
 function renderUnidades(data){
   const tbody=document.getElementById('tbody-unidades');
-  if(!data.length){tbody.innerHTML='<tr><td colspan="15" class="empty">Sin datos</td></tr>';return;}
+  if(!data.length){tbody.innerHTML='<tr><td colspan="16" class="empty">Sin datos</td></tr>';return;}
   tbody.innerHTML=data.map((u,i)=>`<tr>
     <td style="white-space:nowrap;font-size:11px">${u.fechaEjec||'—'}</td>
     <td><b>ECO ${u.eco}</b>${isReinc(u.lbox)?'<span class="tag-reinc">reinc.</span>':''}</td>
@@ -25412,6 +25479,7 @@ function renderUnidades(data){
     <td class="${dClass(u.dias)}">${u.dias}</td>
     <td>${badge(u.pos)}</td><td>${badge(u.desv)}</td><td>${badge(u.rlbox)}</td><td>${badge(u.rlink)}</td>
     <td>${badge(u.recupero)}</td><td>${badge(u.voltaje)}</td>
+    <td>${atribBadge(u.pos,u.recupero)}</td>
     <td style="font-size:11px;max-width:90px;overflow:hidden;text-overflow:ellipsis;white-space:nowrap">${u.causa||'—'}</td>
     <td style="font-size:11px;max-width:100px;overflow:hidden;text-overflow:ellipsis;white-space:nowrap">${u.comentario||'—'}</td>
     <td>${inp('nota',i,u.nota,'nota interna')}</td>
@@ -25424,7 +25492,7 @@ function renderUnidades(data){
 function renderHistorial(data){
   populateAgenteFilter();
   const tbody=document.getElementById('tbody-historial');
-  if(!data.length){tbody.innerHTML='<tr><td colspan="13" class="empty">Sin historial aún</td></tr>';return;}
+  if(!data.length){tbody.innerHTML='<tr><td colspan="14" class="empty">Sin historial aún</td></tr>';return;}
   tbody.innerHTML=[...data].reverse().map(h=>`<tr>
     <td style="font-size:11px;white-space:nowrap">${h.fecha||'—'}</td>
     <td><span class="badge pend" style="font-size:10px">${h.folio||'—'}</span></td>
@@ -25437,6 +25505,7 @@ function renderHistorial(data){
     <td>${badge(h.rlink)}</td>
     <td>${badge(h.recupero)}</td>
     <td>${badge(h.voltaje)}</td>
+    <td>${atribBadge(h.pos,h.recupero)}</td>
     <td style="font-size:11px;max-width:100px;overflow:hidden;text-overflow:ellipsis;white-space:nowrap" title="${h.causa||''}">${h.causa||'—'}</td>
     <td style="font-size:11px;max-width:100px;overflow:hidden;text-overflow:ellipsis;white-space:nowrap" title="${h.comentario||''}">${h.comentario||'—'}</td>
   </tr>`).join('');
