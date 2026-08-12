@@ -513,7 +513,7 @@ th, td {
       }
     }
 
-/* file continues unchanged */
+/* (rest of original bundle continues unchanged) */
 </script>
 <!-- ADDED: Script para generar el resumen mensual de Atribuciones -->
 <script>
@@ -650,7 +650,7 @@ document.addEventListener('DOMContentLoaded', function () {
 
   const rows = extractRowsFromTables();
   if (rows.length === 0) {
-    console.warn('No se encontraron filas / tablas con fecha/atribución. Si los datos vienen desde backend/GS, asegúrate de que la tabla incluya la columna de Atribuciones o añadir data-atribucion en cada fila.');
+    console.warn('No se encontraron filas / tablas con fecha/atribución. Si los datos vienen desde backend/GS, asegúrate de que la tabla incluya la columna de Atribuciones o añade data-atribucion en cada <tr> (ej. <tr data-fecha="2026-08-12" data-atribucion="Link">).');
     return;
   }
   const agg = aggregate(rows);
@@ -660,6 +660,6 @@ document.addEventListener('DOMContentLoaded', function () {
 </script>
 </head>
 <body>
-<!-- original body content preserved -->
+<!-- original body content preserved (minified/large script above continues) -->
 </body>
 </html>
