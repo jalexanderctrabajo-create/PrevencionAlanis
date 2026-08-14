@@ -23097,6 +23097,7 @@ var __async = (__this, __arguments, generator) => {
   --green:#3FA34D; --green-l:#DDF0E0; --blue:#3A7BD5;
 }
 *{box-sizing:border-box;margin:0;padding:0}
+html,body{overflow-x:hidden;max-width:100vw}
 body{font-family:'Barlow',-apple-system,sans-serif;font-size:14px;color:var(--ink);background:var(--bg);height:100vh;display:flex;-webkit-font-smoothing:antialiased}
 
 /* ── SIDEBAR ─────────────────────────────────────────────── */
@@ -23136,7 +23137,7 @@ body{font-family:'Barlow',-apple-system,sans-serif;font-size:14px;color:var(--in
 .topbar{background:var(--card);border-bottom:1px solid var(--line);padding:14px 24px;display:flex;align-items:center;justify-content:space-between;gap:8px;position:sticky;top:0;z-index:20}
 .topbar-title{font-family:'Barlow Semi Condensed',sans-serif;font-size:19px;font-weight:700;color:var(--navy);white-space:nowrap;letter-spacing:.3px}
 .topbar-actions{display:flex;gap:8px;flex-wrap:wrap}
-.content{padding:22px 24px;flex:1}
+.content{padding:22px 24px;flex:1;max-width:1600px;margin:0 auto;width:100%;box-sizing:border-box}
 .page{display:none}.page.active{display:block;animation:fadeIn .3s ease}
 @keyframes fadeIn{from{opacity:0;transform:translateY(6px)}to{opacity:1;transform:none}}
 
@@ -23197,8 +23198,8 @@ body{font-family:'Barlow',-apple-system,sans-serif;font-size:14px;color:var(--in
 .notif{position:fixed;top:20px;right:20px;padding:13px 20px;border-radius:10px;font-size:13px;z-index:9999;opacity:0;transition:opacity .3s,transform .3s;color:#fff;background:var(--navy);max-width:340px;font-weight:500;box-shadow:0 8px 24px rgba(28,43,57,.2);transform:translateX(20px)}
 .notif.show{opacity:1;transform:none}.notif.err{background:var(--red)}.notif.ok{background:var(--lime-d)}
 
-.scroll-x{overflow-x:auto}
-.two-col{display:grid;grid-template-columns:1fr 1fr;gap:16px}
+.scroll-x{overflow-x:auto;max-width:100%;min-width:0}
+.two-col{display:grid;grid-template-columns:repeat(auto-fit,minmax(300px,1fr));gap:16px}
 
 /* ── GRÁFICA DE BARRAS ───────────────────────────────────── */
 .bar-chart{display:flex;align-items:flex-end;gap:12px;height:96px;padding-top:8px}
@@ -23243,6 +23244,63 @@ body{font-family:'Barlow',-apple-system,sans-serif;font-size:14px;color:var(--in
 .causa-dot{width:10px;height:10px;border-radius:50%;flex-shrink:0}
 .causa-label{flex:1;overflow:hidden;text-overflow:ellipsis;white-space:nowrap}
 .causa-pct{font-weight:700;color:var(--navy);font-size:10px}
+
+/* ═══════════════════════════════════════════════════════════════════════
+   RESPONSIVE — media queries
+   ═══════════════════════════════════════════════════════════════════════ */
+
+/* Tablets grandes / laptops pequeñas */
+@media (max-width: 1200px){
+  .content{padding:18px}
+}
+
+/* Tablets: sidebar y panel derecho se angostan */
+@media (max-width: 1024px){
+  .sidebar{width:180px;min-width:180px}
+  .right-panel{width:270px}
+  .kpi-val{font-size:26px}
+}
+
+/* Tablets pequeñas / móvil horizontal: el panel de widgets deja de competir por espacio */
+@media (max-width: 900px){
+  .right-panel{display:none !important}
+  .kpi-grid{grid-template-columns:repeat(auto-fit,minmax(115px,1fr))}
+  .two-col{grid-template-columns:1fr}
+}
+
+/* Móvil: la barra lateral pasa a franja superior horizontal */
+@media (max-width: 768px){
+  .app{flex-direction:column;height:auto;min-height:100vh;min-width:0}
+  .sidebar{width:100%;min-width:0;flex-direction:row;flex-wrap:wrap;align-items:center;gap:8px 14px;padding:10px 14px;box-shadow:0 2px 10px rgba(28,43,57,.15)}
+  .logo{padding:0;border:none;display:flex;align-items:center;flex-wrap:wrap;gap:10px 14px}
+  .logo-sub,.logo-app,.cliente-lbl{display:none}
+  .cliente-sel{margin:0;width:auto;min-width:140px}
+  .sync-row{padding:0;margin-left:auto}
+  .nav-item{padding:8px 12px;border-left:none;border-radius:8px}
+  .nav-item.active{border-left:none;background:rgba(139,197,63,.18)}
+  .user-info{display:none}
+
+  .main{overflow-x:hidden;min-width:0}  /* overflow-y sigue auto (comportamiento consistente con escritorio) */
+  .topbar{flex-direction:column;align-items:stretch;justify-content:flex-start;gap:10px;padding:12px 14px;position:static}
+  .topbar-title{white-space:normal}
+  .topbar-actions{flex-wrap:wrap}
+  .content{padding:14px;min-width:0;max-width:100%;overflow-x:hidden}
+  .kpi-grid{grid-template-columns:repeat(auto-fit,minmax(130px,1fr))}
+  .tbl{font-size:11px}
+  .card{padding:14px}
+}
+
+/* Móvil pequeño */
+@media (max-width: 480px){
+  .kpi-grid,.form-grid{grid-template-columns:repeat(2,minmax(0,1fr))}
+  .kpi{padding:12px 14px;overflow:hidden}
+  .kpi-label{font-size:10px;white-space:normal}
+  .kpi-val{font-size:20px}
+  .topbar-title{font-size:16px}
+  .nav-item{font-size:12px;padding:7px 10px}
+  .btn{font-size:11px;padding:7px 12px}
+  .content{padding:10px}
+}
 </style>
 </head>
 <body>
@@ -23274,8 +23332,8 @@ body{font-family:'Barlow',-apple-system,sans-serif;font-size:14px;color:var(--in
       <button class="btn" onclick="seleccionarTodos()">Seleccionar todos</button>
       <button class="btn" onclick="deseleccionarTodos()">Ninguno</button>
     </div>
-    <div style="overflow-y:auto;flex:1;border:1px solid #e8e8e8;border-radius:8px">
-      <table class="tbl" style="font-size:11px">
+    <div style="overflow:auto;flex:1;border:1px solid #e8e8e8;border-radius:8px">
+      <table class="tbl" style="font-size:11px;min-width:640px">
         <thead><tr>
           <th style="width:32px"><input type="checkbox" id="chk-all" onchange="toggleAll(this)"></th>
           <th>#ECO</th><th>LBOX</th><th>Firmware</th>
@@ -23464,6 +23522,22 @@ body{font-family:'Barlow',-apple-system,sans-serif;font-size:14px;color:var(--in
       <!-- ── KPIs históricos ───────────────────────────────────────── -->
       <div class="kpi-grid" id="kpi-grid-mensual"></div>
 
+      <!-- ── Atribuciones (Link / Posible inhibición / Recuperada) ───── -->
+      <div class="card" style="margin-bottom:16px">
+        <div class="card-title">🎯 Atribuciones — clasificación del resultado</div>
+        <div style="font-size:11px;color:var(--muted);margin-bottom:12px">
+          Cada unidad revisada se clasifica en una de tres categorías: <b>Recuperada</b> (volvió a reportar),
+          <b>Posible inhibición</b> (tiene voltaje pero no logró posicionar — patrón típico de bloqueo de señal)
+          o <b>Link</b> (sin voltaje o dato no disponible — falla eléctrica/hardware). Rango según los filtros de arriba.
+        </div>
+        <div class="two-col" style="align-items:stretch">
+          <div id="atrib-cards" style="display:grid;grid-template-columns:repeat(auto-fit,minmax(140px,1fr));gap:10px;align-content:start"></div>
+          <div class="scroll-x" style="overflow-x:auto">
+            <canvas id="chart-atribuciones-mes" height="220" style="height:220px;min-width:340px"></canvas>
+          </div>
+        </div>
+      </div>
+
       <!-- ── Tabla mensual ─────────────────────────────────────────── -->
       <div class="card" style="margin-bottom:16px">
         <div class="card-title">🗓️ Revisiones por mes</div>
@@ -23541,12 +23615,19 @@ const CONFIG = {
   DIAS_OK: 7,                   // 🟢 1-7 días
   DIAS_WARN: 30,                // 🟡 8-30 días · 🔴 +30 días
 
-  // Credenciales de la cuenta LBOX activa (editable desde la app)
-  // Estos valores se pasan al Apps Script para consultar otras cuentas
+  // Token compartido con el Apps Script. Debe coincidir con API_TOKEN del .gs.
+  // NOTA: al estar en un HTML público, esto NO es un secreto fuerte; su función es
+  // evitar el acceso trivial de quien descubra la URL del backend, no resistir a
+  // alguien que inspeccione el código. Ver notas de seguridad al entregar.
+  API_TOKEN: 'CAMBIAR_POR_TOKEN_LARGO_Y_ALEATORIO',
+
+  // Credenciales de la cuenta LBOX. NO se hardcodean: el backend ya tiene las
+  // suyas por defecto, y para consultar OTRAS cuentas se capturan en el modal.
+  // Publicar usuario/contraseña en el HTML los expone a cualquier visitante.
   CUENTA: {
     cuenta:   'alanis',
-    usuario:  'its',
-    password: 'Inroute2018',
+    usuario:  '',
+    password: '',
   },
 
   // Ajuste de zona horaria en horas (como las celdas H2/C13 del Excel viejo).
@@ -23571,6 +23652,11 @@ const CONFIG = {
   // Umbral para marcar automáticamente "Posiciona" SI/NO (campo pos / Posic. LINK).
   // <2 min desde la última posición = SI. ≥2 min o sin dato = NO.
   WF_UMBRAL_POSICIONA_MIN: 2,
+
+  // Tolerancia para unidades en reposo (motor apagado / detenidas). Los GPS
+  // dormidos reportan cada 1, 6 o 24 h por ahorro de batería: ese silencio es
+  // normal y NO debe contarse como pérdida de señal. 1440 min = 24 h.
+  WF_TOLERANCIA_REPOSO_MIN: 1440,
 };
 
 // Cargar credenciales Webfleet guardadas en sesión (si las hay)
@@ -23629,7 +23715,7 @@ function jsonp(params){
       resolve(data);
     };
 
-    const url = API + '?' + new URLSearchParams({...params, callback: cbName});
+    const url = API + '?' + new URLSearchParams({...params, token: CONFIG.API_TOKEN, callback: cbName});
     const script = document.createElement('script');
     script.id = cbName;
     script.src = url;
@@ -23905,15 +23991,15 @@ function renderImportTable() {
     const cmpBg = difiere ? '#fdecea' : '#eafaf1';
     return '<tr style="background:' + (i%2?'#f9f9f9':'#fff') + '">' +
       '<td style="text-align:center"><input type="checkbox" class="chk-import" data-idx="' + i + '" onchange="updateSelected()"></td>' +
-      '<td><b>ECO ' + u.eco + '</b>' + (reinc ? '<span class="tag-reinc">reinc.</span>' : '') + '</td>' +
-      '<td style="font-size:10px">' + u.lbox + '</td>' +
-      '<td style="font-size:10px;color:#888">' + u.fw + '</td>' +
-      '<td style="font-size:10px;white-space:nowrap">' + u.fechaRep + '</td>' +
+      '<td><b>ECO ' + esc(u.eco) + '</b>' + (reinc ? '<span class="tag-reinc">reinc.</span>' : '') + '</td>' +
+      '<td style="font-size:10px">' + esc(u.lbox) + '</td>' +
+      '<td style="font-size:10px;color:#888">' + esc(u.fw) + '</td>' +
+      '<td style="font-size:10px;white-space:nowrap">' + esc(u.fechaRep) + '</td>' +
       '<td style="font-weight:700;color:' + dc + '">' + u.dias + 'd</td>' +
       '<td style="text-align:center;background:' + cmpBg + '"><span style="font-weight:700;color:' + cmpColor + '">' + dExc + 'd</span>' +
         (difiere ? '<br><span style="font-size:9px;color:#c0392b">Δ' + Math.abs(dApp-dExc) + 'd</span>' : '') + '</td>' +
       '<td style="text-align:center">' + (u.pos==='SI' ? '<span class="badge si">SI</span>' : u.pos==='NO' ? '<span class="badge no">NO</span>' : '<span class="badge na">—</span>') + '</td>' +
-      '<td style="font-size:10px">' + u.modo + '</td>' +
+      '<td style="font-size:10px">' + esc(u.modo) + '</td>' +
     '</tr>';
   }).join('');
   updateSelected();
@@ -24357,16 +24443,26 @@ function agruparHistPorMes(registros){
     if(!h.fecha) return;
     const key = normFecha(h.fecha).slice(0,7);
     if(!/^\d{4}-\d{2}$/.test(key)) return;
-    if(!monthly[key]) monthly[key] = { total:0, rec:0, noRec:0, causas:{}, lboxes:{} };
+    if(!monthly[key]) monthly[key] = { total:0, rec:0, noRec:0, causas:{}, lboxes:{}, atrib:{recuperada:0, inhibicion:0, link:0} };
     const m = monthly[key];
     m.total++;
     const rec = (h.recupero||'').toUpperCase();
-    if(rec==='SI') m.rec++;
+    const volt = (h.voltaje||'').toUpperCase();
+    if(rec==='SI'){
+      m.rec++;
+      m.atrib.recuperada++;
+    }
     else if(rec==='NO'){
       m.noRec++;
       const c = (h.causa||'').trim();
       const key2 = c && c.length>=2 ? (c.length>28 ? c.slice(0,28)+'…' : c) : 'Sin causa registrada';
       m.causas[key2] = (m.causas[key2]||0) + 1;
+      // Atribución (clasificación automática):
+      //  · Con voltaje presente pero no recuperada → "Posible inhibición" (el equipo
+      //    tiene energía pero no logra posicionar/reportar, patrón típico de bloqueo de señal).
+      //  · Sin voltaje (o dato no disponible) → "Link" (falla eléctrica/hardware, no de señal).
+      if(volt==='SI') m.atrib.inhibicion++;
+      else m.atrib.link++;
     }
     if(h.lbox) m.lboxes[h.lbox] = (m.lboxes[h.lbox]||0)+1;
   });
@@ -24470,10 +24566,92 @@ function limpiarFiltrosMensual(){
 }
 
 // Punto de entrada: redibuja todo el panel "Dashboards mensuales".
+function renderAtribucionesMensual(){
+  const cardsEl = document.getElementById('atrib-cards');
+  const canvas = document.getElementById('chart-atribuciones-mes');
+  if(!cardsEl || !canvas) return;
+
+  const { monthly, keys } = mesesFiltrados();
+  const ctx = canvas.getContext('2d');
+
+  // Totales acumulados en el rango filtrado (mismos filtros que los KPIs de arriba)
+  let totRec=0, totInhib=0, totLink=0;
+  keys.forEach(k=>{
+    const a = monthly[k].atrib;
+    totRec += a.recuperada; totInhib += a.inhibicion; totLink += a.link;
+  });
+  const totClasificado = totRec + totInhib + totLink;
+
+  const cats = [
+    { label:'Recuperada',         n:totRec,   cls:'green', color:'#27ae60' },
+    { label:'Posible inhibición', n:totInhib, cls:'red',   color:'#e74c3c' },
+    { label:'Link',                n:totLink,  cls:'blue',  color:'#185FA5' },
+  ];
+
+  if(!totClasificado){
+    cardsEl.innerHTML = '<div class="kpi"><div class="kpi-label">Sin datos</div><div class="kpi-val gray">—</div></div>';
+    ctx.clearRect(0,0,canvas.width,canvas.height);
+    return;
+  }
+
+  cardsEl.innerHTML = cats.map(c=>{
+    const pct = Math.round((c.n/totClasificado)*100);
+    return '<div class="kpi">' +
+      '<div class="kpi-label">'+c.label+'</div>' +
+      '<div class="kpi-val '+c.cls+'">'+c.n+'</div>' +
+      '<div style="font-size:11px;color:var(--muted);margin-top:2px">'+pct+'% del total clasificado</div></div>';
+  }).join('');
+
+  // ── Gráfica apilada por mes ──────────────────────────────────────────
+  const minWidthPerMonth = 60;
+  const W = Math.max(canvas.parentElement.clientWidth, keys.length*minWidthPerMonth), H = 220;
+  canvas.width = W; canvas.height = H;
+  ctx.clearRect(0,0,W,H);
+  if(!keys.length) return;
+
+  const padL=40, padR=20, padT=20, padB=38;
+  const chartW = W-padL-padR, chartH = H-padT-padB;
+  const barW = chartW/keys.length;
+  const maxVal = Math.max(...keys.map(k=>{
+    const a = monthly[k].atrib;
+    return a.recuperada+a.inhibicion+a.link;
+  }), 1);
+
+  ctx.strokeStyle='#eee'; ctx.lineWidth=1;
+  for(let i=0;i<=4;i++){
+    const y = padT + chartH - (chartH*i/4);
+    ctx.beginPath(); ctx.moveTo(padL,y); ctx.lineTo(W-padR,y); ctx.stroke();
+    ctx.fillStyle='#aaa'; ctx.font='10px sans-serif'; ctx.textAlign='right';
+    ctx.fillText(Math.round(maxVal*i/4), padL-6, y+3);
+  }
+
+  keys.forEach((k,i)=>{
+    const a = monthly[k].atrib;
+    const x = padL + i*barW + barW*0.2;
+    const bw = barW*0.6;
+    let yAcum = padT+chartH;
+    [['recuperada','#27ae60'],['inhibicion','#e74c3c'],['link','#185FA5']].forEach(([campo,color])=>{
+      const n = a[campo];
+      const hSeg = (n/maxVal)*chartH;
+      ctx.fillStyle = color;
+      ctx.fillRect(x, yAcum-hSeg, bw, Math.max(hSeg,0));
+      yAcum -= hSeg;
+    });
+    ctx.fillStyle='#666'; ctx.font='9px sans-serif'; ctx.textAlign='center';
+    ctx.fillText(mesLabelCorto(k), padL + i*barW + barW/2, H-padB+16);
+    const totalMes = a.recuperada+a.inhibicion+a.link;
+    if(totalMes>0){
+      ctx.fillStyle='#1a3a5c'; ctx.font='bold 9px sans-serif';
+      ctx.fillText(totalMes, x+bw/2, padT+chartH-(totalMes/maxVal)*chartH-4);
+    }
+  });
+}
+
 function renderMensual(){
   if(!document.getElementById('page-mensual')) return;
   poblarSelectoresMensual();
   renderKpisMensual();
+  renderAtribucionesMensual();
   renderTablaMensual();
   renderChartMensualCompleto();
   renderChartCausasNoRec();
@@ -24848,6 +25026,7 @@ function renderTablaWebfleet() {
   const badgeMap = {
     activo:   ['🟢 Activa',           '#eafaf1', '#1E8449'],
     moderado: ['🟡 Moderado',         '#fdf3e0', '#b35900'],
+    reposo:   ['🔵 En reposo',        '#eaf2fb', '#185FA5'],
     perdida:  ['🔴 Posible pérdida',  '#fdecea', '#c0392b'],
     sin_dato: ['⚪ Sin dato',         '#f2f2f2', '#888'],
   };
@@ -24855,13 +25034,13 @@ function renderTablaWebfleet() {
   tbody.innerHTML = filtrados.map((u, i) => {
     const [label, bg, color] = badgeMap[u.estado] || badgeMap.sin_dato;
     return '<tr style="background:' + (i%2?'#f9f9f9':'#fff') + '">' +
-      '<td style="text-align:center"><input type="checkbox" class="wf-chk-unidad" value="' + u.eco + '" onchange="updateWfSelected()"></td>' +
-      '<td><b>ECO ' + u.eco + '</b></td>' +
-      '<td style="font-size:10px">' + (u.lbox || '—') + '</td>' +
-      '<td style="font-size:10px">' + (u.objectname || '—') + '</td>' +
+      '<td style="text-align:center"><input type="checkbox" class="wf-chk-unidad" value="' + esc(u.eco) + '" onchange="updateWfSelected()"></td>' +
+      '<td><b>ECO ' + esc(u.eco) + '</b></td>' +
+      '<td style="font-size:10px">' + esc(u.lbox || '—') + '</td>' +
+      '<td style="font-size:10px">' + esc(u.objectname || '—') + '</td>' +
       '<td style="font-size:11px;white-space:nowrap">' + (u.pos_time_legible || u.pos_time || '—') + '</td>' +
       '<td style="font-weight:700">' + (u.minutos !== null ? u.minutos + ' min' : '—') + '</td>' +
-      '<td style="text-align:center">' + (u.speed || '0') + ' km/h</td>' +
+      '<td style="text-align:center">' + esc(u.speed || '0') + ' km/h</td>' +
       '<td style="text-align:center">' + (u.ignition == '1' ? '🟢' : '🔴') + '</td>' +
       '<td style="text-align:center"><span style="background:' + bg + ';color:' + color + ';padding:3px 9px;border-radius:20px;font-size:10px;font-weight:600">' + label + '</span></td>' +
       '<td style="text-align:center"><span style="font-weight:700;color:' + (u.posiciona==='SI'?'#1E8449':'#c0392b') + '">' + u.posiciona + '</span></td>' +
@@ -24891,6 +25070,28 @@ function updateWfSelected(){
 }
 
 /* ── CONSULTA A LA API DE WEBFLEET (Vía Proxy GAS) ───────────────────────── */
+
+/* Normaliza un identificador de unidad para poder cruzar el ECO de la app contra
+   el objectno de Webfleet. Los identificadores pueden venir con espacios, prefijo
+   "ECO ", o ceros a la izquierda ("0921" vs "921"). Si este cruce falla, TODAS las
+   unidades quedarían marcadas como 'NO' por falta de dato, no por diagnóstico real. */
+/* Escapa texto para inserción segura en HTML. Los datos vienen de APIs externas
+   (LBOX/Webfleet) y de Google Sheets, que son entradas no confiables: sin escapar,
+   un valor como <img src=x onerror=...> en un campo ECO/causa ejecuta código. */
+function esc(v){
+  if (v === null || v === undefined) return '';
+  return String(v)
+    .replace(/&/g,'&amp;').replace(/</g,'&lt;').replace(/>/g,'&gt;')
+    .replace(/"/g,'&quot;').replace(/'/g,'&#39;');
+}
+
+function claveEco(v){
+  let s = String(v == null ? '' : v).trim().toUpperCase();
+  s = s.replace(/^ECO\s*/,'');
+  s = s.replace(/\s+/g,'');
+  if (/^\d+$/.test(s)) return String(parseInt(s, 10));  // numérico → sin ceros a la izquierda
+  return s;
+}
 
 async function consultarPosicionesWebfleet() {
   const account  = document.getElementById('wf-account').value.trim();
@@ -24928,9 +25129,12 @@ async function consultarPosicionesWebfleet() {
 
     if (res.error) throw new Error(res.error);
 
-    // Mapeo de resultados
+    // Mapeo de resultados (claveEco está definida a nivel global más abajo).
     const posMap = {};
-    (res.posiciones || []).forEach(p => { posMap[String(p.objectno)] = p; });
+    (res.posiciones || []).forEach(p => {
+      const k = claveEco(p.objectno);
+      if (k) posMap[k] = p;
+    });
 
     // 'server_time' viene del backend (reloj de Google). Si el Apps Script
     // desplegado en producción es una versión anterior que aún no lo envía,
@@ -24961,8 +25165,10 @@ async function consultarPosicionesWebfleet() {
       return isNaN(d.getTime()) ? null : d;
     }
     
+    let sinCruce = 0;
     wfPosiciones = wfUnidadesBase.map(u => {
-      const p = posMap[String(u.eco)];
+      const p = posMap[claveEco(u.eco)];
+      if (!p) sinCruce++;
       
       if (!p || !p.pos_time) {
         return { 
@@ -24976,39 +25182,32 @@ async function consultarPosicionesWebfleet() {
       const minutos = t ? Math.floor((ahora - t.getTime()) / 60000) : null;
       let estado = 'sin_dato';
       
+      // El "estado" debe ser coherente con la marca 'posiciona' que se calcula abajo:
+      // una unidad detenida/apagada que reporta cada varias horas es comportamiento
+      // NORMAL (ahorro de batería), no una "posible pérdida". Se evalúa el contexto
+      // del vehículo antes de clasificar, igual que en la regla de 'posiciona'.
+      const enReposo = (String(p.ignition) === '0') ||
+                       (String(p.standstill) === '1') ||
+                       (String(p.speed) === '0');
+      const TOLERANCIA_REPOSO_MIN = CONFIG.WF_TOLERANCIA_REPOSO_MIN;
+
       if (minutos !== null) {
-        estado = minutos <= CONFIG.WF_UMBRAL_ACTIVO ? 'activo'
-               : minutos <= CONFIG.WF_UMBRAL_MODERADO ? 'moderado'
-               : 'perdida';
+        if (minutos <= CONFIG.WF_UMBRAL_ACTIVO) estado = 'activo';
+        else if (minutos <= CONFIG.WF_UMBRAL_MODERADO) estado = 'moderado';
+        else if (enReposo && minutos <= TOLERANCIA_REPOSO_MIN) estado = 'reposo';
+        else estado = 'perdida';
       }
 
       // Marca automática SI/NO: <2 min desde la última posición = SI (posiciona),
       // 2+ min o sin dato = NO. Esto alimenta directamente el campo 'pos' del reporte.
       //const posiciona = (minutos !== null && minutos < CONFIG.WF_UMBRAL_POSICIONA_MIN) ? 'SI' : 'NO';
       // NUEVA LÓGICA
-let posiciona = 'NO';
-
-if (minutos !== null) {
-  // 1. Si el reporte es reciente (menor al umbral normal de ~2 min), está posicionando.
-  if (minutos < CONFIG.WF_UMBRAL_POSICIONA_MIN) {
-    posiciona = 'SI';
-  } 
-  // 2. Si excede el umbral estricto, revisamos si es porque el vehículo está apagado/detenido.
-  else {
-    // Extraemos estados (asegurando convertirlos a texto para evitar fallas por tipo de dato)
-    const motorApagado = (String(p.ignition) === '0');
-    const estaDetenido = (String(p.standstill) === '1' || String(p.speed) === '0');
-    
-    // Definimos un umbral de tolerancia para unidades apagadas (ej. 1440 min = 24 horas). 
-    // Los GPS dormidos suelen reportar cada 1, 6 o 24 hrs. Ajusta este número según tus equipos LBOX.
-    const umbralUnidadApagada = 1440; 
-    
-    // Si la unidad está apagada o detenida Y está dentro de la tolerancia de reposo, la consideramos válida.
-    if ((motorApagado || estaDetenido) && minutos <= umbralUnidadApagada) {
-      posiciona = 'SI';
-    }
-  }
-}
+      // 'posiciona' se deriva del mismo estado ya calculado arriba, para que ambas
+      // columnas nunca se contradigan (antes 'perdida' podía convivir con 'SI').
+      //  · activo / moderado → reportando dentro de lo esperado en marcha
+      //  · reposo            → apagado o detenido, silencio normal por ahorro de batería
+      //  · perdida           → sin reportar sin justificación → NO posiciona
+      let posiciona = (estado === 'activo' || estado === 'reposo') ? 'SI' : 'NO';
       
       return {
         eco: u.eco, 
@@ -25035,7 +25234,19 @@ if (minutos !== null) {
         'Redespliega el Apps Script (Versión nueva) para usar el reloj de Google.', 'err', 9000);
     }
 
-    notify('Posiciones obtenidas: ' + wfPosiciones.length + ' unidades', 'ok');
+    const conSI = wfPosiciones.filter(p => p.posiciona === 'SI').length;
+    notify('Posiciones obtenidas: ' + wfPosiciones.length + ' unidades · ' + conSI + ' posicionando (SI)', 'ok');
+
+    // Si NINGUNA unidad cruzó contra Webfleet, el resultado sería "todas NO" pero
+    // por falta de datos, no porque realmente no posicionen. Hay que avisarlo.
+    if (sinCruce > 0) {
+      const ejemploApp = wfUnidadesBase.slice(0,3).map(u=>u.eco).join(', ');
+      const ejemploWf  = (res.posiciones||[]).slice(0,3).map(p=>p.objectno).join(', ');
+      notify('⚠️ ' + sinCruce + ' de ' + wfUnidadesBase.length + ' unidades no se encontraron en Webfleet ' +
+        '(quedan marcadas como NO por falta de dato, no por diagnóstico). ' +
+        'ECO en la app: [' + ejemploApp + '] · objectno en Webfleet: [' + ejemploWf + ']', 'err', 12000);
+      console.warn('Unidades sin cruce Webfleet:', wfUnidadesBase.filter(u => !posMap[claveEco(u.eco)]).map(u=>u.eco));
+    }
 
   } catch(e) { 
     notify('Error al consultar Webfleet: ' + e.message, 'err');
@@ -25052,8 +25263,8 @@ if (minutos !== null) {
 // Función auxiliar necesaria para capturar los checkboxes seleccionados en la tabla
 function getWfSeleccionadas() {
   const checkboxes = document.querySelectorAll('.wf-chk-unidad:checked');
-  const ecosSeleccionados = Array.from(checkboxes).map(chk => chk.value);
-  return wfPosiciones.filter(u => ecosSeleccionados.includes(String(u.eco)));
+  const ecosSeleccionados = Array.from(checkboxes).map(chk => claveEco(chk.value));
+  return wfPosiciones.filter(u => ecosSeleccionados.includes(claveEco(u.eco)));
 }
 
 /* Aplica el tiempo transcurrido validado por Webfleet a las unidades
@@ -25073,7 +25284,7 @@ function ejecutarProtocoloSeguridad() {
 
   let actualizadas = 0, sinDato = 0, marcadasSI = 0, marcadasNO = 0;
   seleccionadas.forEach(p => {
-    const u = wfUnidadesBase.find(x => String(x.eco) === String(p.eco));
+    const u = wfUnidadesBase.find(x => claveEco(x.eco) === claveEco(p.eco));
     if (!u) return;
 
     // Marca automática Posic. LINK: <2 min = SI, 2+ min o sin dato = NO
@@ -25235,12 +25446,12 @@ function renderDashboard(){
   const noRecU=units.filter(u=>u.recupero==='NO');
   document.getElementById('dash-norec').innerHTML=noRecU.length===0?'<div class="empty">Ninguna ✓</div>'
     :noRecU.map(u=>`<div style="display:flex;justify-content:space-between;padding:6px 0;border-bottom:1px solid #f5f5f5;font-size:12px">
-      <span><b>ECO ${u.eco}</b><span style="color:#999;font-size:11px;margin-left:6px">${u.lbox}</span>${isReinc(u.lbox)?'<span class="tag-reinc">reinc.</span>':''}</span>
-      <span class="${dClass(u.dias)}">${u.dias}d</span></div>`).join('');
+      <span><b>ECO ${esc(u.eco)}</b><span style="color:#999;font-size:11px;margin-left:6px">${esc(u.lbox)}</span>${isReinc(u.lbox)?'<span class="tag-reinc">reinc.</span>':''}</span>
+      <span class="${dClass(u.dias)}">${esc(u.dias)}d</span></div>`).join('');
   const reincU=units.filter(u=>isReinc(u.lbox));
   document.getElementById('dash-reinc').innerHTML=reincU.length===0?'<div class="empty">Sin reincidentes</div>'
     :reincU.map(u=>`<div style="display:flex;justify-content:space-between;padding:6px 0;border-bottom:1px solid #f5f5f5;font-size:12px">
-      <span><b>ECO ${u.eco}</b></span><span style="color:#999">${hist.filter(h=>h.lbox===u.lbox).length} aparición(es) prev.</span></div>`).join('');
+      <span><b>ECO ${esc(u.eco)}</b></span><span style="color:#999">${hist.filter(h=>h.lbox===u.lbox).length} aparición(es) prev.</span></div>`).join('');
   const b1=units.filter(u=>{const n=parseInt(u.dias)||0;return n>=1&&n<=3}).length;
   const b2=units.filter(u=>{const n=parseInt(u.dias)||0;return n>=4&&n<=7}).length;
   const b3=units.filter(u=>(parseInt(u.dias)||0)>=8).length;
@@ -25445,12 +25656,12 @@ function renderCaptura(){
   const SV  = ['—','SI','NO','No aplica'];
   tbody.innerHTML=units.map((u,i)=>`<tr style="background:${i%2?'#f9f9f9':'#fff'}">
     <td style="white-space:nowrap">
-      <b style="font-size:12px">ECO ${u.eco}</b>
+      <b style="font-size:12px">ECO ${esc(u.eco)}</b>
       ${reincCount(u.lbox)>=5?'<span class="tag-reinc">reinc. ×'+reincCount(u.lbox)+'</span>':reincCount(u.lbox)>0?'<span class="tag-reinc" style="background:#f39c12">×'+reincCount(u.lbox)+'</span>':''}
     </td>
-    <td style="font-size:11px;color:#185FA5;white-space:nowrap">${u.lbox||'—'}</td>
-    <td style="font-size:10px;color:#555;max-width:100px;overflow:hidden;text-overflow:ellipsis;white-space:nowrap" title="${u.fw||''}">${u.fw||'—'}</td>
-    <td class="${dClass(u.dias)}" style="text-align:center;font-weight:700">${prioIcon(u.dias)} ${u.dias||'0'}d</td>
+    <td style="font-size:11px;color:#185FA5;white-space:nowrap">${esc(u.lbox||'—')}</td>
+    <td style="font-size:10px;color:#555;max-width:100px;overflow:hidden;text-overflow:ellipsis;white-space:nowrap" title="${esc(u.fw||'')}">${esc(u.fw||'—')}</td>
+    <td class="${dClass(u.dias)}" style="text-align:center;font-weight:700">${prioIcon(u.dias)} ${esc(u.dias||'0')}d</td>
     <td>${sel('pos',i,u.pos||'—',SN)}</td>
     <td>${sel('desv',i,u.desv||'—',SIA)}</td>
     <td>${sel('rlbox',i,u.rlbox||'—',SIA)}</td>
@@ -25471,17 +25682,17 @@ function renderUnidades(data){
   const tbody=document.getElementById('tbody-unidades');
   if(!data.length){tbody.innerHTML='<tr><td colspan="16" class="empty">Sin datos</td></tr>';return;}
   tbody.innerHTML=data.map((u,i)=>`<tr>
-    <td style="white-space:nowrap;font-size:11px">${u.fechaEjec||'—'}</td>
-    <td><b>ECO ${u.eco}</b>${isReinc(u.lbox)?'<span class="tag-reinc">reinc.</span>':''}</td>
-    <td style="font-size:11px">${u.lbox}</td>
-    <td style="font-size:10px;color:#999">${u.fw||'—'}</td>
-    <td style="font-size:11px;white-space:nowrap">${u.fechaRep||'—'}</td>
-    <td class="${dClass(u.dias)}">${u.dias}</td>
+    <td style="white-space:nowrap;font-size:11px">${esc(u.fechaEjec||'—')}</td>
+    <td><b>ECO ${esc(u.eco)}</b>${isReinc(u.lbox)?'<span class="tag-reinc">reinc.</span>':''}</td>
+    <td style="font-size:11px">${esc(u.lbox)}</td>
+    <td style="font-size:10px;color:#999">${esc(u.fw||'—')}</td>
+    <td style="font-size:11px;white-space:nowrap">${esc(u.fechaRep||'—')}</td>
+    <td class="${dClass(u.dias)}">${esc(u.dias)}</td>
     <td>${badge(u.pos)}</td><td>${badge(u.desv)}</td><td>${badge(u.rlbox)}</td><td>${badge(u.rlink)}</td>
     <td>${badge(u.recupero)}</td><td>${badge(u.voltaje)}</td>
     <td>${atribBadge(u.pos,u.recupero)}</td>
-    <td style="font-size:11px;max-width:90px;overflow:hidden;text-overflow:ellipsis;white-space:nowrap">${u.causa||'—'}</td>
-    <td style="font-size:11px;max-width:100px;overflow:hidden;text-overflow:ellipsis;white-space:nowrap">${u.comentario||'—'}</td>
+    <td style="font-size:11px;max-width:90px;overflow:hidden;text-overflow:ellipsis;white-space:nowrap">${esc(u.causa||'—')}</td>
+    <td style="font-size:11px;max-width:100px;overflow:hidden;text-overflow:ellipsis;white-space:nowrap">${esc(u.comentario||'—')}</td>
     <td>${inp('nota',i,u.nota,'nota interna')}</td>
     <td><button class="btn danger" style="padding:2px 8px;font-size:11px" onclick="eliminar(${i})">✕</button></td>
   </tr>`).join('');
@@ -25495,10 +25706,10 @@ function renderHistorial(data){
   if(!data.length){tbody.innerHTML='<tr><td colspan="14" class="empty">Sin historial aún</td></tr>';return;}
   tbody.innerHTML=[...data].reverse().map(h=>`<tr>
     <td style="font-size:11px;white-space:nowrap">${h.fecha||'—'}</td>
-    <td><span class="badge pend" style="font-size:10px">${h.folio||'—'}</span></td>
-    <td style="white-space:nowrap"><b style="font-size:11px">ECO ${h.eco}</b>${isReinc(h.lbox)?'<span class="tag-reinc">reinc.</span>':''}</td>
-    <td style="font-size:10px;color:#185FA5">${h.lbox||'—'}</td>
-    <td class="${dClass(h.dias)}" style="text-align:center;font-weight:700">${h.dias||'—'}d</td>
+    <td><span class="badge pend" style="font-size:10px">${esc(h.folio||'—')}</span></td>
+    <td style="white-space:nowrap"><b style="font-size:11px">ECO ${esc(h.eco)}</b>${isReinc(h.lbox)?'<span class="tag-reinc">reinc.</span>':''}</td>
+    <td style="font-size:10px;color:#185FA5">${esc(h.lbox||'—')}</td>
+    <td class="${dClass(h.dias)}" style="text-align:center;font-weight:700">${esc(h.dias||'—')}d</td>
     <td>${badge(h.pos)}</td>
     <td>${badge(h.desv)}</td>
     <td>${badge(h.rlbox)}</td>
@@ -25506,8 +25717,8 @@ function renderHistorial(data){
     <td>${badge(h.recupero)}</td>
     <td>${badge(h.voltaje)}</td>
     <td>${atribBadge(h.pos,h.recupero)}</td>
-    <td style="font-size:11px;max-width:100px;overflow:hidden;text-overflow:ellipsis;white-space:nowrap" title="${h.causa||''}">${h.causa||'—'}</td>
-    <td style="font-size:11px;max-width:100px;overflow:hidden;text-overflow:ellipsis;white-space:nowrap" title="${h.comentario||''}">${h.comentario||'—'}</td>
+    <td style="font-size:11px;max-width:100px;overflow:hidden;text-overflow:ellipsis;white-space:nowrap" title="${esc(h.causa||'')}">${esc(h.causa||'—')}</td>
+    <td style="font-size:11px;max-width:100px;overflow:hidden;text-overflow:ellipsis;white-space:nowrap" title="${esc(h.comentario||'')}">${esc(h.comentario||'—')}</td>
   </tr>`).join('');
 }
 
@@ -25759,9 +25970,20 @@ async function generarReporte(){
     }
 
     // ── Clasificación de unidades ─────────────────────────
+    // Clasificación EXHAUSTIVA y MUTUAMENTE EXCLUYENTE: cada unidad debe caer en
+    // exactamente una tabla. Antes, las unidades sin voltaje capturado (''), o las
+    // marcadas con pos='SI' por la validación Webfleet pero no recuperadas,
+    // no entraban en ninguna tabla y DESAPARECÍAN del reporte.
     const recuperadas        = units.filter(u => u.recupero==='SI');
-    const sinLinkConVoltaje  = units.filter(u => u.recupero!=='SI' && u.pos==='NO' && u.voltaje==='SI');
-    const sinVoltaje         = units.filter(u => u.recupero!=='SI' && u.voltaje==='NO');
+    const noRecuperadas      = units.filter(u => u.recupero!=='SI');
+    const sinVoltaje         = noRecuperadas.filter(u => u.voltaje==='NO');
+    const sinLinkConVoltaje  = noRecuperadas.filter(u => u.voltaje!=='NO');  // voltaje SI o sin capturar
+
+    // Red de seguridad: ninguna unidad debe quedar fuera del reporte.
+    const clasificadas = recuperadas.length + sinVoltaje.length + sinLinkConVoltaje.length;
+    if (clasificadas !== units.length) {
+      console.warn('Reporte: ' + (units.length - clasificadas) + ' unidad(es) sin clasificar.');
+    }
     const reincidentes       = units.filter(u => reincCountLocal(u.lbox) >= 5);
 
     const total    = units.length;
@@ -26193,6 +26415,7 @@ setInterval(async () => {
         <button class="btn wf-filtro-btn active" id="wf-filtro-todos" onclick="filtrarWebfleet('todos')" style="font-size:11px">Todos</button>
         <button class="btn wf-filtro-btn" id="wf-filtro-activo" onclick="filtrarWebfleet('activo')" style="font-size:11px;color:#1E8449">🟢 Activo</button>
         <button class="btn wf-filtro-btn" id="wf-filtro-moderado" onclick="filtrarWebfleet('moderado')" style="font-size:11px;color:#b35900">🟡 Moderado</button>
+        <button class="btn wf-filtro-btn" id="wf-filtro-reposo" onclick="filtrarWebfleet('reposo')" style="font-size:11px;color:#185FA5">🔵 En reposo</button>
         <button class="btn wf-filtro-btn" id="wf-filtro-perdida" onclick="filtrarWebfleet('perdida')" style="font-size:11px;color:#c0392b">🔴 Posible pérdida</button>
         <input id="wf-search" type="text" placeholder="Buscar ECO..." oninput="renderTablaWebfleet()" style="flex:1;min-width:120px;padding:6px 10px;border:1px solid var(--line);border-radius:7px;font-size:12px">
       </div>
