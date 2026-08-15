@@ -24452,17 +24452,21 @@ function agruparHistPorMes(registros){
       m.rec++;
       m.atrib.recuperada++;
     }
-    else if(rec==='NO'){
+    else {
+      // "No recuperada" = todo lo que no sea 'SI' (misma regla que Dashboard y
+      // generarReporte), para que total = rec + noRec siempre cuadre incluso si
+      // algún registro de historial quedó sin diagnóstico completo.
       m.noRec++;
       const c = (h.causa||'').trim();
       const key2 = c && c.length>=2 ? (c.length>28 ? c.slice(0,28)+'…' : c) : 'Sin causa registrada';
       m.causas[key2] = (m.causas[key2]||0) + 1;
-      // Atribución (clasificación automática):
-      //  · Con voltaje presente pero no recuperada → "Posible inhibición" (el equipo
-      //    tiene energía pero no logra posicionar/reportar, patrón típico de bloqueo de señal).
-      //  · Sin voltaje (o dato no disponible) → "Link" (falla eléctrica/hardware, no de señal).
-      if(volt==='SI') m.atrib.inhibicion++;
-      else m.atrib.link++;
+      // Atribución (clasificación automática) — solo tiene sentido con voltaje
+      // CONOCIDO. Un registro sin diagnosticar (rec==='') no se fuerza a
+      // "Posible inhibición" ni "Link": ambas requieren saber si hubo voltaje.
+      if(rec === 'NO'){
+        if(volt==='SI') m.atrib.inhibicion++;
+        else m.atrib.link++;
+      }
     }
     if(h.lbox) m.lboxes[h.lbox] = (m.lboxes[h.lbox]||0)+1;
   });
@@ -25368,6 +25372,21 @@ function drillDown(criterios){
   aplicarDrillDown();
 }
 
+// "No recuperada" = recupero !== 'SI' (incluye pendientes de diagnóstico), la
+// misma regla que usa generarReporte(). No es expresable con igualdad exacta,
+// por eso tiene su propio tipo de filtro, igual que 'reinc'.
+function drillDownNoRecuperadas(){
+  drillFiltro = { tipo:'noRecuperadas' };
+  showPage('unidades');
+  aplicarDrillDown();
+}
+
+function drillDownPendientes(){
+  drillFiltro = { tipo:'pendientes' };
+  showPage('unidades');
+  aplicarDrillDown();
+}
+
 function drillDownReinc(){
   drillFiltro = { tipo:'reinc' };
   showPage('unidades');
@@ -25379,6 +25398,10 @@ function aplicarDrillDown(){
   let filtered;
   if(drillFiltro.tipo === 'reinc'){
     filtered = units.filter(u => reincCountFiltered(u.lbox) >= CONFIG.UMBRAL_REINCIDENTE);
+  } else if(drillFiltro.tipo === 'noRecuperadas'){
+    filtered = units.filter(u => u.recupero !== 'SI');
+  } else if(drillFiltro.tipo === 'pendientes'){
+    filtered = units.filter(u => !u.recupero);
   } else {
     const c = drillFiltro.criterios;
     filtered = units.filter(u => Object.keys(c).every(k => u[k] === c[k]));
@@ -25394,6 +25417,8 @@ function mostrarChipDrill(){
   if(!drillFiltro){ cont.innerHTML=''; return; }
   let label = '';
   if(drillFiltro.tipo === 'reinc') label = 'Reincidentes (5+)';
+  else if(drillFiltro.tipo === 'noRecuperadas') label = 'No recuperadas (incluye pendientes)';
+  else if(drillFiltro.tipo === 'pendientes') label = 'Pendientes de diagnóstico';
   else {
     const c = drillFiltro.criterios;
     const map = { recupero:'Recuperó', voltaje:'Voltaje', pos:'Posic. LINK' };
@@ -25426,9 +25451,16 @@ function showPage(p){
 }
 
 function renderDashboard(){
-  const total=units.length, rec=units.filter(u=>u.recupero==='SI').length,
-    noRec=units.filter(u=>u.recupero==='NO').length,
-    reinc=units.filter(u=>reincCountFiltered(u.lbox)>=CONFIG.UMBRAL_REINCIDENTE).length,
+  const total=units.length, rec=units.filter(u=>u.recupero==='SI').length;
+  // "No recuperada" usa la MISMA regla que generarReporte() (recupero!=='SI'),
+  // no una comparación estricta contra 'NO'. Antes, una unidad recién importada
+  // (recupero:'' porque aún no se diagnostica) no contaba en Recuperadas NI en
+  // No recuperadas — Total no cuadraba con la suma, y el widget decía "Ninguna ✓"
+  // aunque hubiera unidades sin trabajar todavía. Ahora Total = Recuperadas + No
+  // recuperadas siempre, igual que en el reporte final que ve el cliente.
+  const noRec = units.filter(u=>u.recupero!=='SI').length;
+  const pendientes = units.filter(u=>!u.recupero).length;  // subconjunto de No recuperadas, aún sin tocar
+  const reinc=units.filter(u=>reincCountFiltered(u.lbox)>=CONFIG.UMBRAL_REINCIDENTE).length,
     sinV=units.filter(u=>u.voltaje==='NO').length,
     linkN=units.filter(u=>u.pos==='NO').length;
   // KPIs adicionales para diagnóstico
@@ -25437,16 +25469,17 @@ function renderDashboard(){
   document.getElementById('kpi-grid').innerHTML=`
     <div class="kpi" onclick="drillDown({})" title="Ver todas"><div class="kpi-label">Total revisadas</div><div class="kpi-val blue">${total}</div></div>
     <div class="kpi" onclick="drillDown({recupero:'SI'})" title="Ver recuperadas"><div class="kpi-label">Recuperadas</div><div class="kpi-val green">${rec}</div></div>
-    <div class="kpi" onclick="drillDown({recupero:'NO'})" title="Ver no recuperadas"><div class="kpi-label">No recuperadas</div><div class="kpi-val red">${noRec}</div></div>
+    <div class="kpi" onclick="drillDownNoRecuperadas()" title="Ver no recuperadas (incluye pendientes de diagnóstico)"><div class="kpi-label">No recuperadas</div><div class="kpi-val red">${noRec}</div></div>
+    <div class="kpi" onclick="drillDownPendientes()" title="Unidades cargadas sin diagnosticar todavía"><div class="kpi-label">Pendientes</div><div class="kpi-val amber">${pendientes}</div></div>
     <div class="kpi" onclick="drillDownReinc()" title="Ver reincidentes"><div class="kpi-label">Reincidentes</div><div class="kpi-val amber">${reinc}</div></div>
     <div class="kpi" onclick="drillDown({voltaje:'NO'})" title="Ver sin voltaje"><div class="kpi-label">Sin voltaje</div><div class="kpi-val amber">${sinV}</div></div>
     <div class="kpi" onclick="drillDown({pos:'NO'})" title="Ver sin LINK"><div class="kpi-label">LINK no responde</div><div class="kpi-val gray">${linkN}</div></div>
     <div class="kpi" onclick="drillDown({pos:'NO',voltaje:'SI'})" title="Sin LINK pero con voltaje — candidatos a reset remoto"><div class="kpi-label">Sin LINK · con voltaje</div><div class="kpi-val blue">${sinLinkConV}</div></div>
     <div class="kpi" title="% de unidades recuperadas en el reporte actual"><div class="kpi-label">% Éxito actual</div><div class="kpi-val green">${pctExito}%</div></div>`;
-  const noRecU=units.filter(u=>u.recupero==='NO');
+  const noRecU=units.filter(u=>u.recupero!=='SI');
   document.getElementById('dash-norec').innerHTML=noRecU.length===0?'<div class="empty">Ninguna ✓</div>'
     :noRecU.map(u=>`<div style="display:flex;justify-content:space-between;padding:6px 0;border-bottom:1px solid #f5f5f5;font-size:12px">
-      <span><b>ECO ${esc(u.eco)}</b><span style="color:#999;font-size:11px;margin-left:6px">${esc(u.lbox)}</span>${isReinc(u.lbox)?'<span class="tag-reinc">reinc.</span>':''}</span>
+      <span><b>ECO ${esc(u.eco)}</b><span style="color:#999;font-size:11px;margin-left:6px">${esc(u.lbox)}</span>${!u.recupero?'<span class="tag-reinc" style="background:#fdf3e0;color:#b35900">pendiente</span>':''}${isReinc(u.lbox)?'<span class="tag-reinc">reinc.</span>':''}</span>
       <span class="${dClass(u.dias)}">${esc(u.dias)}d</span></div>`).join('');
   const reincU=units.filter(u=>isReinc(u.lbox));
   document.getElementById('dash-reinc').innerHTML=reincU.length===0?'<div class="empty">Sin reincidentes</div>'
