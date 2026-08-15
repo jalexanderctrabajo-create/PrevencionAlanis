@@ -23619,7 +23619,7 @@ const CONFIG = {
   // NOTA: al estar en un HTML público, esto NO es un secreto fuerte; su función es
   // evitar el acceso trivial de quien descubra la URL del backend, no resistir a
   // alguien que inspeccione el código. Ver notas de seguridad al entregar.
-  API_TOKEN: 'CAMBIAR_POR_TOKEN_LARGO_Y_ALEATORIO',
+  API_TOKEN: 'S9_dcriq2C6ieOgrO_lm7HMWCqLxNPFziTssqnYOPHQ',
 
   // Credenciales de la cuenta LBOX. NO se hardcodean: el backend ya tiene las
   // suyas por defecto, y para consultar OTRAS cuentas se capturan en el modal.
@@ -24579,34 +24579,42 @@ function renderAtribucionesMensual(){
   const ctx = canvas.getContext('2d');
 
   // Totales acumulados en el rango filtrado (mismos filtros que los KPIs de arriba)
-  let totRec=0, totInhib=0, totLink=0;
+  let totRec=0, totInhib=0, totLink=0, totRevisadas=0;
   keys.forEach(k=>{
     const a = monthly[k].atrib;
     totRec += a.recuperada; totInhib += a.inhibicion; totLink += a.link;
+    totRevisadas += monthly[k].total;
   });
-  const totClasificado = totRec + totInhib + totLink;
+  // "Sin clasificar": no recuperadas pero sin dato de voltaje conocido, así que
+  // no se puede afirmar si es "posible inhibición" o "link". Antes quedaban
+  // fuera de las tarjetas sin explicación — el % Éxito de arriba (sobre el
+  // total revisado) y el % de estas tarjetas (antes sobre el total CLASIFICADO)
+  // no cuadraban entre sí. Ahora ambos usan la misma base: totRevisadas.
+  const sinClasificar = Math.max(0, totRevisadas - totRec - totInhib - totLink);
 
   const cats = [
-    { label:'Recuperada',         n:totRec,   cls:'green', color:'#27ae60' },
-    { label:'Posible inhibición', n:totInhib, cls:'red',   color:'#e74c3c' },
-    { label:'Link',                n:totLink,  cls:'blue',  color:'#185FA5' },
+    { label:'Recuperada',         n:totRec,        cls:'green', color:'#27ae60' },
+    { label:'Posible inhibición', n:totInhib,      cls:'red',   color:'#e74c3c' },
+    { label:'Link',                n:totLink,       cls:'blue',  color:'#185FA5' },
+    { label:'Sin clasificar',      n:sinClasificar, cls:'gray',  color:'#95a5a6' },
   ];
 
-  if(!totClasificado){
+  if(!totRevisadas){
     cardsEl.innerHTML = '<div class="kpi"><div class="kpi-label">Sin datos</div><div class="kpi-val gray">—</div></div>';
     ctx.clearRect(0,0,canvas.width,canvas.height);
     return;
   }
 
   cardsEl.innerHTML = cats.map(c=>{
-    const pct = Math.round((c.n/totClasificado)*100);
+    const pct = Math.round((c.n/totRevisadas)*100);
     return '<div class="kpi">' +
       '<div class="kpi-label">'+c.label+'</div>' +
       '<div class="kpi-val '+c.cls+'">'+c.n+'</div>' +
-      '<div style="font-size:11px;color:var(--muted);margin-top:2px">'+pct+'% del total clasificado</div></div>';
+      '<div style="font-size:11px;color:var(--muted);margin-top:2px">'+pct+'% del total revisado</div></div>';
   }).join('');
 
-  // ── Gráfica apilada por mes ──────────────────────────────────────────
+  // ── Gráfica apilada por mes (incluye "sin clasificar" para que la altura
+  //    total de cada barra represente TODO lo revisado ese mes) ───────────
   const minWidthPerMonth = 60;
   const W = Math.max(canvas.parentElement.clientWidth, keys.length*minWidthPerMonth), H = 220;
   canvas.width = W; canvas.height = H;
@@ -24616,10 +24624,7 @@ function renderAtribucionesMensual(){
   const padL=40, padR=20, padT=20, padB=38;
   const chartW = W-padL-padR, chartH = H-padT-padB;
   const barW = chartW/keys.length;
-  const maxVal = Math.max(...keys.map(k=>{
-    const a = monthly[k].atrib;
-    return a.recuperada+a.inhibicion+a.link;
-  }), 1);
+  const maxVal = Math.max(...keys.map(k => monthly[k].total), 1);
 
   ctx.strokeStyle='#eee'; ctx.lineWidth=1;
   for(let i=0;i<=4;i++){
@@ -24631,11 +24636,12 @@ function renderAtribucionesMensual(){
 
   keys.forEach((k,i)=>{
     const a = monthly[k].atrib;
+    const sinClasificarMes = Math.max(0, monthly[k].total - a.recuperada - a.inhibicion - a.link);
     const x = padL + i*barW + barW*0.2;
     const bw = barW*0.6;
     let yAcum = padT+chartH;
-    [['recuperada','#27ae60'],['inhibicion','#e74c3c'],['link','#185FA5']].forEach(([campo,color])=>{
-      const n = a[campo];
+    [['recuperada','#27ae60'],['inhibicion','#e74c3c'],['link','#185FA5'],[null,'#95a5a6']].forEach(([campo,color])=>{
+      const n = campo ? a[campo] : sinClasificarMes;
       const hSeg = (n/maxVal)*chartH;
       ctx.fillStyle = color;
       ctx.fillRect(x, yAcum-hSeg, bw, Math.max(hSeg,0));
@@ -24643,7 +24649,7 @@ function renderAtribucionesMensual(){
     });
     ctx.fillStyle='#666'; ctx.font='9px sans-serif'; ctx.textAlign='center';
     ctx.fillText(mesLabelCorto(k), padL + i*barW + barW/2, H-padB+16);
-    const totalMes = a.recuperada+a.inhibicion+a.link;
+    const totalMes = monthly[k].total;
     if(totalMes>0){
       ctx.fillStyle='#1a3a5c'; ctx.font='bold 9px sans-serif';
       ctx.fillText(totalMes, x+bw/2, padT+chartH-(totalMes/maxVal)*chartH-4);
