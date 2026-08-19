@@ -25247,6 +25247,21 @@ async function consultarPosicionesWebfleet() {
     const conSI = wfPosiciones.filter(p => p.posiciona === 'SI').length;
     notify('Posiciones obtenidas: ' + wfPosiciones.length + ' unidades · ' + conSI + ' posicionando (SI)', 'ok');
 
+    // Causa más común de "todas marcadas NO": Webfleet respondió, cruzó bien,
+    // pero ningún registro trae la fecha de última posición (el nombre del campo
+    // cambió o la cuenta no lo expone). Sin fecha no se puede calcular nada, así
+    // que hay que decirlo con precisión en vez de mostrar NO en todas.
+    if (res.diag && res.diag.totalObjetos > 0 && res.diag.conPosTime === 0) {
+      notify('⚠️ Webfleet devolvió ' + res.diag.totalObjetos + ' objetos, pero NINGUNO trae fecha de ' +
+        'última posición, por eso todas quedan en NO. Campos recibidos: [' +
+        (res.diag.camposDisponibles || []).join(', ') + ']. ' +
+        'Revisa la consola para el detalle.', 'err', 15000);
+      console.warn('Webfleet: campos disponibles en la respuesta →', res.diag.camposDisponibles);
+    } else if (res.diag && res.diag.conPosTime > 0 && res.diag.conPosTime < res.diag.totalObjetos) {
+      console.warn('Webfleet: ' + res.diag.conPosTime + ' de ' + res.diag.totalObjetos +
+        ' objetos traen fecha de posición.');
+    }
+
     // Si NINGUNA unidad cruzó contra Webfleet, el resultado sería "todas NO" pero
     // por falta de datos, no porque realmente no posicionen. Hay que avisarlo.
     if (sinCruce > 0) {
