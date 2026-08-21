@@ -23388,7 +23388,6 @@ body{font-family:'Barlow',-apple-system,sans-serif;font-size:14px;color:var(--in
       <button class="btn" onclick="document.getElementById('input-xlsx').click()" title="Importar desde Excel guardado">📥 Excel</button>
       <input type="file" id="input-xlsx" accept=".xlsm,.xlsx" style="display:none" onchange="importarExcel(this)">
       <button class="btn primary" onclick="generarReporte()" id="btn-report">⬇ Generar .docx</button>
-      <button class="btn" onclick="diagnostico()" style="background:#fff3cd;border-color:#ffc107">🔍 Diagnóstico</button>
     </div>
   </div>
   <div class="content">
@@ -23606,7 +23605,12 @@ const CONFIG = {
   RESPONSABLE: 'Alexander Cedillo',
 
   // Reglas de negocio
-  UMBRAL_REINCIDENTE: 5,        // apariciones en historial para marcar reincidente
+  UMBRAL_REINCIDENTE: 5,
+
+  // Reincidencia reciente: N apariciones dentro de una ventana de tiempo.
+  // Distingue desgaste histórico de degradación activa.
+  VENTANA_REINCIDENCIA_DIAS: 90,
+  UMBRAL_REINCIDENTE_RECIENTE: 3,        // apariciones en historial para marcar reincidente
   FOLIO_BASE: 42252,            // folio mínimo; el siguiente será FOLIO_BASE+1
   SYNC_INTERVAL_MS: 180000,     // sincronización automática cada 3 min
   JSONP_TIMEOUT_MS: 12000,      // timeout de cada llamada al Apps Script
@@ -23699,7 +23703,32 @@ function setSyncStatus(state){
 }
 
 // JSONP — funciona desde file:// sin CORS
-function jsonp(params){
+/* Envuelve jsonp con reintentos automáticos: la mayoría de fallos de red son
+   temporales (señal intermitente, Apps Script despertando). Sin reintento, un
+   hipo de 1 segundo aborta toda la operación y el usuario ve un error. */
+async function jsonpRetry(params, intentos = 3){
+  let ultimoError;
+  for (let i = 0; i < intentos; i++){
+    try {
+      return await jsonpRaw(params);
+    } catch(e) {
+      ultimoError = e;
+      if (i < intentos - 1){
+        const espera = 800 * Math.pow(2, i);   // 800ms, 1.6s
+        console.warn('Reintentando (' + (i+2) + '/' + intentos + ') tras fallo:', e.message);
+        await new Promise(r => setTimeout(r, espera));
+      }
+    }
+  }
+  throw ultimoError;
+}
+
+// Alias: todo el código existente llama jsonp() y ahora obtiene reintentos gratis.
+// Se declara como function (no const) para que tenga hoisting y esté disponible
+// aunque algo la invoque antes de que se evalúe esta línea.
+function jsonp(params){ return jsonpRetry(params); }
+
+function jsonpRaw(params){
   return new Promise((resolve, reject) => {
     const cbName = '__lbox_cb_' + (++cbCount);
     const timeout = setTimeout(() => {
@@ -24172,12 +24201,47 @@ async function confirmarLimpiar() {
     causa: u.causa, comentario: u.comentario
   }));
 
+  // ── RESPALDO LOCAL ANTES DE CUALQUIER OPERACIÓN DESTRUCTIVA ────────────
+  // Si algo falla a mitad del proceso, esta copia permite recuperar el ciclo
+  // completo. Se conserva hasta confirmar que el historial quedó guardado.
   try {
-    // Guardar historial y limpiar unidades
-    await Promise.all([
-      apiPost({ action: 'addHist', data: newHist }),
-      apiPost({ action: 'clearUnits' })
-    ]);
+    localStorage.setItem('lbox_backup_cierre', JSON.stringify({
+      folio, fecha, guardadoEn: new Date().toISOString(), units, newHist
+    }));
+  } catch(e) { console.warn('No se pudo crear respaldo local:', e); }
+
+  try {
+    // ── PASO 1: guardar en HISTORIAL ─────────────────────────────────────
+    // CRÍTICO: esto va SECUENCIAL, nunca en paralelo con clearUnits. Antes se
+    // usaba Promise.all, así que si addHist fallaba pero clearUnits tenía
+    // éxito, el reporte se borraba SIN haberse guardado nunca en el historial
+    // = pérdida permanente de datos. Ahora solo se borra tras confirmar.
+    const resHist = await apiPost({ action: 'addHist', data: newHist });
+    if (resHist && resHist.error) throw new Error('addHist: ' + resHist.error);
+
+    // ── PASO 2: verificar que realmente quedó escrito ────────────────────
+    // No basta con que la petición no falle: se relee el historial del
+    // servidor y se confirma que el folio existe antes de borrar nada.
+    let verificado = false;
+    try {
+      const hRes = await jsonp({ action: 'getHist' });
+      const histRemoto = (hRes && hRes.hist) ? hRes.hist : rowsToObjects(hRes);
+      const guardados = histRemoto.filter(h => String(h.folio) === String(folio)).length;
+      verificado = guardados >= newHist.length;
+      if (!verificado) {
+        throw new Error('Verificación fallida: se esperaban ' + newHist.length +
+          ' registros del folio ' + folio + ' pero el servidor tiene ' + guardados +
+          '. NO se borró el reporte — vuelve a intentar.');
+      }
+    } catch(errVerif) {
+      if (String(errVerif.message||'').indexOf('Verificación fallida') === 0) throw errVerif;
+      // Si la verificación no se pudo completar por red, no se borra nada.
+      throw new Error('No se pudo verificar el guardado del historial. ' +
+        'NO se borró el reporte, tus datos están intactos. Revisa la conexión y reintenta.');
+    }
+
+    // ── PASO 3: ahora sí, limpiar unidades (historial ya confirmado) ─────
+    await apiPost({ action: 'clearUnits' });
 
     // Enviar correo si se solicitó
     if (enviar) {
@@ -24205,7 +24269,66 @@ async function confirmarLimpiar() {
     renderAll();
     if (!enviar) notify(newHist.length + ' unidades guardadas con folio ' + folio, 'ok');
 
-  } catch(e) { notify('Error al limpiar. Verifica conexión.', 'err'); }
+    // Todo salió bien: el respaldo local ya no hace falta.
+    try { localStorage.removeItem('lbox_backup_cierre'); } catch(e) {}
+    try { localStorage.removeItem('lbox_autosave_units'); } catch(e) {}
+
+  } catch(e) {
+    // El reporte NO se borró: units sigue intacto en memoria y hay respaldo local.
+    console.error('Error al cerrar ciclo:', e);
+    notify('⚠️ ' + (e.message || 'Error al cerrar el ciclo') +
+      ' — Tu reporte NO se borró y hay un respaldo guardado en este navegador.', 'err', 15000);
+  }
+}
+
+/* ── RECUPERACIÓN DE RESPALDO ──────────────────────────────────────────────
+   Si un cierre de ciclo quedó a medias (falló la red justo al guardar), aquí
+   se puede recuperar lo que había. Se ofrece automáticamente al arrancar. */
+/* Muestra un aviso persistente cuando quedó un cierre de ciclo sin completar,
+   para que no pase desapercibido entre las notificaciones temporales. */
+function mostrarBannerRespaldo(){
+  let banner = document.getElementById('banner-respaldo');
+  if(!banner){
+    banner = document.createElement('div');
+    banner.id = 'banner-respaldo';
+    banner.style.cssText = 'background:#FDEBD0;border-left:5px solid #D35400;padding:12px 16px;' +
+      'margin:0 0 14px 0;border-radius:8px;font-size:13px;color:#7E3300;display:flex;' +
+      'align-items:center;gap:12px;flex-wrap:wrap';
+    const content = document.querySelector('.content');
+    if(content) content.insertBefore(banner, content.firstChild);
+  }
+  banner.innerHTML =
+    '<span style="flex:1">⚠️ <b>Hay un cierre de ciclo que no se completó.</b> ' +
+    'Tu reporte quedó respaldado en este navegador y no se perdió.</span>' +
+    '<button class="btn" onclick="verRespaldoCierre()">Ver y restaurar</button>' +
+    '<button class="btn" onclick="descartarRespaldoCierre()">Descartar</button>';
+  banner.style.display = 'flex';
+}
+
+function hayRespaldoCierre(){
+  try { return !!localStorage.getItem('lbox_backup_cierre'); } catch(e) { return false; }
+}
+
+function verRespaldoCierre(){
+  try {
+    const b = JSON.parse(localStorage.getItem('lbox_backup_cierre') || 'null');
+    if(!b) { notify('No hay respaldo guardado', 'err'); return; }
+    const fechaB = new Date(b.guardadoEn).toLocaleString('es-MX');
+    if(confirm('Se encontró un respaldo de un cierre que no se completó:\n\n' +
+       'Folio: ' + b.folio + '\nUnidades: ' + (b.units||[]).length + '\nGuardado: ' + fechaB +
+       '\n\n¿Restaurar estas unidades al reporte activo?')){
+      units = b.units || [];
+      renderAll();
+      notify('Respaldo restaurado: ' + units.length + ' unidades. Revisa antes de volver a cerrar.', 'ok', 8000);
+    }
+  } catch(e) { notify('No se pudo leer el respaldo', 'err'); }
+}
+
+function descartarRespaldoCierre(){
+  try { localStorage.removeItem('lbox_backup_cierre'); } catch(e) {}
+  const banner = document.getElementById('banner-respaldo');
+  if(banner) banner.style.display = 'none';
+  notify('Respaldo descartado', 'ok');
 }
 
 // ── CAMBIAR CUENTA ────────────────────────────────────────────────────────
@@ -24917,33 +25040,19 @@ async function syncAll(){
     setSyncStatus('ok');
     renderAll();
     notify('Sincronizado — '+units.length+' unidades', 'ok');
+
+    // Solo en el primer arranque: revisar si quedó trabajo local sin sincronizar
+    // o un cierre de ciclo a medias.
+    if (!window.__revisadoRespaldos) {
+      window.__revisadoRespaldos = true;
+      revisarAutoguardado();
+      if (hayRespaldoCierre()) mostrarBannerRespaldo();
+    }
   } catch(e) {
     setSyncStatus('err');
     notify('Error de conexión. Verifica que republicaste el Apps Script.', 'err', 5000);
   }
   document.getElementById('btn-sync').disabled = false;
-}
-
-function diagnostico(){
-  let msg = '=== DIAGNÓSTICO ===\n\n';
-  msg += 'HISTORIAL: ' + hist.length + ' registros\n';
-  if(hist.length > 0){
-    msg += 'Campos del primer registro:\n';
-    msg += JSON.stringify(Object.keys(hist[0])) + '\n\n';
-    msg += 'Ejemplo registro 1:\n' + JSON.stringify(hist[0], null, 1) + '\n\n';
-  }
-  msg += 'UNIDADES (reporte activo): ' + units.length + ' registros\n';
-  if(units.length > 0){
-    msg += 'Campos: ' + JSON.stringify(Object.keys(units[0])) + '\n';
-    msg += 'Ejemplo: ' + JSON.stringify(units[0], null, 1) + '\n';
-  }
-  // Cuántos hist tienen fecha y recupero válidos
-  const conFecha = hist.filter(h => h.fecha).length;
-  const conRec = hist.filter(h => (h.recupero||'').toUpperCase()==='SI').length;
-  msg += '\nHist con campo fecha: ' + conFecha + '\n';
-  msg += 'Hist con recupero=SI: ' + conRec;
-  alert(msg);
-  console.log(msg);
 }
 
 function renderAll(){
@@ -25166,13 +25275,52 @@ async function consultarPosicionesWebfleet() {
     function parsePosTime(raw){
       if (raw === null || raw === undefined || raw === '') return null;
       const s = String(raw).trim();
+
+      // 1) Epoch numérico (13 dígitos ≈ milisegundos, 10 ≈ segundos)
       if (/^\d+$/.test(s)) {
         const n = parseInt(s, 10);
-        // 13 dígitos ≈ epoch en milisegundos; 10 dígitos ≈ epoch en segundos
         return new Date(s.length >= 13 ? n : n * 1000);
       }
+
+      // 2) Formato de Webfleet en español con mes abreviado: "18-ago-2026 23:27".
+      //    JavaScript NO entiende los meses en español, así que new Date() daría
+      //    Invalid Date → minutos null → toda unidad marcada como "no posiciona"
+      //    aunque su última posición sea de hace un minuto. Se traduce a mano.
+      const MESES_ES = { ene:0, feb:1, mar:2, abr:3, may:4, jun:5,
+                         jul:6, ago:7, sep:8, set:8, oct:9, nov:10, dic:11 };
+      let m = s.match(/^(\d{1,2})[-\/\s]([a-zA-ZáéíóúÁÉÍÓÚ]{3,})[-\/\s](\d{4})(?:[\sT]+(\d{1,2}):(\d{2})(?::(\d{2}))?)?/);
+      if (m) {
+        const mesTxt = m[2].toLowerCase()
+          .normalize('NFD').replace(/[\u0300-\u036f]/g, '')  // quita acentos
+          .slice(0,3);
+        if (MESES_ES[mesTxt] !== undefined) {
+          return new Date(
+            parseInt(m[3],10),            // año
+            MESES_ES[mesTxt],             // mes (0-11)
+            parseInt(m[1],10),            // día
+            parseInt(m[4]||'0',10),       // hora
+            parseInt(m[5]||'0',10),       // minuto
+            parseInt(m[6]||'0',10)        // segundo
+          );
+        }
+      }
+
+      // 3) Formato día/mes/año numérico: "18/08/2026 23:27" o "18-08-2026 23:27".
+      //    Se interpreta como DD/MM/AAAA (convención local), no MM/DD.
+      m = s.match(/^(\d{1,2})[-\/](\d{1,2})[-\/](\d{4})(?:[\sT]+(\d{1,2}):(\d{2})(?::(\d{2}))?)?$/);
+      if (m) {
+        return new Date(
+          parseInt(m[3],10), parseInt(m[2],10)-1, parseInt(m[1],10),
+          parseInt(m[4]||'0',10), parseInt(m[5]||'0',10), parseInt(m[6]||'0',10)
+        );
+      }
+
+      // 4) ISO u otros formatos que JavaScript sí reconoce
       const d = new Date(s.replace(' ', 'T'));
-      return isNaN(d.getTime()) ? null : d;
+      if (!isNaN(d.getTime())) return d;
+
+      const d2 = new Date(s);
+      return isNaN(d2.getTime()) ? null : d2;
     }
     
     let sinCruce = 0;
@@ -25224,7 +25372,11 @@ async function consultarPosicionesWebfleet() {
         lbox: u.lbox || '', 
         objectname: p.objectname || '',
         pos_time: p.pos_time,
-        pos_time_legible: t ? t.toLocaleString('es-MX', { timeZone: 'America/Mexico_City' }) : (p.pos_time || '—'),        minutos: minutos, 
+        // Se muestra el valor TAL COMO lo envía Webfleet. Antes se forzaba la
+        // zona horaria de CDMX sobre una hora que ya venía en hora local, lo que
+        // producía un desfase visible (23:27 se mostraba como 5:27 p.m.).
+        pos_time_legible: p.pos_time || (t ? t.toLocaleString('es-MX') : '—'),
+        minutos: minutos, 
         estado: estado,
         posiciona: posiciona,
         standstill: p.standstill, 
@@ -25341,6 +25493,25 @@ function ejecutarProtocoloSeguridad() {
 /* ── LÓGICA DE NEGOCIO Y UTILIDADES (Métricas visuales) ──────────────────── */
 
 function reincCount(lbox) { return hist.filter(h => h.lbox === lbox).length; }
+
+/* Reincidencia RECIENTE: apariciones dentro de una ventana de tiempo (por
+   defecto 90 días). Cinco fallas en dos años no es lo mismo que cinco en un
+   mes — esto permite distinguir un equipo con desgaste histórico de uno que
+   se está degradando ahora. */
+function reincCountReciente(lbox, dias = CONFIG.VENTANA_REINCIDENCIA_DIAS){
+  const corte = Date.now() - (dias * 86400000);
+  return hist.filter(h => {
+    if (h.lbox !== lbox) return false;
+    const f = new Date(normFecha(h.fecha));
+    return !isNaN(f.getTime()) && f.getTime() >= corte;
+  }).length;
+}
+
+/* Marca como "crítica" una unidad que acumula reincidencias en poco tiempo:
+   requiere al menos 3 apariciones dentro de la ventana reciente. */
+function esReincidenteCritico(lbox){
+  return reincCountReciente(lbox) >= CONFIG.UMBRAL_REINCIDENTE_RECIENTE;
+}
 function reincCountFiltered(lbox) { return getHistForDash().filter(h => h.lbox === lbox).length; }
 function isReinc(lbox) { return reincCount(lbox) >= CONFIG.UMBRAL_REINCIDENTE; }
 
@@ -25541,6 +25712,11 @@ function escHtml(s){ return String(s).replace(/&/g,'&amp;').replace(/"/g,'&quot;
 async function updateUnit(i, field, value) {
   units[i][field] = value;
 
+  // Trazabilidad: deja constancia de quién tocó la unidad y cuándo. Útil si
+  // más adelante hay que auditar de dónde salió un diagnóstico del reporte.
+  units[i].modificadoPor  = CONFIG.RESPONSABLE || '';
+  units[i].modificadoEn   = new Date().toISOString();
+
   // Si Posic. LINK = NO: Desvincular/Reset Lbox/Reset LINK = N/A, Recuperó = NO
   if (field === 'pos' && value === 'NO') {
     units[i].desv     = 'N/A';
@@ -25551,10 +25727,55 @@ async function updateUnit(i, field, value) {
   }
 
   renderDashboard();  // ya redibuja gráficas y widgets
+  autoguardarLocal();  // respaldo inmediato en el navegador
+
   // Save to Sheets with isSaving flag to prevent auto-sync override
   isSaving = true;
-  try { await apiPost({ action: 'saveUnits', data: units }); } catch(e) {}
+  try {
+    await apiPost({ action: 'saveUnits', data: units });
+  } catch(e) {
+    // Si no se pudo guardar en Sheets, el respaldo local ya protegió el trabajo.
+    notify('⚠️ No se pudo guardar en Sheets. Tu cambio quedó respaldado localmente; ' +
+      'se reintentará al sincronizar.', 'err', 8000);
+  }
   isSaving = false;
+}
+
+/* ── AUTOGUARDADO LOCAL ────────────────────────────────────────────────────
+   Copia del reporte activo en el navegador tras cada edición. Si se cierra la
+   pestaña o se recarga antes de que Sheets confirme, el trabajo no se pierde. */
+function autoguardarLocal(){
+  try {
+    localStorage.setItem('lbox_autosave_units', JSON.stringify({
+      guardadoEn: new Date().toISOString(),
+      units
+    }));
+  } catch(e) { /* cuota llena o modo privado: no es crítico */ }
+}
+
+/* Al arrancar, si hay un autoguardado MÁS NUEVO que lo que vino del servidor,
+   se ofrece restaurarlo (no se pisa nada automáticamente sin preguntar). */
+function revisarAutoguardado(){
+  try {
+    const raw = localStorage.getItem('lbox_autosave_units');
+    if(!raw) return;
+    const bak = JSON.parse(raw);
+    if(!bak || !Array.isArray(bak.units) || !bak.units.length) return;
+
+    // Si el servidor ya tiene la misma cantidad de unidades, se asume sincronizado.
+    if(units.length >= bak.units.length) { localStorage.removeItem('lbox_autosave_units'); return; }
+
+    const cuando = new Date(bak.guardadoEn).toLocaleString('es-MX');
+    if(confirm('Se encontró trabajo sin sincronizar en este navegador:\n\n' +
+       bak.units.length + ' unidades · guardado ' + cuando + '\n' +
+       '(el servidor tiene ' + units.length + ')\n\n¿Restaurarlo?')){
+      units = bak.units;
+      renderAll();
+      notify('Trabajo local restaurado: ' + units.length + ' unidades', 'ok', 7000);
+    } else {
+      localStorage.removeItem('lbox_autosave_units');
+    }
+  } catch(e) { /* ignorar */ }
 }
 
 // ── WIDGET 1: TOP 10 REINCIDENTES ────────────────────────────────────────
@@ -25712,6 +25933,7 @@ function renderCaptura(){
     <td style="white-space:nowrap">
       <b style="font-size:12px">ECO ${esc(u.eco)}</b>
       ${reincCount(u.lbox)>=5?'<span class="tag-reinc">reinc. ×'+reincCount(u.lbox)+'</span>':reincCount(u.lbox)>0?'<span class="tag-reinc" style="background:#f39c12">×'+reincCount(u.lbox)+'</span>':''}
+      ${esReincidenteCritico(u.lbox)?'<span class="tag-reinc" style="background:#c0392b" title="'+reincCountReciente(u.lbox)+' fallas en los últimos '+CONFIG.VENTANA_REINCIDENCIA_DIAS+' días — degradación activa">🔥 '+reincCountReciente(u.lbox)+' recientes</span>':''}
     </td>
     <td style="font-size:11px;color:#185FA5;white-space:nowrap">${esc(u.lbox||'—')}</td>
     <td style="font-size:10px;color:#555;max-width:100px;overflow:hidden;text-overflow:ellipsis;white-space:nowrap" title="${esc(u.fw||'')}">${esc(u.fw||'—')}</td>
