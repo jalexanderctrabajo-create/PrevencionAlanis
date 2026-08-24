@@ -665,6 +665,10 @@ async function jsonpRetry(params, intentos = 3){
       return await jsonpRaw(params);
     } catch(e) {
       ultimoError = e;
+      // Si el endpoint mismo está mal (URL inválida, no desplegado, sin acceso
+      // público), reintentar no cambia nada: falla igual y solo llena la consola.
+      // Solo se reintenta ante fallos que sí suelen ser temporales (timeout).
+      if (e && e.esFalloDeEndpoint) break;
       if (i < intentos - 1){
         const espera = 800 * Math.pow(2, i);   // 800ms, 1.6s
         console.warn('Reintentando (' + (i+2) + '/' + intentos + ') tras fallo:', e.message);
@@ -703,7 +707,14 @@ function jsonpRaw(params){
     script.onerror = () => {
       clearTimeout(timeout);
       delete window[cbName];
-      reject(new Error('Script error'));
+      const tag = document.getElementById(cbName);
+      if(tag) tag.remove();
+      // "Script error" a secas no dice nada. Este fallo significa que la URL
+      // del Apps Script no devolvió JavaScript válido: no existe, cambió tras
+      // un redespliegue, o el acceso no está en "Cualquier persona".
+      const err = new Error('El backend no respondió correctamente');
+      err.esFalloDeEndpoint = true;   // no tiene sentido reintentar
+      reject(err);
     };
     document.head.appendChild(script);
   });
@@ -2002,7 +2013,17 @@ async function syncAll(){
     }
   } catch(e) {
     setSyncStatus('err');
-    notify('Error de conexión. Verifica que republicaste el Apps Script.', 'err', 5000);
+    if (e && e.esFalloDeEndpoint) {
+      notify('❌ El backend no responde. Revisa 3 cosas en el Apps Script: ' +
+        '(1) que esté desplegado como Aplicación web, ' +
+        '(2) que el acceso sea "Cualquier persona", ' +
+        '(3) que la URL /exec del despliegue sea la misma que CONFIG.API. ' +
+        'Abre la consola (F12) para ver la URL exacta que se está llamando.', 'err', 15000);
+      console.error('URL que falló:', API);
+      console.error('Pruébala directamente en el navegador con: ' + API + '?action=ping&token=' + CONFIG.API_TOKEN);
+    } else {
+      notify('Error de conexión: ' + (e.message || 'desconocido') + '. Reintentando automáticamente al sincronizar.', 'err', 6000);
+    }
   }
   document.getElementById('btn-sync').disabled = false;
 }
@@ -3604,7 +3625,7 @@ setInterval(async () => {
     <div style="font-size:18px;font-weight:700;color:var(--navy);margin-bottom:6px;font-family:'Barlow Semi Condensed',sans-serif">🔑 Cambiar cuenta de cliente</div>
     <div style="font-size:12px;color:var(--muted);margin-bottom:20px">Ingresa las credenciales de la cuenta LBOX que deseas consultar. Deja los campos en blanco y captúralos para acceder a otra cuenta.</div>
 
-    <div style="display:flex;flex-direction:column;gap:14px;margin-bottom:22px">
+    <form onsubmit="return false" autocomplete="off" style="display:flex;flex-direction:column;gap:14px;margin-bottom:22px">
       <div>
         <label style="font-size:11px;color:var(--navy);font-weight:600;text-transform:uppercase;letter-spacing:.3px;display:block;margin-bottom:5px">Cuenta</label>
         <input id="cta-cuenta" type="text" placeholder="ej. alanis" autocomplete="off"
@@ -3620,7 +3641,7 @@ setInterval(async () => {
         <input id="cta-password" type="password" placeholder="••••••••" autocomplete="off"
           style="width:100%;padding:9px 12px;border:1px solid var(--line);border-radius:8px;font-size:13px;box-sizing:border-box;font-family:'Barlow',sans-serif">
       </div>
-    </div>
+    </form>
 
     <div style="display:flex;gap:10px">
       <button class="btn" onclick="cerrarModalCuenta()" style="flex:1">Cancelar</button>
@@ -3651,7 +3672,7 @@ setInterval(async () => {
     </div>
 
     <!-- Credenciales Webfleet -->
-    <div style="display:grid;grid-template-columns:repeat(4,1fr);gap:10px;margin-bottom:14px">
+    <form onsubmit="return false" autocomplete="off" style="display:grid;grid-template-columns:repeat(4,1fr);gap:10px;margin-bottom:14px">
       <div>
         <label style="font-size:10px;color:var(--navy);font-weight:600;text-transform:uppercase;display:block;margin-bottom:4px">Account</label>
         <input id="wf-account" type="text" placeholder="Alanis" style="width:100%;padding:7px 9px;border:1px solid var(--line);border-radius:7px;font-size:12px;box-sizing:border-box">
@@ -3668,7 +3689,7 @@ setInterval(async () => {
         <label style="font-size:10px;color:var(--navy);font-weight:600;text-transform:uppercase;display:block;margin-bottom:4px">API Key</label>
         <input id="wf-apikey" type="password" style="width:100%;padding:7px 9px;border:1px solid var(--line);border-radius:7px;font-size:12px;box-sizing:border-box">
       </div>
-    </div>
+    </form>
 
     <button class="btn primary" id="btn-wf-consultar" onclick="consultarPosicionesWebfleet()" style="width:100%;margin-bottom:16px">🛰️ Consultar posición</button>
 
