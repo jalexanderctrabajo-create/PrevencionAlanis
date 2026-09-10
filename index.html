@@ -326,6 +326,7 @@ body{font-family:'Barlow',-apple-system,sans-serif;font-size:14px;color:var(--in
   <div class="nav-item" onclick="showPage('unidades')" id="nav-unidades"><span class="ico">📋</span> Unidades</div>
   <div class="nav-item" onclick="showPage('historial')" id="nav-historial"><span class="ico">🕓</span> Historial</div>
   <div class="nav-item" onclick="showPage('mensual')" id="nav-mensual"><span class="ico">📅</span> Mensual</div>
+  <div class="nav-item" onclick="showPage('informes')" id="nav-informes"><span class="ico">📑</span> Informes</div>
   <div class="user-info">
     <div class="user-name">Alexander Cedillo</div>
     <div class="user-role">KAM Asistencia</div>
@@ -520,6 +521,112 @@ body{font-family:'Barlow',-apple-system,sans-serif;font-size:14px;color:var(--in
         <div id="legend-causas-mes" style="margin-top:12px;display:flex;flex-wrap:wrap;gap:10px"></div>
       </div>
     </div>
+
+    <!-- ══ INFORMES POR REPORTE ══════════════════════════════════════ -->
+    <div class="page" id="page-informes">
+
+      <div class="card" style="margin-bottom:16px">
+        <div class="card-title">🔎 Filtros</div>
+        <div style="display:flex;gap:12px;flex-wrap:wrap;align-items:flex-end">
+          <div>
+            <label style="font-size:10px;color:var(--muted);text-transform:uppercase;font-weight:600;display:block;margin-bottom:4px">Reporte (folio)</label>
+            <select id="inf-folio" onchange="renderInformes()" style="padding:7px 10px;border:1px solid var(--line);border-radius:7px;font-size:12px;min-width:190px">
+              <option value="">Todos los reportes</option>
+            </select>
+          </div>
+          <div>
+            <label style="font-size:10px;color:var(--muted);text-transform:uppercase;font-weight:600;display:block;margin-bottom:4px">Últimos N reportes</label>
+            <select id="inf-ultimos" onchange="renderInformes()" style="padding:7px 10px;border:1px solid var(--line);border-radius:7px;font-size:12px">
+              <option value="0">Todos</option>
+              <option value="5">Últimos 5</option>
+              <option value="10" selected>Últimos 10</option>
+              <option value="20">Últimos 20</option>
+            </select>
+          </div>
+          <button class="btn" onclick="exportarInformeExcel()" style="margin-left:auto">📥 Exportar informe</button>
+        </div>
+        <div id="inf-resumen-label" style="font-size:11px;color:var(--muted);margin-top:10px"></div>
+      </div>
+
+      <!-- 1. Comparativo entre reportes -->
+      <div class="card" style="margin-bottom:16px">
+        <div class="card-title">📊 Comparativo entre reportes</div>
+        <div style="font-size:11px;color:var(--muted);margin-bottom:12px">Cada ciclo de prevención cerrado, con su tasa de éxito. Sirve para ver si el proceso mejora o se degrada.</div>
+        <div class="scroll-x">
+          <table class="tbl" style="min-width:640px">
+            <thead><tr><th>Folio</th><th>Fecha</th><th>Revisadas</th><th>Recuperadas</th><th>No recup.</th><th>% Éxito</th><th>Días prom.</th><th>Agente</th></tr></thead>
+            <tbody id="inf-tbody-comparativo"></tbody>
+          </table>
+        </div>
+      </div>
+
+      <!-- 2. Efectividad de acciones remotas -->
+      <div class="card" style="margin-bottom:16px">
+        <div class="card-title">🛠️ Efectividad de acciones remotas</div>
+        <div style="font-size:11px;color:var(--muted);margin-bottom:12px">
+          De las unidades donde se ejecutó cada acción, ¿cuántas recuperaron? Responde si conviene
+          seguir intentando en remoto o mandar técnico directo.
+        </div>
+        <div id="inf-acciones" style="display:grid;grid-template-columns:repeat(auto-fit,minmax(190px,1fr));gap:12px"></div>
+      </div>
+
+      <!-- 3. Unidades persistentes -->
+      <div class="card" style="margin-bottom:16px">
+        <div class="card-title">🔁 Unidades persistentes — candidatas a reemplazo</div>
+        <div style="font-size:11px;color:var(--muted);margin-bottom:12px">Aparecen en varios reportes y siguen sin recuperarse. El costo de seguir atendiéndolas suele superar el de cambiar el equipo.</div>
+        <div class="scroll-x">
+          <table class="tbl" style="min-width:620px">
+            <thead><tr><th>#ECO</th><th>LBOX</th><th>Firmware</th><th>Reportes</th><th>Recuperó alguna vez</th><th>Último folio</th><th>Causa más frecuente</th></tr></thead>
+            <tbody id="inf-tbody-persistentes"></tbody>
+          </table>
+        </div>
+      </div>
+
+      <!-- 4. Firmware -->
+      <div class="card" style="margin-bottom:16px">
+        <div class="card-title">💾 Desempeño por versión de firmware</div>
+        <div style="font-size:11px;color:var(--muted);margin-bottom:12px">Si una versión concentra fallas o recupera peor que las demás, es argumento para exigir actualización al proveedor.</div>
+        <div class="scroll-x">
+          <table class="tbl" style="min-width:560px">
+            <thead><tr><th>Firmware</th><th>Apariciones</th><th>Recuperadas</th><th>% Éxito</th><th>Equipos distintos</th></tr></thead>
+            <tbody id="inf-tbody-firmware"></tbody>
+          </table>
+        </div>
+      </div>
+
+      <!-- 5. Ranking de reincidentes con historial de equipo -->
+      <div class="card" style="margin-bottom:16px">
+        <div class="card-title">🏆 Reincidentes — ranking e historial de equipo</div>
+        <div style="font-size:11px;color:var(--muted);margin-bottom:12px">
+          Ordenado de mayor a menor número de apariciones. Si un mismo ECO pasó por
+          <b>varias series de LBOX</b>, se marca: significa que ya se cambió el equipo y
+          la falla persiste, así que el problema apunta al vehículo (instalación, arnés)
+          o a inhibición recurrente, no al dispositivo. Haz clic en una fila para ver todas sus fechas.
+        </div>
+        <div class="scroll-x">
+          <table class="tbl" style="min-width:720px">
+            <thead><tr>
+              <th>#</th><th>#ECO</th><th>Apariciones</th><th>Recientes</th>
+              <th>Series LBOX</th><th>Serie actual</th><th>Recuperó</th><th>Periodo</th>
+            </tr></thead>
+            <tbody id="inf-tbody-reincidentes"></tbody>
+          </table>
+        </div>
+      </div>
+
+      <!-- 5. Detalle del folio seleccionado -->
+      <div class="card" id="inf-card-detalle" style="margin-bottom:16px;display:none">
+        <div class="card-title">📋 Detalle del reporte <span id="inf-detalle-folio" style="color:var(--lime-d)"></span></div>
+        <div class="scroll-x">
+          <table class="tbl" style="min-width:760px">
+            <thead><tr><th>#ECO</th><th>LBOX</th><th>Días</th><th>Posic.</th><th>R.LBOX</th><th>R.LINK</th><th>Recuperó</th><th>Voltaje</th><th>Causa</th></tr></thead>
+            <tbody id="inf-tbody-detalle"></tbody>
+          </table>
+        </div>
+      </div>
+
+    </div>
+
   </div>
 </div>
   
@@ -2635,8 +2742,9 @@ function showPage(p){
   document.getElementById('nav-'+p).classList.add('active');
   const rp=document.getElementById('right-panel');
   if(rp){p==='dashboard'?rp.classList.add('visible'):rp.classList.remove('visible');}
-  const titles={dashboard:'Dashboard',captura:'Captura de unidades',unidades:'Unidades del reporte',historial:'Historial de reportes',mensual:'Dashboards mensuales'};
+  const titles={dashboard:'Dashboard',captura:'Captura de unidades',unidades:'Unidades del reporte',historial:'Historial de reportes',mensual:'Dashboards mensuales',informes:'Informes por reporte'};
   if(p==='mensual') renderMensual();
+  if(p==='informes') renderInformes();
   document.getElementById('page-title').textContent = titles[p]||p;
 }
 
@@ -2706,6 +2814,435 @@ function inp(field, i, val, ph) {
 }
 
 function escHtml(s){ return String(s).replace(/&/g,'&amp;').replace(/"/g,'&quot;'); }
+
+/* ▓▓ INFORMES POR REPORTE ▓▓ ──────────────────────────────────────────────
+   Desglose del historial agrupado por folio (ciclo de prevención). A
+   diferencia del Dashboard Mensual, que agrega por mes, aquí la unidad de
+   análisis es el REPORTE — que es como se trabaja y se entrega al cliente. */
+
+/* Agrupa el historial por folio y calcula métricas de cada ciclo. */
+function agruparPorFolio(){
+  const porFolio = {};
+  hist.forEach(h => {
+    const folio = String(h.folio || '').trim() || '(sin folio)';
+    if(!porFolio[folio]){
+      porFolio[folio] = {
+        folio, fecha: normFecha(h.fecha) || '', total:0, rec:0, noRec:0,
+        diasSuma:0, diasN:0, agentes:{}, registros:[]
+      };
+    }
+    const f = porFolio[folio];
+    f.total++;
+    // Misma regla que el resto del sistema: no recuperada = todo lo que no sea SI
+    if((h.recupero||'').toUpperCase() === 'SI') f.rec++; else f.noRec++;
+    const d = parseInt(h.dias);
+    if(!isNaN(d)){ f.diasSuma += d; f.diasN++; }
+    if(h.agente) f.agentes[h.agente] = (f.agentes[h.agente]||0)+1;
+    // La fecha del folio es la más antigua de sus registros
+    const fx = normFecha(h.fecha);
+    if(fx && (!f.fecha || fx < f.fecha)) f.fecha = fx;
+    f.registros.push(h);
+  });
+  return porFolio;
+}
+
+/* Folios visibles según los filtros de la pantalla. */
+function foliosFiltrados(){
+  const porFolio = agruparPorFolio();
+  let claves = Object.keys(porFolio).sort((a,b) => {
+    const fa = porFolio[a].fecha || '', fb = porFolio[b].fecha || '';
+    return fb.localeCompare(fa);   // más reciente primero
+  });
+  const folioSel = document.getElementById('inf-folio')?.value || '';
+  if(folioSel) return { porFolio, claves: claves.filter(k => k === folioSel) };
+
+  const n = parseInt(document.getElementById('inf-ultimos')?.value || '0');
+  if(n > 0) claves = claves.slice(0, n);
+  return { porFolio, claves };
+}
+
+function renderInformes(){
+  if(!document.getElementById('page-informes')) return;
+  poblarSelectorFolios();
+  const { porFolio, claves } = foliosFiltrados();
+  const registros = claves.flatMap(k => porFolio[k].registros);
+
+  const lbl = document.getElementById('inf-resumen-label');
+  if(lbl){
+    lbl.textContent = claves.length
+      ? 'Mostrando ' + claves.length + ' reporte(s) — ' + registros.length + ' registros.'
+      : 'No hay reportes en el historial todavía.';
+  }
+
+  renderInfComparativo(porFolio, claves);
+  renderInfAcciones(registros);
+  renderInfPersistentes(porFolio, claves);
+  renderInfFirmware(registros);
+  renderInfReincidentes(registros);
+  renderInfDetalle(porFolio);
+}
+
+function poblarSelectorFolios(){
+  const sel = document.getElementById('inf-folio');
+  if(!sel) return;
+  const porFolio = agruparPorFolio();
+  const claves = Object.keys(porFolio).sort((a,b) =>
+    (porFolio[b].fecha||'').localeCompare(porFolio[a].fecha||''));
+  const actual = sel.value;
+  sel.innerHTML = '<option value="">Todos los reportes</option>' +
+    claves.map(k => '<option value="'+esc(k)+'"'+(k===actual?' selected':'')+'>'+esc(k)+
+      ' · '+esc(porFolio[k].fecha||'')+' ('+porFolio[k].total+')</option>').join('');
+}
+
+/* ── 1. Comparativo entre reportes ─────────────────────────────────────── */
+function renderInfComparativo(porFolio, claves){
+  const tb = document.getElementById('inf-tbody-comparativo');
+  if(!tb) return;
+  if(!claves.length){ tb.innerHTML = '<tr><td colspan="8" class="empty">Sin reportes</td></tr>'; return; }
+
+  tb.innerHTML = claves.map((k,i) => {
+    const f = porFolio[k];
+    const pct = f.total ? Math.round((f.rec/f.total)*100) : 0;
+    const diasProm = f.diasN ? (f.diasSuma/f.diasN).toFixed(1) : '—';
+    const agente = Object.keys(f.agentes).sort((a,b)=>f.agentes[b]-f.agentes[a])[0] || '—';
+    const cPct = pct >= 60 ? 'var(--green)' : pct >= 35 ? 'var(--amber)' : 'var(--red)';
+    return '<tr style="background:'+(i%2?'#f9f9f9':'#fff')+'">' +
+      '<td><b>'+esc(f.folio)+'</b></td>' +
+      '<td style="font-size:11px">'+esc(f.fecha||'—')+'</td>' +
+      '<td style="text-align:center">'+f.total+'</td>' +
+      '<td style="text-align:center;color:var(--green);font-weight:700">'+f.rec+'</td>' +
+      '<td style="text-align:center;color:var(--red);font-weight:700">'+f.noRec+'</td>' +
+      '<td style="text-align:center;font-weight:700;color:'+cPct+'">'+pct+'%</td>' +
+      '<td style="text-align:center">'+diasProm+'</td>' +
+      '<td style="font-size:11px">'+esc(agente)+'</td>' +
+    '</tr>';
+  }).join('');
+}
+
+/* ── 2. Efectividad de acciones remotas ────────────────────────────────── */
+function renderInfAcciones(registros){
+  const cont = document.getElementById('inf-acciones');
+  if(!cont) return;
+
+  // Se considera "se ejecutó la acción" cuando el campo trae SI o SI/A.
+  // N/A y NO significan que no se intentó, así que no entran al denominador:
+  // mezclarlas diluiría la tasa real de efectividad.
+  const seEjecuto = v => { const s=String(v||'').toUpperCase(); return s==='SI' || s==='SI/A'; };
+  const recupero  = r => String(r.recupero||'').toUpperCase()==='SI';
+
+  const acciones = [
+    { campo:'rlbox', label:'Reset LBOX' },
+    { campo:'rlink', label:'Reset LINK' },
+    { campo:'desv',  label:'Desvinculación' },
+  ];
+
+  const cards = acciones.map(a => {
+    const intentos = registros.filter(r => seEjecuto(r[a.campo]));
+    const exitos   = intentos.filter(recupero).length;
+    const pct = intentos.length ? Math.round((exitos/intentos.length)*100) : null;
+    const color = pct === null ? 'var(--muted)' : pct >= 50 ? 'var(--green)' : pct >= 25 ? 'var(--amber)' : 'var(--red)';
+    return '<div class="kpi">' +
+      '<div class="kpi-label">'+a.label+'</div>' +
+      '<div class="kpi-val" style="color:'+color+'">'+(pct===null?'—':pct+'%')+'</div>' +
+      '<div style="font-size:11px;color:var(--muted);margin-top:2px">'+
+        (intentos.length ? exitos+' de '+intentos.length+' recuperaron' : 'Sin intentos registrados')+'</div></div>';
+  });
+
+  // Comparación clave: recuperación CON intervención remota vs SIN ninguna
+  const conAccion = registros.filter(r => seEjecuto(r.rlbox)||seEjecuto(r.rlink)||seEjecuto(r.desv));
+  const sinAccion = registros.filter(r => !(seEjecuto(r.rlbox)||seEjecuto(r.rlink)||seEjecuto(r.desv)));
+  const pctCon = conAccion.length ? Math.round(conAccion.filter(recupero).length/conAccion.length*100) : null;
+  const pctSin = sinAccion.length ? Math.round(sinAccion.filter(recupero).length/sinAccion.length*100) : null;
+
+  cards.push('<div class="kpi" style="border-top-color:var(--navy)">' +
+    '<div class="kpi-label">Con intervención remota</div>' +
+    '<div class="kpi-val" style="color:var(--navy)">'+(pctCon===null?'—':pctCon+'%')+'</div>' +
+    '<div style="font-size:11px;color:var(--muted);margin-top:2px">'+conAccion.length+' unidades</div></div>');
+  cards.push('<div class="kpi" style="border-top-color:var(--muted)">' +
+    '<div class="kpi-label">Sin intervención</div>' +
+    '<div class="kpi-val" style="color:var(--muted)">'+(pctSin===null?'—':pctSin+'%')+'</div>' +
+    '<div style="font-size:11px;color:var(--muted);margin-top:2px">'+sinAccion.length+' unidades</div></div>');
+
+  cont.innerHTML = cards.join('');
+}
+
+/* ── 3. Unidades persistentes ──────────────────────────────────────────── */
+function renderInfPersistentes(porFolio, claves){
+  const tb = document.getElementById('inf-tbody-persistentes');
+  if(!tb) return;
+
+  const registros = claves.flatMap(k => porFolio[k].registros);
+  const porLbox = {};
+  registros.forEach(r => {
+    const k = r.lbox || r.eco;
+    if(!k) return;
+    if(!porLbox[k]) porLbox[k] = { lbox:r.lbox, eco:r.eco, fw:r.fw, folios:new Set(), recuperoAlguna:false, causas:{}, ultimo:'' };
+    const p = porLbox[k];
+    p.folios.add(r.folio);
+    if(String(r.recupero||'').toUpperCase()==='SI') p.recuperoAlguna = true;
+    const causa = (r.causa||'').trim();
+    if(causa && causa.toLowerCase()!=='causa') p.causas[causa] = (p.causas[causa]||0)+1;
+    const f = normFecha(r.fecha);
+    if(f && f > p.ultimo){ p.ultimo = f; p.ultimoFolio = r.folio; }
+    if(r.fw) p.fw = r.fw;
+  });
+
+  // Persistente = aparece en 2+ reportes distintos y NUNCA se recuperó.
+  const lista = Object.values(porLbox)
+    .filter(p => p.folios.size >= 2 && !p.recuperoAlguna)
+    .sort((a,b) => b.folios.size - a.folios.size)
+    .slice(0, 20);
+
+  if(!lista.length){
+    tb.innerHTML = '<tr><td colspan="7" class="empty">Ninguna unidad persistente en el rango — todas recuperaron al menos una vez ✓</td></tr>';
+    return;
+  }
+
+  tb.innerHTML = lista.map((p,i) => {
+    const causaTop = Object.keys(p.causas).sort((a,b)=>p.causas[b]-p.causas[a])[0] || '—';
+    return '<tr style="background:'+(i%2?'#f9f9f9':'#fff')+'">' +
+      '<td><b>ECO '+esc(p.eco)+'</b></td>' +
+      '<td style="font-size:10px">'+esc(p.lbox||'—')+'</td>' +
+      '<td style="font-size:10px;color:var(--muted)">'+esc(p.fw||'—')+'</td>' +
+      '<td style="text-align:center;font-weight:700;color:var(--red)">'+p.folios.size+'</td>' +
+      '<td style="text-align:center;color:var(--red);font-weight:600">NO</td>' +
+      '<td style="font-size:11px">'+esc(p.ultimoFolio||'—')+'</td>' +
+      '<td style="font-size:11px">'+esc(causaTop.length>34?causaTop.slice(0,34)+'…':causaTop)+'</td>' +
+    '</tr>';
+  }).join('');
+}
+
+/* ── 4. Desempeño por firmware ─────────────────────────────────────────── */
+function renderInfFirmware(registros){
+  const tb = document.getElementById('inf-tbody-firmware');
+  if(!tb) return;
+
+  const porFw = {};
+  registros.forEach(r => {
+    const fw = (r.fw||'').trim() || '(sin dato)';
+    if(!porFw[fw]) porFw[fw] = { fw, total:0, rec:0, equipos:new Set() };
+    porFw[fw].total++;
+    if(String(r.recupero||'').toUpperCase()==='SI') porFw[fw].rec++;
+    if(r.lbox) porFw[fw].equipos.add(r.lbox);
+  });
+
+  const lista = Object.values(porFw).sort((a,b)=>b.total-a.total).slice(0,15);
+  if(!lista.length){ tb.innerHTML = '<tr><td colspan="5" class="empty">Sin datos</td></tr>'; return; }
+
+  tb.innerHTML = lista.map((f,i) => {
+    const pct = f.total ? Math.round((f.rec/f.total)*100) : 0;
+    // Solo se colorea con muestra suficiente: con 1-2 casos el porcentaje
+    // es ruido, no señal, y marcarlo en rojo llevaría a conclusiones falsas.
+    const muestraSuficiente = f.total >= 10;
+    const color = !muestraSuficiente ? 'var(--muted)'
+                : pct >= 60 ? 'var(--green)' : pct >= 35 ? 'var(--amber)' : 'var(--red)';
+    return '<tr style="background:'+(i%2?'#f9f9f9':'#fff')+'">' +
+      '<td style="font-family:monospace;font-size:11px">'+esc(f.fw)+'</td>' +
+      '<td style="text-align:center">'+f.total+'</td>' +
+      '<td style="text-align:center;color:var(--green)">'+f.rec+'</td>' +
+      '<td style="text-align:center;font-weight:700;color:'+color+'">'+pct+'%'+
+        (muestraSuficiente?'':' <span style="font-size:9px;color:var(--muted)">(pocos datos)</span>')+'</td>' +
+      '<td style="text-align:center">'+f.equipos.size+'</td>' +
+    '</tr>';
+  }).join('');
+}
+
+/* ── 5. Ranking de reincidentes con historial de equipo ────────────────────
+   Agrupa por ECO (el vehículo), no por LBOX (el aparato). Esa distinción es
+   la clave del informe: si al mismo ECO ya le cambiaron el equipo y sigue
+   apareciendo, el problema no está en el dispositivo. */
+let infReincExpandido = null;   // ECO cuya fila de detalle está abierta
+
+function calcularReincidentesRanking(registros){
+  const porEco = {};
+  registros.forEach(r => {
+    const eco = String(r.eco || '').trim();
+    if(!eco) return;
+    if(!porEco[eco]){
+      porEco[eco] = { eco, apariciones:0, recuperadas:0, series:{}, eventos:[] };
+    }
+    const p = porEco[eco];
+    p.apariciones++;
+    if(String(r.recupero||'').toUpperCase() === 'SI') p.recuperadas++;
+
+    const fecha = normFecha(r.fecha) || '';
+    const lbox = String(r.lbox || '').trim() || '(sin serie)';
+
+    // Rango de fechas en que se usó cada serie, para reconstruir el cambio de equipo
+    if(!p.series[lbox]) p.series[lbox] = { lbox, n:0, desde:fecha, hasta:fecha };
+    const s = p.series[lbox];
+    s.n++;
+    if(fecha){
+      if(!s.desde || fecha < s.desde) s.desde = fecha;
+      if(!s.hasta || fecha > s.hasta) s.hasta = fecha;
+    }
+
+    p.eventos.push({
+      fecha, folio: r.folio || '', lbox, fw: r.fw || '',
+      recupero: r.recupero || '', causa: r.causa || '', dias: r.dias || ''
+    });
+  });
+
+  return Object.values(porEco).map(p => {
+    p.eventos.sort((a,b) => (b.fecha||'').localeCompare(a.fecha||''));  // reciente primero
+    const seriesOrden = Object.values(p.series).sort((a,b) => (a.desde||'').localeCompare(b.desde||''));
+    p.seriesLista = seriesOrden;
+    p.numSeries = seriesOrden.length;
+    p.cambioSerie = seriesOrden.length > 1;
+    p.serieActual = p.eventos.length ? p.eventos[0].lbox : '—';
+    p.primera = p.eventos.length ? p.eventos[p.eventos.length-1].fecha : '';
+    p.ultima  = p.eventos.length ? p.eventos[0].fecha : '';
+    p.recientes = reincCountReciente(p.serieActual);
+    return p;
+  }).sort((a,b) => b.apariciones - a.apariciones || b.numSeries - a.numSeries);
+}
+
+function renderInfReincidentes(registros){
+  const tb = document.getElementById('inf-tbody-reincidentes');
+  if(!tb) return;
+
+  const lista = calcularReincidentesRanking(registros)
+    .filter(p => p.apariciones >= 2)
+    .slice(0, 30);
+
+  if(!lista.length){
+    tb.innerHTML = '<tr><td colspan="8" class="empty">Ninguna unidad con 2 o más apariciones en el rango</td></tr>';
+    return;
+  }
+
+  const filas = [];
+  lista.forEach((p, i) => {
+    const cRec = p.recuperadas > 0 ? 'var(--green)' : 'var(--red)';
+    const pctRec = p.apariciones ? Math.round((p.recuperadas/p.apariciones)*100) : 0;
+    const cNum = p.apariciones >= 10 ? 'var(--red)' : p.apariciones >= 5 ? 'var(--amber)' : 'var(--muted)';
+
+    filas.push(
+      '<tr onclick="toggleInfReinc(' + JSON.stringify(p.eco).replace(/"/g,'&quot;') + ')" ' +
+        'style="cursor:pointer;background:' + (i%2?'#f9f9f9':'#fff') + '" title="Clic para ver todas las fechas">' +
+        '<td style="color:var(--muted);font-weight:700">#' + (i+1) + '</td>' +
+        '<td><b>ECO ' + esc(p.eco) + '</b>' +
+          (esReincidenteCritico(p.serieActual) ? ' <span style="color:#c0392b" title="degradación activa">🔥</span>' : '') + '</td>' +
+        '<td style="text-align:center;font-weight:800;color:' + cNum + '">' + p.apariciones + '</td>' +
+        '<td style="text-align:center;font-size:11px;color:var(--muted)">' + p.recientes + '</td>' +
+        '<td style="text-align:center">' +
+          (p.cambioSerie
+            ? '<span class="tag-reinc" style="background:#8e44ad" title="Se cambió el equipo ' + (p.numSeries-1) + ' vez(ces)">🔄 ' + p.numSeries + ' series</span>'
+            : '<span style="color:var(--muted);font-size:11px">1</span>') + '</td>' +
+        '<td style="font-size:10px;font-family:monospace">' + esc(p.serieActual) + '</td>' +
+        '<td style="text-align:center;color:' + cRec + ';font-weight:700">' + p.recuperadas + '/' + p.apariciones +
+          ' <span style="font-size:10px;font-weight:400">(' + pctRec + '%)</span></td>' +
+        '<td style="font-size:10px;white-space:nowrap">' + esc(p.primera||'—') + ' → ' + esc(p.ultima||'—') + '</td>' +
+      '</tr>'
+    );
+
+    // Fila expandible: cronología completa + resumen de series
+    if(infReincExpandido === p.eco){
+      const seriesHtml = p.seriesLista.map((s,ix) =>
+        '<div style="display:flex;gap:8px;align-items:center;padding:3px 0;font-size:11px">' +
+          '<span style="background:var(--navy);color:#fff;border-radius:4px;padding:1px 6px;font-size:9px">' + (ix+1) + '</span>' +
+          '<span style="font-family:monospace">' + esc(s.lbox) + '</span>' +
+          '<span style="color:var(--muted)">' + esc(s.desde||'?') + ' → ' + esc(s.hasta||'?') + '</span>' +
+          '<span style="color:var(--muted)">· ' + s.n + ' aparición(es)</span>' +
+        '</div>').join('');
+
+      const eventosHtml = p.eventos.map(e => {
+        const rec = String(e.recupero||'').toUpperCase();
+        const col = rec==='SI' ? 'var(--green)' : 'var(--red)';
+        return '<tr>' +
+          '<td style="font-size:11px;white-space:nowrap">' + esc(e.fecha||'—') + '</td>' +
+          '<td style="font-size:11px">' + esc(e.folio||'—') + '</td>' +
+          '<td style="font-size:10px;font-family:monospace">' + esc(e.lbox) + '</td>' +
+          '<td style="font-size:10px;color:var(--muted)">' + esc(e.fw||'—') + '</td>' +
+          '<td style="text-align:center">' + esc(e.dias||'—') + 'd</td>' +
+          '<td style="text-align:center;color:' + col + ';font-weight:700">' + esc(e.recupero||'—') + '</td>' +
+          '<td style="font-size:11px">' + esc(e.causa||'—') + '</td>' +
+        '</tr>';
+      }).join('');
+
+      filas.push(
+        '<tr><td colspan="8" style="background:#fbfcfd;padding:14px 16px">' +
+          (p.cambioSerie
+            ? '<div style="background:#f4ecf7;border-left:4px solid #8e44ad;padding:8px 12px;border-radius:6px;margin-bottom:12px;font-size:11px;color:#5b2c6f">' +
+              '<b>Se cambió el equipo ' + (p.numSeries-1) + ' vez(ces).</b> La falla continúa con series distintas, ' +
+              'así que conviene revisar instalación/arnés del vehículo o evaluar inhibición recurrente, en vez de cambiar de nuevo el LBOX.</div>'
+            : '') +
+          '<div style="font-size:11px;font-weight:700;color:var(--navy);margin-bottom:6px">Series de LBOX usadas</div>' +
+          seriesHtml +
+          '<div style="font-size:11px;font-weight:700;color:var(--navy);margin:12px 0 6px">Todas las apariciones (' + p.eventos.length + ')</div>' +
+          '<div class="scroll-x"><table class="tbl" style="min-width:640px">' +
+            '<thead><tr><th>Fecha</th><th>Folio</th><th>LBOX</th><th>Firmware</th><th>Días</th><th>Recuperó</th><th>Causa</th></tr></thead>' +
+            '<tbody>' + eventosHtml + '</tbody></table></div>' +
+        '</td></tr>'
+      );
+    }
+  });
+
+  tb.innerHTML = filas.join('');
+}
+
+function toggleInfReinc(eco){
+  infReincExpandido = (infReincExpandido === eco) ? null : eco;
+  const { porFolio, claves } = foliosFiltrados();
+  renderInfReincidentes(claves.flatMap(k => porFolio[k].registros));
+}
+
+/* ── 5. Detalle del folio seleccionado ─────────────────────────────────── */
+function renderInfDetalle(porFolio){
+  const card = document.getElementById('inf-card-detalle');
+  const tb = document.getElementById('inf-tbody-detalle');
+  const folioSel = document.getElementById('inf-folio')?.value || '';
+  if(!card || !tb) return;
+
+  if(!folioSel || !porFolio[folioSel]){ card.style.display = 'none'; return; }
+  card.style.display = 'block';
+  document.getElementById('inf-detalle-folio').textContent = folioSel;
+
+  const regs = porFolio[folioSel].registros;
+  tb.innerHTML = regs.map((r,i) => {
+    const rec = String(r.recupero||'').toUpperCase();
+    const cRec = rec==='SI' ? 'var(--green)' : 'var(--red)';
+    return '<tr style="background:'+(i%2?'#f9f9f9':'#fff')+'">' +
+      '<td><b>'+esc(r.eco)+'</b></td>' +
+      '<td style="font-size:10px">'+esc(r.lbox||'—')+'</td>' +
+      '<td style="text-align:center">'+esc(r.dias||'—')+'</td>' +
+      '<td style="text-align:center">'+esc(r.pos||'—')+'</td>' +
+      '<td style="text-align:center">'+esc(r.rlbox||'—')+'</td>' +
+      '<td style="text-align:center">'+esc(r.rlink||'—')+'</td>' +
+      '<td style="text-align:center;font-weight:700;color:'+cRec+'">'+esc(r.recupero||'—')+'</td>' +
+      '<td style="text-align:center">'+esc(r.voltaje||'—')+'</td>' +
+      '<td style="font-size:11px">'+esc(r.causa||'—')+'</td>' +
+    '</tr>';
+  }).join('');
+}
+
+/* ── Exportar el informe a Excel ───────────────────────────────────────── */
+function exportarInformeExcel(){
+  if(typeof XLSX === 'undefined'){ notify('La librería de Excel no está disponible', 'err'); return; }
+  const { porFolio, claves } = foliosFiltrados();
+  if(!claves.length){ notify('No hay reportes para exportar', 'err'); return; }
+
+  const filas = claves.map(k => {
+    const f = porFolio[k];
+    return {
+      Folio: f.folio,
+      Fecha: f.fecha,
+      Revisadas: f.total,
+      Recuperadas: f.rec,
+      'No recuperadas': f.noRec,
+      '% Exito': f.total ? Math.round((f.rec/f.total)*100) : 0,
+      'Dias promedio': f.diasN ? +(f.diasSuma/f.diasN).toFixed(1) : '',
+      Agente: Object.keys(f.agentes).sort((a,b)=>f.agentes[b]-f.agentes[a])[0] || ''
+    };
+  });
+
+  const wb = XLSX.utils.book_new();
+  XLSX.utils.book_append_sheet(wb, XLSX.utils.json_to_sheet(filas), 'Comparativo');
+  // Segunda hoja: todos los registros del rango, para análisis propio
+  const detalle = claves.flatMap(k => porFolio[k].registros);
+  XLSX.utils.book_append_sheet(wb, XLSX.utils.json_to_sheet(detalle), 'Detalle');
+  XLSX.writeFile(wb, 'Informe_reportes_' + new Date().toISOString().slice(0,10) + '.xlsx');
+  notify('Informe exportado: ' + claves.length + ' reportes', 'ok');
+}
 
 /* ▓▓ VOLTAJE AUTOMÁTICO DESDE NAVIXY ▓▓ ───────────────────────────────────
    Lee el voltaje de alimentación del Teltonika y marca el campo "voltaje" sin
