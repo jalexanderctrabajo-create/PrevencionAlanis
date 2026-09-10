@@ -3832,6 +3832,116 @@ async function limpiarReporte(){
 
 
 /* ▓▓ 11. GENERAR DOCX ▓▓ ──────────────────────────────────────────────────── */
+/* ── APOYO PARA EL REPORTE AL CLIENTE ─────────────────────────────────────
+   Convierten el historial en contexto: sin comparativo, un "33% de éxito"
+   no le dice nada al cliente. Con el ciclo anterior y el promedio, sí. */
+
+/* Serie histórica de % de éxito por ciclo (folio), del más antiguo al más
+   reciente. Excluye el ciclo en curso, que aún no está en el historial. */
+function serieExitoPorCiclo(maxCiclos = 6){
+  const porFolio = {};
+  hist.forEach(h => {
+    const folio = String(h.folio||'').trim();
+    if(!folio) return;
+    if(!porFolio[folio]) porFolio[folio] = { folio, fecha:'', total:0, rec:0 };
+    const f = porFolio[folio];
+    f.total++;
+    if(String(h.recupero||'').toUpperCase()==='SI') f.rec++;
+    const fx = normFecha(h.fecha);
+    if(fx && (!f.fecha || fx < f.fecha)) f.fecha = fx;
+  });
+  return Object.values(porFolio)
+    .filter(f => f.total >= 3)          // ciclos con muestra mínima
+    .sort((a,b) => (a.fecha||'').localeCompare(b.fecha||''))
+    .slice(-maxCiclos)
+    .map(f => ({ ...f, pct: f.total ? Math.round((f.rec/f.total)*100) : 0 }));
+}
+
+/* Acción recomendada por unidad, derivada del diagnóstico ya capturado.
+   Evita que el cliente tenga que interpretar la clasificación por su cuenta. */
+function accionRecomendada(u, esReinc){
+  const rec  = String(u.recupero||'').toUpperCase();
+  const volt = String(u.voltaje||'').toUpperCase();
+  const pos  = String(u.pos||'').toUpperCase();
+
+  if(rec === 'SI') return 'Sin acción — monitoreo normal';
+  if(esReinc)      return 'Evaluar reemplazo del equipo';
+  if(volt === 'NO')return 'Revisión física: arnés y alimentación';
+  if(pos === 'NO' && volt === 'SI') return 'Reset remoto del dispositivo';
+  if(pos === 'SI' && rec !== 'SI')  return 'Verificar posible inhibición';
+  return 'Diagnóstico en sitio';
+}
+
+/* Dibuja la tendencia de % de éxito en un canvas fuera de pantalla y la
+   devuelve como PNG (Uint8Array) para incrustarla en el documento Word. */
+function graficaTendenciaPNG(serie, cicloActualPct){
+  try{
+    const W = 900, H = 260;
+    const cv = document.createElement('canvas');
+    cv.width = W; cv.height = H;
+    const ctx = cv.getContext('2d');
+
+    ctx.fillStyle = '#FFFFFF'; ctx.fillRect(0,0,W,H);
+
+    const puntos = serie.map(s => ({ etq: s.folio, pct: s.pct }));
+    puntos.push({ etq: 'Actual', pct: cicloActualPct });
+    if(puntos.length < 2) return null;
+
+    const padL=56, padR=28, padT=26, padB=52;
+    const cw = W-padL-padR, ch = H-padT-padB;
+
+    // Rejilla 0–100 %
+    ctx.strokeStyle='#E4E9ED'; ctx.lineWidth=1;
+    ctx.fillStyle='#8A99A4'; ctx.font='13px Arial'; ctx.textAlign='right';
+    for(let i=0;i<=4;i++){
+      const y = padT + ch - (ch*i/4);
+      ctx.beginPath(); ctx.moveTo(padL,y); ctx.lineTo(W-padR,y); ctx.stroke();
+      ctx.fillText((i*25)+'%', padL-8, y+4);
+    }
+
+    const step = cw/(puntos.length-1);
+    const xy = puntos.map((p,i)=>({ x: padL + i*step, y: padT + ch - (p.pct/100)*ch, ...p }));
+
+    // Área bajo la curva
+    const grad = ctx.createLinearGradient(0,padT,0,padT+ch);
+    grad.addColorStop(0,'rgba(139,197,63,.30)');
+    grad.addColorStop(1,'rgba(139,197,63,0)');
+    ctx.beginPath(); ctx.moveTo(xy[0].x, padT+ch);
+    xy.forEach(p=>ctx.lineTo(p.x,p.y));
+    ctx.lineTo(xy[xy.length-1].x, padT+ch); ctx.closePath();
+    ctx.fillStyle=grad; ctx.fill();
+
+    // Línea
+    ctx.beginPath(); ctx.strokeStyle='#72A82E'; ctx.lineWidth=3;
+    xy.forEach((p,i)=> i===0?ctx.moveTo(p.x,p.y):ctx.lineTo(p.x,p.y));
+    ctx.stroke();
+
+    // Puntos y etiquetas
+    xy.forEach((p,i)=>{
+      const ultimo = i===xy.length-1;
+      ctx.beginPath(); ctx.arc(p.x,p.y, ultimo?7:5, 0, 2*Math.PI);
+      ctx.fillStyle = ultimo ? '#1A5276' : '#72A82E'; ctx.fill();
+      ctx.beginPath(); ctx.arc(p.x,p.y, ultimo?3:2, 0, 2*Math.PI);
+      ctx.fillStyle='#fff'; ctx.fill();
+
+      ctx.fillStyle='#1C2B39'; ctx.font='bold 13px Arial'; ctx.textAlign='center';
+      ctx.fillText(p.pct+'%', p.x, p.y-13);
+      ctx.fillStyle='#6B7A85'; ctx.font=(ultimo?'bold ':'')+'11px Arial';
+      const etq = String(p.etq).length>11 ? String(p.etq).slice(-8) : String(p.etq);
+      ctx.fillText(etq, p.x, H-padB+20);
+    });
+
+    const b64 = cv.toDataURL('image/png').split(',')[1];
+    const bin = atob(b64);
+    const arr = new Uint8Array(bin.length);
+    for(let i=0;i<bin.length;i++) arr[i] = bin.charCodeAt(i);
+    return arr;
+  } catch(e){
+    console.warn('No se pudo generar la gráfica del reporte:', e);
+    return null;   // el reporte se genera igual, solo sin gráfica
+  }
+}
+
 async function generarReporte(){
   if(!units.length){notify('No hay unidades','err');return;}
   const btn=document.getElementById('btn-report');
@@ -3858,7 +3968,7 @@ async function generarReporte(){
 
     const {
       Document, Packer, Paragraph, TextRun, Table, TableRow, TableCell,
-      AlignmentType, BorderStyle, WidthType, ShadingType, PageBreak
+      AlignmentType, BorderStyle, WidthType, ShadingType, ImageRun, PageBreak
     } = docx;
 
     const bord = { style: BorderStyle.SINGLE, size: 1, color: 'D5D8DC' };
@@ -3892,13 +4002,15 @@ async function generarReporte(){
     function headerRow(cols){
       return new TableRow({
         tableHeader: true,
+        // Los márgenes se ajustan al ancho: con 140 fijos, una columna de 560
+        // quedaba con 280 útiles y encabezados como "Volt" se partían en dos.
         children: cols.map(([txt,w]) => new TableCell({
           borders,
           width:{ size:w, type:WidthType.DXA },
           shading:{ fill:BLUE, type:ShadingType.CLEAR },
-          margins:{ top:90, bottom:90, left:140, right:140 },
+          margins:{ top:90, bottom:90, left: w < 700 ? 30 : 130, right: w < 700 ? 30 : 130 },
           children:[new Paragraph({ alignment:AlignmentType.CENTER, spacing:{after:0},
-            children:[new TextRun({ text:txt, size:18, font:'Arial', bold:true, color:WHITE })] })]
+            children:[new TextRun({ text:txt, size:16, font:'Arial', bold:true, color:WHITE })] })]
         }))
       });
     }
@@ -3925,21 +4037,21 @@ async function generarReporte(){
 
       return new TableRow({ children:[
         new TableCell({
-          borders, width:{ size:1100, type:WidthType.DXA },
+          borders, width:{ size:1020, type:WidthType.DXA },
           shading:{ fill:bg, type:ShadingType.CLEAR },
-          margins:{ top:80, bottom:80, left:140, right:100 },
+          margins:{ top:80, bottom:80, left:110, right:70 },
           children:[new Paragraph({ spacing:{after:0}, children:[
             new TextRun({ text:'ECO '+u.eco, size:18, font:'Arial', bold:true, color:DARK }),
             reincBadge(r)
           ]})]
         }),
-        cell(u.lbox || '—', bg, false, 1800, BLUE_M, 17),
-        cell(u.fw || '—',   bg, false, 1100, MID,    16),
-        cell((u.dias||'0')+'d', bg, false, 600, DARK, 18, AlignmentType.CENTER),
+        cell(u.lbox || '—', bg, false, 1560, BLUE_M, 16),
+        cell(u.fw || '—',   bg, false, 1080, MID,    15),
+        cell((u.dias||'0')+'d', bg, false, 620, DARK, 17, AlignmentType.CENTER),
         new TableCell({
-          borders, width:{ size:600, type:WidthType.DXA },
+          borders, width:{ size:560, type:WidthType.DXA },
           shading:{ fill:bg, type:ShadingType.CLEAR },
-          margins:{ top:80, bottom:80, left:80, right:80 },
+          margins:{ top:80, bottom:80, left:40, right:40 },
           children:[new Paragraph({ alignment:AlignmentType.CENTER, spacing:{after:0},
             children:[new TextRun({
               text: u.voltaje==='SI'?'SI':u.voltaje==='NO'?'NO':'—',
@@ -3948,26 +4060,44 @@ async function generarReporte(){
             })]})]
         }),
         new TableCell({
-          borders, width:{ size:700, type:WidthType.DXA },
+          borders, width:{ size:560, type:WidthType.DXA },
           shading:{ fill:bg, type:ShadingType.CLEAR },
-          margins:{ top:80, bottom:80, left:80, right:80 },
+          margins:{ top:80, bottom:80, left:40, right:40 },
           children:[new Paragraph({ alignment:AlignmentType.CENTER, spacing:{after:0},
             children:[new TextRun({
               text: u.recupero || '—',
               size:18, font:'Arial', bold:true, color: recColor
             })]})]
         }),
-        cell(obs, bg, false, 2760, DARK, 17),
+        cell(obs, bg, false, 1840, DARK, 16),
+        // Acción recomendada: se deriva del diagnóstico para que el cliente no
+        // tenga que interpretar la clasificación por su cuenta.
+        new TableCell({
+          borders, width:{ size:2220, type:WidthType.DXA },
+          shading:{ fill:bg, type:ShadingType.CLEAR },
+          margins:{ top:80, bottom:80, left:120, right:120 },
+          children:[new Paragraph({ spacing:{after:0}, children:[
+            new TextRun({
+              text: accionRecomendada(u, r >= 5),
+              size:16, font:'Arial',
+              color: u.recupero==='SI' ? MID : (r >= 5 ? RED : BLUE_M),
+              bold: u.recupero!=='SI'
+            })
+          ]})]
+        }),
       ]});
     }
 
     function buildTable(unitsList){
+      // Anchos calibrados para que ningún encabezado se parta en dos líneas.
+      // Con 8 columnas el espacio es justo: se recortan etiquetas largas
+      // ("Volt." en vez de "Voltaje") en lugar de dejar que Word las quiebre.
       const cols = [
-        ['#ECO',1100],['Serie LBOX',1800],['Firmware',1100],
-        ['Días',600],['Voltaje',600],['Recuperó',700],['Observación',2760]
+        ['#ECO',1020],['Serie LBOX',1560],['Firmware',1080],
+        ['Días',620],['Volt',560],['Rec',560],['Observación',1840],['Acción recomendada',2220]
       ];
       return new Table({
-        width:{ size:8660, type:WidthType.DXA },
+        width:{ size:9460, type:WidthType.DXA },
         columnWidths: cols.map(c=>c[1]),
         rows:[ headerRow(cols), ...unitsList.map((u,i)=>unitRow(u,i)) ]
       });
@@ -3999,6 +4129,78 @@ async function generarReporte(){
     const fechaISO = normFecha(units[0]?.fechaEjec) || new Date().toISOString().slice(0,10);
     const fechaLarga = new Date(fechaISO + 'T12:00:00').toLocaleDateString('es-MX',
       { year:'numeric', month:'long', day:'numeric' });
+
+    // ── MÉTRICAS COMPARATIVAS E HISTÓRICAS ─────────────────
+    const pctActual = total ? Math.round((nRecup/total)*100) : 0;
+    const serie = serieExitoPorCiclo(6);
+    const anterior = serie.length ? serie[serie.length-1] : null;
+    const promedio = serie.length
+      ? Math.round(serie.reduce((a,s)=>a+s.pct,0) / serie.length)
+      : null;
+
+    // Texto comparativo: solo se incluye si hay historial suficiente. Sin
+    // datos previos se omite en vez de inventar una tendencia.
+    let comparativoTxt = '', tendenciaColor = DARK;
+    if (anterior) {
+      const delta = pctActual - anterior.pct;
+      const signo = delta > 0 ? '▲ +' : delta < 0 ? '▼ ' : '= ';
+      tendenciaColor = delta > 0 ? GREEN : delta < 0 ? RED : MID;
+      comparativoTxt = 'Efectividad de este ciclo: ' + pctActual + '%  ·  ' +
+        'Ciclo anterior (' + anterior.folio + '): ' + anterior.pct + '%  ·  ' +
+        signo + Math.abs(delta) + ' puntos' +
+        (promedio !== null ? '  ·  Promedio últimos ' + serie.length + ' ciclos: ' + promedio + '%' : '');
+    }
+
+    // Resumen ejecutivo redactado con los números reales del ciclo, no con
+    // texto fijo: si una categoría está vacía, no se menciona.
+    const partes = [];
+    partes.push('Durante el ciclo del ' + fechaLarga + ' se revisaron ' + total +
+      ' unidades de la flota, de las cuales ' + nRecup + ' (' + pctActual + '%) recuperaron comunicación.');
+    if (sinLinkConVoltaje.length) {
+      partes.push(sinLinkConVoltaje.length + ' unidad(es) cuentan con alimentación eléctrica pero no ' +
+        'reportan posicionamiento, por lo que son candidatas a intervención remota.');
+    }
+    if (sinVoltaje.length) {
+      partes.push(sinVoltaje.length + ' unidad(es) no registran voltaje y requieren revisión física en sitio.');
+    }
+    if (reincidentes.length) {
+      partes.push(reincidentes.length + ' unidad(es) presentan fallas recurrentes y se recomienda evaluar su reemplazo.');
+    }
+    const resumenEjecutivo = partes.join(' ');
+
+    // Gráfica de tendencia (si falla, el reporte se genera igual sin ella)
+    const graficaPNG = serie.length >= 1 ? graficaTendenciaPNG(serie, pctActual) : null;
+
+    // Observaciones generadas a partir de lo que REALMENTE ocurrió en el ciclo.
+    // Antes eran cuatro párrafos fijos: si no había unidades sin voltaje, el
+    // reporte igual pedía "visita física a la brevedad", lo cual confundía.
+    const observaciones = [];
+    if (sinLinkConVoltaje.length) {
+      observaciones.push(sinLinkConVoltaje.length + ' unidad(es) de la Tabla 2 cuentan con voltaje pero sin ' +
+        'posicionamiento: se recomienda programar reset remoto durante la semana en curso, priorizando ' +
+        'las de mayor número de días sin reporte.');
+    }
+    if (sinVoltaje.length) {
+      observaciones.push(sinVoltaje.length + ' unidad(es) de la Tabla 3 no registran voltaje y requieren ' +
+        'visita física. Se sugiere coordinar con el área de mantenimiento de flota para revisar arnés y alimentación.');
+    }
+    if (reincidentes.length) {
+      observaciones.push(reincidentes.length + ' unidad(es) han presentado fallas repetidas en ciclos anteriores. ' +
+        'Se recomienda evaluar el reemplazo preventivo del dispositivo y, si ya fue sustituido antes, ' +
+        'revisar la instalación eléctrica del vehículo.');
+    }
+    if (anterior) {
+      const d = pctActual - anterior.pct;
+      if (d > 5)       observaciones.push('La efectividad mejoró ' + d + ' puntos respecto al ciclo anterior.');
+      else if (d < -5) observaciones.push('La efectividad descendió ' + Math.abs(d) + ' puntos respecto al ciclo ' +
+                        'anterior; conviene revisar si hay una causa común entre las unidades no recuperadas.');
+      else             observaciones.push('La efectividad se mantiene estable respecto al ciclo anterior.');
+    }
+    if (!sinLinkConVoltaje.length && !sinVoltaje.length && !reincidentes.length) {
+      observaciones.push('Todas las unidades revisadas en este ciclo recuperaron comunicación satisfactoriamente.');
+    }
+    observaciones.push('Inroute permanece disponible para brindar soporte adicional y coordinar las acciones ' +
+      'correctivas que se requieran.');
 
     // ── KPI Table ──────────────────────────────────────────
     function kpiTable(){
@@ -4132,13 +4334,35 @@ async function generarReporte(){
           kpiTable(),
           sp(200),
 
-          // ── INTRODUCCIÓN ───────────────────────────────
+          // ── RESUMEN EJECUTIVO ──────────────────────────
           hr(),
           sp(100),
-          p('En atención al servicio de prevención proactiva de dispositivos LBOX instalados en su flota, a continuación se presenta el reporte correspondiente al ciclo del '+fechaLarga+'. Se revisaron en total '+total+' unidades, de las cuales '+nRecup+' recuperaron comunicación satisfactoriamente.'),
-          sp(80),
-          p('A continuación se detallan las unidades recuperadas y las que requieren atención, clasificadas según su condición de voltaje Teltonika, con el objetivo de orientar la prioridad de atención en campo.'),
+          new Paragraph({ spacing:{ after:100 }, children:[
+            new TextRun({ text:'Resumen ejecutivo', size:22, font:'Arial', bold:true, color:BLUE })
+          ]}),
+          p(resumenEjecutivo),
+          sp(60),
+          ...(comparativoTxt ? [p(comparativoTxt, { bold:true, color: tendenciaColor }), sp(60)] : []),
+          p('En atención al servicio de prevención proactiva de dispositivos LBOX instalados en su flota, ' +
+            'a continuación se detallan las unidades recuperadas y las que requieren atención, clasificadas ' +
+            'según su condición de voltaje, con la acción recomendada para cada una.'),
           sp(160),
+
+          // ── TENDENCIA HISTÓRICA ────────────────────────
+          ...(graficaPNG ? [
+            hr(BLUE_M),
+            sp(80),
+            new Paragraph({ spacing:{ before:0, after:60 }, children:[
+              new TextRun({ text:'Evolución del porcentaje de recuperación', size:20, font:'Arial', bold:true, color:BLUE })
+            ]}),
+            p('Comparativo de los últimos ciclos de prevención. Permite ver si el proceso mejora, se mantiene o requiere ajustes.', { size:17, color:MID }),
+            new Paragraph({
+              alignment: AlignmentType.CENTER,
+              spacing:{ after:120 },
+              children:[ new ImageRun({ data: graficaPNG, transformation:{ width:600, height:173 } }) ]
+            }),
+            sp(160),
+          ] : []),
 
           // ── TABLA 1: RECUPERADAS ────────────────────────
           ...seccionTabla(1, GREEN,
@@ -4186,12 +4410,7 @@ async function generarReporte(){
           new Paragraph({ spacing:{ before:0, after:80 },
             children:[new TextRun({ text:'Observaciones generales',
               size:22, font:'Arial', bold:true, color:BLUE })] }),
-          ...[
-            'Las unidades clasificadas en Tabla 2 deberán ser programadas para revisión remota o en campo durante la semana en curso, con prioridad en aquellas con mayor número de días sin reporte.',
-            'Las unidades clasificadas en Tabla 3 requieren visita física a la brevedad. Se sugiere coordinar con el área de mantenimiento de flota para garantizar la intervención oportuna.',
-            'Las unidades reincidentes han presentado fallas repetidas en ciclos anteriores. Se recomienda evaluar el reemplazo preventivo del dispositivo LBOX y/o una revisión profunda del arnés eléctrico del vehículo.',
-            'Inroute permanece disponible para brindar soporte adicional y coordinar las acciones correctivas que se requieran.',
-          ].map(txt => new Paragraph({
+          ...observaciones.map(txt => new Paragraph({
             indent:{ left:300 },
             spacing:{ after:80 },
             children:[
