@@ -11,6 +11,34 @@
    nunca generara un reporte — notorio en celular con datos móviles.
    Ahora se descarga bajo demanda (y queda en caché del navegador). */
 let _docxPromesa = null;
+let _pdfPromesa  = null;
+
+/* jsPDF + AutoTable, cargados solo cuando se exporta a PDF (mismo criterio
+   que docx: no penalizar la carga inicial con librerías que quizá no se usen). */
+function cargarPDF(){
+  if (window.jspdf && window.jspdf.jsPDF) return Promise.resolve(window.jspdf);
+  if (_pdfPromesa) return _pdfPromesa;
+
+  function inyectar(src){
+    return new Promise((res, rej) => {
+      const s = document.createElement('script');
+      s.src = src;
+      s.onload = res;
+      s.onerror = () => rej(new Error('No se pudo descargar ' + src));
+      document.head.appendChild(s);
+    });
+  }
+
+  _pdfPromesa = inyectar('https://cdnjs.cloudflare.com/ajax/libs/jspdf/2.5.1/jspdf.umd.min.js')
+    .then(() => inyectar('https://cdnjs.cloudflare.com/ajax/libs/jspdf-autotable/3.8.2/jspdf.plugin.autotable.min.js'))
+    .then(() => {
+      if (!(window.jspdf && window.jspdf.jsPDF)) throw new Error('jsPDF no quedó disponible tras la carga');
+      return window.jspdf;
+    })
+    .catch(e => { _pdfPromesa = null; throw e; });   // permite reintentar
+
+  return _pdfPromesa;
+}
 
 function cargarDocx(){
   if (window.docx && window.docx.Document) return Promise.resolve(window.docx);
@@ -596,7 +624,13 @@ body{font-family:'Barlow',-apple-system,sans-serif;font-size:14px;color:var(--in
 
       <!-- 5. Ranking de reincidentes con historial de equipo -->
       <div class="card" style="margin-bottom:16px">
-        <div class="card-title">🏆 Reincidentes — ranking e historial de equipo</div>
+        <div style="display:flex;justify-content:space-between;align-items:center;gap:12px;flex-wrap:wrap;margin-bottom:4px">
+          <div class="card-title" style="margin:0">🏆 Reincidentes — ranking e historial de equipo</div>
+          <div style="display:flex;gap:8px">
+            <button class="btn" onclick="exportarReincidentesExcel()" title="Datos completos para análisis interno">📊 Excel</button>
+            <button class="btn primary" id="btn-inf-pdf" onclick="exportarReincidentesPDF()" title="Documento presentable para el cliente">📄 PDF</button>
+          </div>
+        </div>
         <div style="font-size:11px;color:var(--muted);margin-bottom:12px">
           Ordenado de mayor a menor número de apariciones. Si un mismo ECO pasó por
           <b>varias series de LBOX</b>, se marca: significa que ya se cambió el equipo y
@@ -3183,6 +3217,233 @@ function renderInfReincidentes(registros){
   });
 
   tb.innerHTML = filas.join('');
+}
+
+/* ── EXPORTACIÓN DEL RANKING DE REINCIDENTES ───────────────────────────────
+   Dos formatos con propósitos distintos:
+     · Excel → uso interno: datos crudos, filtrables, con hojas de detalle.
+     · PDF   → uso externo: documento presentable para el cliente. */
+
+/* Reúne los datos del informe una sola vez, para que ambas exportaciones
+   partan exactamente de lo mismo que se ve en pantalla. */
+function datosReincidentesExport(){
+  const { porFolio, claves } = foliosFiltrados();
+  const registros = claves.flatMap(k => porFolio[k].registros);
+  const lista = calcularReincidentesRanking(registros).filter(p => p.apariciones >= 2);
+  const folioSel = document.getElementById('inf-folio')?.value || '';
+  const nUlt = document.getElementById('inf-ultimos')?.value || '0';
+  const alcance = folioSel
+    ? 'Reporte ' + folioSel
+    : (nUlt !== '0' ? 'Últimos ' + nUlt + ' reportes' : 'Historial completo');
+  return { lista, registros, claves, alcance };
+}
+
+function exportarReincidentesExcel(){
+  if(typeof XLSX === 'undefined'){ notify('La librería de Excel no está disponible', 'err'); return; }
+  const { lista, alcance, claves } = datosReincidentesExport();
+  if(!lista.length){ notify('No hay reincidentes para exportar', 'err'); return; }
+
+  const wb = XLSX.utils.book_new();
+
+  // ── Hoja 1: Ranking ─────────────────────────────────────────────────
+  const ranking = lista.map((p,i) => ({
+    'Pos': i+1,
+    'ECO': p.eco,
+    'Apariciones': p.apariciones,
+    'Apariciones recientes (90d)': p.recientes,
+    'Series LBOX distintas': p.numSeries,
+    'Cambió de equipo': p.cambioSerie ? 'SÍ' : 'NO',
+    'Serie actual': p.serieActual,
+    'Recuperaciones': p.recuperadas,
+    '% Recuperación': p.apariciones ? Math.round((p.recuperadas/p.apariciones)*100) : 0,
+    'Primera aparición': p.primera,
+    'Última aparición': p.ultima,
+    'Degradación activa': esReincidenteCritico(p.serieActual) ? 'SÍ' : 'NO'
+  }));
+  const hoja1 = XLSX.utils.json_to_sheet(ranking);
+  hoja1['!cols'] = [{wch:5},{wch:10},{wch:12},{wch:24},{wch:20},{wch:16},{wch:18},
+                    {wch:14},{wch:15},{wch:18},{wch:18},{wch:18}];
+  hoja1['!freeze'] = { xSplit:0, ySplit:1 };
+  XLSX.utils.book_append_sheet(wb, hoja1, 'Ranking');
+
+  // ── Hoja 2: Detalle de todas las apariciones ────────────────────────
+  const detalle = [];
+  lista.forEach((p,i) => p.eventos.forEach(e => detalle.push({
+    'Pos': i+1, 'ECO': p.eco, 'Fecha': e.fecha, 'Folio': e.folio,
+    'LBOX': e.lbox, 'Firmware': e.fw, 'Días sin reportar': e.dias,
+    'Recuperó': e.recupero, 'Causa': e.causa
+  })));
+  const hoja2 = XLSX.utils.json_to_sheet(detalle);
+  hoja2['!cols'] = [{wch:5},{wch:10},{wch:12},{wch:16},{wch:18},{wch:18},{wch:16},{wch:10},{wch:34}];
+  hoja2['!freeze'] = { xSplit:0, ySplit:1 };
+  XLSX.utils.book_append_sheet(wb, hoja2, 'Detalle apariciones');
+
+  // ── Hoja 3: Solo las que cambiaron de equipo ────────────────────────
+  // Es la hoja accionable: si ya se sustituyó el LBOX y la falla sigue,
+  // el problema está en el vehículo, no en el dispositivo.
+  const cambios = [];
+  lista.filter(p => p.cambioSerie).forEach(p => {
+    p.seriesLista.forEach((s,ix) => cambios.push({
+      'ECO': p.eco, 'Orden': ix+1, 'Serie LBOX': s.lbox,
+      'Desde': s.desde, 'Hasta': s.hasta, 'Apariciones con esta serie': s.n,
+      'Total series del ECO': p.numSeries,
+      'Recuperó alguna vez': p.recuperadas > 0 ? 'SÍ' : 'NO'
+    }));
+  });
+  if(cambios.length){
+    const hoja3 = XLSX.utils.json_to_sheet(cambios);
+    hoja3['!cols'] = [{wch:10},{wch:8},{wch:20},{wch:14},{wch:14},{wch:26},{wch:20},{wch:20}];
+    XLSX.utils.book_append_sheet(wb, hoja3, 'Cambios de equipo');
+  }
+
+  // ── Hoja 4: Metadatos, para que el archivo sea autoexplicativo ──────
+  XLSX.utils.book_append_sheet(wb, XLSX.utils.json_to_sheet([
+    { Campo:'Cliente',            Valor: CONFIG.CLIENTE || 'Grupo Alanis' },
+    { Campo:'Informe',            Valor: 'Reincidentes — ranking e historial de equipo' },
+    { Campo:'Alcance',            Valor: alcance },
+    { Campo:'Reportes incluidos', Valor: claves.length },
+    { Campo:'Unidades listadas',  Valor: lista.length },
+    { Campo:'Generado',           Valor: new Date().toLocaleString('es-MX') },
+    { Campo:'Responsable',        Valor: CONFIG.RESPONSABLE || '' },
+    { Campo:'Criterio reincidente',        Valor: '2 o más apariciones en el alcance seleccionado' },
+    { Campo:'Criterio degradación activa', Valor: CONFIG.UMBRAL_REINCIDENTE_RECIENTE + '+ fallas en ' + CONFIG.VENTANA_REINCIDENCIA_DIAS + ' días' },
+  ]), 'Información');
+
+  XLSX.writeFile(wb, 'Reincidentes_' + new Date().toISOString().slice(0,10) + '.xlsx');
+  notify('Excel exportado: ' + lista.length + ' unidades en 4 hojas', 'ok', 6000);
+}
+
+async function exportarReincidentesPDF(){
+  const { lista, alcance, claves } = datosReincidentesExport();
+  if(!lista.length){ notify('No hay reincidentes para exportar', 'err'); return; }
+
+  const btn = document.getElementById('btn-inf-pdf');
+  const txtOriginal = btn ? btn.textContent : '';
+  if(btn){ btn.disabled = true; btn.textContent = 'Generando PDF...'; }
+
+  try{
+    const { jsPDF } = await cargarPDF();
+    const doc = new jsPDF({ orientation:'landscape', unit:'pt', format:'a4' });
+    const W = doc.internal.pageSize.getWidth();
+
+    const NAVY=[28,43,57], LIME=[139,197,63], GRIS=[107,122,133];
+    const VERDE=[30,132,73], ROJO=[192,57,43], MORADO=[142,68,173];
+
+    // ── Encabezado con identidad Inroute ──────────────────────────────
+    doc.setFillColor(...NAVY); doc.rect(0,0,W,74,'F');
+    doc.setFillColor(...LIME);  doc.rect(0,74,W,3,'F');
+    doc.setTextColor(255,255,255); doc.setFont('helvetica','bold'); doc.setFontSize(20);
+    doc.text('INROUTE', 40, 33);
+    doc.setFont('helvetica','normal'); doc.setFontSize(8); doc.setTextColor(179,212,240);
+    doc.text('TELEMATICS SOLUTIONS', 40, 46);
+
+    doc.setTextColor(255,255,255); doc.setFont('helvetica','bold'); doc.setFontSize(14);
+    doc.text('Reincidentes — ranking e historial de equipo', 190, 32);
+    doc.setFont('helvetica','normal'); doc.setFontSize(9); doc.setTextColor(203,216,227);
+    doc.text((CONFIG.CLIENTE || 'Grupo Alanis') + '   ·   ' + alcance +
+             '   ·   ' + new Date().toLocaleDateString('es-MX'), 190, 47);
+
+    // ── Resumen ejecutivo ─────────────────────────────────────────────
+    const conCambio = lista.filter(p => p.cambioSerie).length;
+    const sinRecuperar = lista.filter(p => p.recuperadas === 0).length;
+    const criticos = lista.filter(p => esReincidenteCritico(p.serieActual)).length;
+
+    doc.setTextColor(...NAVY); doc.setFont('helvetica','bold'); doc.setFontSize(10);
+    doc.text('Resumen', 40, 104);
+    doc.setFont('helvetica','normal'); doc.setFontSize(9); doc.setTextColor(60,60,60);
+    const resumen =
+      lista.length + ' unidades presentan reincidencia en el alcance analizado (' + claves.length + ' reportes). ' +
+      'De ellas, ' + conCambio + ' ya tuvieron un cambio de equipo LBOX y la falla persiste, ' +
+      sinRecuperar + ' nunca han recuperado comunicación y ' + criticos +
+      ' muestran degradación activa (' + CONFIG.UMBRAL_REINCIDENTE_RECIENTE + '+ fallas en los últimos ' +
+      CONFIG.VENTANA_REINCIDENCIA_DIAS + ' días).';
+    doc.text(doc.splitTextToSize(resumen, W-80), 40, 118);
+
+    // ── Tabla principal ───────────────────────────────────────────────
+    const filas = lista.map((p,i) => [
+      '#'+(i+1),
+      'ECO ' + p.eco + (esReincidenteCritico(p.serieActual) ? '  (!)' : ''),
+      String(p.apariciones),
+      String(p.recientes),
+      p.cambioSerie ? p.numSeries + ' series' : '1',
+      p.serieActual,
+      p.recuperadas + '/' + p.apariciones + ' (' + (p.apariciones ? Math.round(p.recuperadas/p.apariciones*100) : 0) + '%)',
+      (p.primera||'?') + '  a  ' + (p.ultima||'?')
+    ]);
+
+    doc.autoTable({
+      startY: 150,
+      head: [['#','ECO','Aparic.','Recientes','Series LBOX','Serie actual','Recuperó','Periodo']],
+      body: filas,
+      theme: 'grid',
+      styles: { font:'helvetica', fontSize:8, cellPadding:4, lineColor:[220,225,230], lineWidth:0.5 },
+      headStyles: { fillColor:NAVY, textColor:[255,255,255], fontStyle:'bold', fontSize:8, halign:'center' },
+      alternateRowStyles: { fillColor:[247,249,250] },
+      columnStyles: {
+        0:{ cellWidth:32, halign:'center', textColor:GRIS },
+        1:{ cellWidth:78, fontStyle:'bold' },
+        2:{ cellWidth:50, halign:'center', fontStyle:'bold' },
+        3:{ cellWidth:60, halign:'center' },
+        4:{ cellWidth:70, halign:'center' },
+        5:{ cellWidth:100 },
+        6:{ cellWidth:82, halign:'center' },
+        7:{ cellWidth:'auto', fontSize:7.5 }
+      },
+      // Colores por celda: refuerzan la lectura sin depender de leyendas
+      didParseCell: function(d){
+        if(d.section !== 'body') return;
+        const p = lista[d.row.index];
+        if(d.column.index === 2){
+          d.cell.styles.textColor = p.apariciones >= 10 ? ROJO : p.apariciones >= 5 ? [211,84,0] : GRIS;
+        }
+        if(d.column.index === 4 && p.cambioSerie){
+          d.cell.styles.textColor = MORADO; d.cell.styles.fontStyle = 'bold';
+        }
+        if(d.column.index === 6){
+          d.cell.styles.textColor = p.recuperadas === 0 ? ROJO : VERDE;
+          d.cell.styles.fontStyle = 'bold';
+        }
+        if(d.column.index === 1 && esReincidenteCritico(p.serieActual)){
+          d.cell.styles.textColor = ROJO;
+        }
+      },
+      margin: { left:40, right:40 },
+      didDrawPage: function(){
+        // Pie con paginación en cada hoja
+        const H = doc.internal.pageSize.getHeight();
+        doc.setDrawColor(220,225,230); doc.setLineWidth(0.5);
+        doc.line(40, H-38, W-40, H-38);
+        doc.setFontSize(7.5); doc.setTextColor(...GRIS); doc.setFont('helvetica','normal');
+        doc.text('Inroute Telematics · Sistema de Prevención Proactiva LBOX', 40, H-24);
+        const pag = doc.internal.getNumberOfPages();
+        doc.text('Página ' + doc.internal.getCurrentPageInfo().pageNumber + ' de ' + pag, W-40, H-24, { align:'right' });
+      }
+    });
+
+    // ── Notas de lectura ──────────────────────────────────────────────
+    let y = doc.lastAutoTable.finalY + 22;
+    const H = doc.internal.pageSize.getHeight();
+    if(y > H - 110){ doc.addPage(); y = 60; }
+
+    doc.setFillColor(244,236,247); doc.rect(40, y-12, W-80, 62, 'F');
+    doc.setFillColor(...MORADO);   doc.rect(40, y-12, 3, 62, 'F');
+    doc.setTextColor(91,44,111); doc.setFont('helvetica','bold'); doc.setFontSize(9);
+    doc.text('Cómo leer este informe', 52, y+2);
+    doc.setFont('helvetica','normal'); doc.setFontSize(8); doc.setTextColor(70,70,70);
+    doc.text(doc.splitTextToSize(
+      'Series LBOX: cuando un mismo ECO registra más de una serie, significa que el equipo ya fue sustituido. ' +
+      'Si la falla continúa con series distintas, el origen apunta al vehículo (instalación, arnés) o a inhibición ' +
+      'recurrente, y sustituir de nuevo el dispositivo no resolvería el problema.   ·   ' +
+      '(!) marca degradación activa: ' + CONFIG.UMBRAL_REINCIDENTE_RECIENTE + ' o más fallas en los últimos ' +
+      CONFIG.VENTANA_REINCIDENCIA_DIAS + ' días.', W-104), 52, y+16);
+
+    doc.save('Reincidentes_' + new Date().toISOString().slice(0,10) + '.pdf');
+    notify('PDF exportado: ' + lista.length + ' unidades', 'ok', 6000);
+
+  } catch(e){
+    notify('No se pudo generar el PDF: ' + e.message, 'err', 9000);
+  }
+  if(btn){ btn.disabled = false; btn.textContent = txtOriginal; }
 }
 
 function toggleInfReinc(eco){
