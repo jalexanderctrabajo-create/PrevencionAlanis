@@ -3645,16 +3645,40 @@ async function consultarVoltajesNavixy(){
     let sinCruce = 0;
     nxResultados = units.map(u => {
       const e = porEco[claveEco(u.eco)];
-      if(!e){ sinCruce++; return { eco:u.eco, lbox:u.lbox, encontrado:false, voltaje:null, marca:'' }; }
+      if(!e){ sinCruce++; return { eco:u.eco, lbox:u.lbox, encontrado:false, voltaje:null, marca:'', fuente:'' }; }
+
       const v = e.board_voltage;
-      // Solo se decide SI/NO con lectura real; sin dato se deja vacío para
-      // que lo resuelva una revisión física, en vez de inventar un diagnóstico.
-      const marca = (v === null || v === undefined) ? '' : (v >= U ? 'SI' : 'NO');
+      let marca = '', fuente = '';
+
+      if (v !== null && v !== undefined) {
+        // 1) Lectura directa del sensor de voltaje: la más confiable.
+        marca  = v >= U ? 'SI' : 'NO';
+        fuente = 'Sensor ' + (e.board_origen || 'voltaje');
+      } else if (String(e.conexion).toLowerCase() === 'active') {
+        // 2) Sin sensor configurado, pero el equipo está TRANSMITIENDO. Un
+        //    dispositivo que reporta necesariamente tiene energía, así que
+        //    marcarlo "sin voltaje" sería incorrecto. Esto cubre los equipos
+        //    en línea cuyo sensor de voltaje no está dado de alta en Navixy.
+        marca  = 'SI';
+        fuente = 'En línea (sin sensor de voltaje configurado)';
+      } else if (e.battery_level !== null && e.battery_level !== undefined && Number(e.battery_level) > 0) {
+        // 3) Reporta nivel de batería: también implica que está operando.
+        marca  = 'SI';
+        fuente = 'Batería ' + e.battery_level + '%';
+      } else {
+        // 4) Sin ninguna señal: se deja vacío para revisión física, en vez de
+        //    afirmar un diagnóstico que no se puede sostener.
+        marca  = '';
+        fuente = 'Sin datos disponibles';
+      }
+
       return {
         eco: u.eco, lbox: u.lbox, encontrado: true,
         label: e.label, modelo: e.modelo,
         voltaje: v, bateriaInterna: e.battery_voltage,
-        actualizado: e.board_actualizado, marca
+        nivelBateria: e.battery_level, conexion: e.conexion,
+        actualizado: e.board_actualizado, sensores: e.sensores || [],
+        marca, fuente
       };
     });
 
@@ -3665,6 +3689,20 @@ async function consultarVoltajesNavixy(){
     const conNO = nxResultados.filter(r => r.marca === 'NO').length;
     notify('Navixy: ' + conSI + ' con voltaje · ' + conNO + ' sin voltaje' +
       (sinCruce ? ' · ' + sinCruce + ' sin cruzar' : ''), 'ok', 7000);
+
+    // Si la cuenta no tiene sensores de voltaje configurados, conviene decirlo:
+    // el marcado sigue siendo válido (por estado de conexión) pero es una
+    // inferencia, no una medición.
+    const conSensor = nxResultados.filter(r => r.voltaje !== null && r.voltaje !== undefined).length;
+    if(conSensor === 0 && nxResultados.some(r => r.encontrado)){
+      const campos = (res.diag && res.diag.camposDisponibles) ? res.diag.camposDisponibles : [];
+      notify('ℹ️ Ningún equipo expone sensor de voltaje en Navixy, así que el marcado se basa en el ' +
+        'estado de conexión (un equipo que transmite tiene energía). Para tener lecturas exactas, ' +
+        'pide dar de alta el sensor "board_voltage" en Navixy.' +
+        (campos.length ? ' Sensores disponibles hoy: [' + campos.slice(0,12).join(', ') + ']' : ''),
+        'err', 16000);
+      console.warn('Navixy — campos disponibles:', campos);
+    }
 
     if(sinCruce === units.length){
       notify('⚠️ Ninguna unidad cruzó contra Navixy. El nombre (label) de los equipos ' +
@@ -3681,7 +3719,7 @@ function renderTablaNavixy(){
   const tbody = document.getElementById('nx-tbody');
   if(!tbody) return;
   if(!nxResultados.length){
-    tbody.innerHTML = '<tr><td colspan="6" class="empty">Sin resultados</td></tr>';
+    tbody.innerHTML = '<tr><td colspan="7" class="empty">Sin resultados</td></tr>';
     return;
   }
   tbody.innerHTML = nxResultados.map((r,i) => {
@@ -3690,7 +3728,7 @@ function renderTablaNavixy(){
     if(!r.encontrado){ estado = 'No encontrada en Navixy'; color = '#888'; }
     else if(r.marca === 'SI'){ estado = '🟢 Con voltaje'; color = '#1E8449'; }
     else if(r.marca === 'NO'){ estado = '🔴 Sin voltaje'; color = '#c0392b'; }
-    else { estado = '⚪ Sin lectura'; color = '#888'; }
+    else { estado = '⚪ No determinable'; color = '#888'; }
     return '<tr style="background:'+bg+'">' +
       '<td style="text-align:center"><input type="checkbox" class="nx-chk" value="'+esc(r.eco)+'"'+(r.marca?' checked':'')+'></td>' +
       '<td><b>ECO '+esc(r.eco)+'</b></td>' +
@@ -3698,6 +3736,7 @@ function renderTablaNavixy(){
       '<td style="font-size:10px">'+esc(r.label||'—')+'</td>' +
       '<td style="text-align:center;font-weight:700">'+(r.voltaje!==null&&r.voltaje!==undefined?Number(r.voltaje).toFixed(2)+' V':'—')+'</td>' +
       '<td style="text-align:center;color:'+color+';font-weight:600;font-size:11px">'+estado+'</td>' +
+      '<td style="font-size:10px;color:var(--muted)" title="'+esc(r.sensores&&r.sensores.length?('Sensores: '+r.sensores.join(', ')):'')+'">'+esc(r.fuente||'—')+'</td>' +
     '</tr>';
   }).join('');
 }
@@ -3713,8 +3752,13 @@ function aplicarVoltajesNavixy(){
     const u = units.find(x => claveEco(x.eco) === claveEco(r.eco));
     if(!u) return;
     u.voltaje = r.marca;
-    u.comentario = (u.comentario ? u.comentario + ' · ' : '') +
-      'Voltaje ' + Number(r.voltaje).toFixed(2) + 'V (Navixy)';
+    // El comentario deja constancia del origen: no es lo mismo una lectura de
+    // 12.8V que una inferencia por "equipo en línea". Quien revise el reporte
+    // después debe poder distinguirlas.
+    const detalle = (r.voltaje !== null && r.voltaje !== undefined)
+      ? Number(r.voltaje).toFixed(2) + 'V'
+      : (r.fuente || 'Navixy');
+    u.comentario = (u.comentario ? u.comentario + ' · ' : '') + 'Voltaje: ' + detalle + ' (Navixy)';
     aplicadas++;
   });
 
@@ -5050,7 +5094,7 @@ setInterval(async () => {
         <table class="tbl" style="font-size:11px;min-width:620px">
           <thead style="position:sticky;top:0;z-index:2"><tr>
             <th style="width:30px"><input type="checkbox" onchange="document.querySelectorAll('.nx-chk').forEach(c=>c.checked=this.checked)"></th>
-            <th>#ECO</th><th>LBOX</th><th>Nombre en Navixy</th><th>Voltaje</th><th>Estado</th>
+            <th>#ECO</th><th>LBOX</th><th>Nombre en Navixy</th><th>Voltaje</th><th>Estado</th><th>Fuente del dato</th>
           </tr></thead>
           <tbody id="nx-tbody"></tbody>
         </table>
