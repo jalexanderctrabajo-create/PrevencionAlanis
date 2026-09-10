@@ -3654,13 +3654,18 @@ async function consultarVoltajesNavixy(){
         // 1) Lectura directa del sensor de voltaje: la más confiable.
         marca  = v >= U ? 'SI' : 'NO';
         fuente = 'Sensor ' + (e.board_origen || 'voltaje');
-      } else if (String(e.conexion).toLowerCase() === 'active') {
+      } else if (['active','online','connected','just_registered'].includes(String(e.conexion||'').toLowerCase())) {
         // 2) Sin sensor configurado, pero el equipo está TRANSMITIENDO. Un
         //    dispositivo que reporta necesariamente tiene energía, así que
         //    marcarlo "sin voltaje" sería incorrecto. Esto cubre los equipos
         //    en línea cuyo sensor de voltaje no está dado de alta en Navixy.
         marca  = 'SI';
         fuente = 'En línea (sin sensor de voltaje configurado)';
+      } else if (e.ultima_conexion && (Date.now() - new Date(String(e.ultima_conexion).replace(' ','T')).getTime()) < 6*3600000) {
+        // 3) Reportó hace menos de 6 horas: aunque ahora figure inactivo,
+        //    tenía energía muy recientemente.
+        marca  = 'SI';
+        fuente = 'Reportó ' + e.ultima_conexion;
       } else if (e.battery_level !== null && e.battery_level !== undefined && Number(e.battery_level) > 0) {
         // 3) Reporta nivel de batería: también implica que está operando.
         marca  = 'SI';
@@ -3689,6 +3694,19 @@ async function consultarVoltajesNavixy(){
     const conNO = nxResultados.filter(r => r.marca === 'NO').length;
     notify('Navixy: ' + conSI + ' con voltaje · ' + conNO + ' sin voltaje' +
       (sinCruce ? ' · ' + sinCruce + ' sin cruzar' : ''), 'ok', 7000);
+
+    // Si el backend no envía 'version', el Apps Script desplegado es anterior
+    // a esta funcionalidad: los campos de conexión no llegan y por eso todo
+    // queda "No determinable". Es el error más común de este proyecto.
+    if (!res.version) {
+      notify('⚠️ El Apps Script desplegado está DESACTUALIZADO: no envía el estado de conexión, ' +
+        'por eso los equipos sin sensor de voltaje quedan "No determinable". ' +
+        'Sube el apps_script_v5.gs nuevo y republica con Implementar → Gestionar implementaciones → ' +
+        'editar ✏️ → Versión nueva.', 'err', 20000);
+      console.warn('Backend sin versión — respuesta recibida:', res);
+    } else {
+      console.log('Backend Navixy:', res.version, '| estados de conexión:', res.diag && res.diag.estadosConexion);
+    }
 
     // Si la cuenta no tiene sensores de voltaje configurados, conviene decirlo:
     // el marcado sigue siendo válido (por estado de conexión) pero es una
