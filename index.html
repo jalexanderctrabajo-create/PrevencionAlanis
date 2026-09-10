@@ -6,61 +6,120 @@
 <title>LBOX — Prevención Inroute</title>
 <script>
 /* ── CARGA DIFERIDA DE LA LIBRERÍA docx ────────────────────────────────────
+
    La librería pesa ~850 KB y SOLO se usa al generar el reporte Word. Tenerla
+
    embebida hacía que la app descargara 1 MB en cada visita, aunque el usuario
+
    nunca generara un reporte — notorio en celular con datos móviles.
+
    Ahora se descarga bajo demanda (y queda en caché del navegador). */
+
 let _docxPromesa = null;
+
 let _pdfPromesa  = null;
 
+
+
 /* jsPDF + AutoTable, cargados solo cuando se exporta a PDF (mismo criterio
+
    que docx: no penalizar la carga inicial con librerías que quizá no se usen). */
+
 function cargarPDF(){
+
   if (window.jspdf && window.jspdf.jsPDF) return Promise.resolve(window.jspdf);
+
   if (_pdfPromesa) return _pdfPromesa;
 
+
+
   function inyectar(src){
+
     return new Promise((res, rej) => {
+
       const s = document.createElement('script');
+
       s.src = src;
+
       s.onload = res;
+
       s.onerror = () => rej(new Error('No se pudo descargar ' + src));
+
       document.head.appendChild(s);
+
     });
+
   }
 
+
+
   _pdfPromesa = inyectar('https://cdnjs.cloudflare.com/ajax/libs/jspdf/2.5.1/jspdf.umd.min.js')
+
     .then(() => inyectar('https://cdnjs.cloudflare.com/ajax/libs/jspdf-autotable/3.8.2/jspdf.plugin.autotable.min.js'))
+
     .then(() => {
+
       if (!(window.jspdf && window.jspdf.jsPDF)) throw new Error('jsPDF no quedó disponible tras la carga');
+
       return window.jspdf;
+
     })
+
     .catch(e => { _pdfPromesa = null; throw e; });   // permite reintentar
 
+
+
   return _pdfPromesa;
+
 }
+
+
 
 function cargarDocx(){
+
   if (window.docx && window.docx.Document) return Promise.resolve(window.docx);
+
   if (_docxPromesa) return _docxPromesa;
 
+
+
   _docxPromesa = new Promise((resolve, reject) => {
+
     const s = document.createElement('script');
-    
-    s.src = 'https://cdn.jsdelivr.net/npm/docx@8.5.0/build/index.js'; 
-    
+
+    s.src = 'https://cdnjs.cloudflare.com/ajax/libs/docx/8.5.0/docx.js';
+
     s.onload = () => {
+
       if (window.docx && window.docx.Document) resolve(window.docx);
+
       else reject(new Error('La librería se cargó pero no expuso docx.Document'));
+
     };
+
     s.onerror = () => {
+
       _docxPromesa = null;   // permite reintentar en la siguiente llamada
+
       reject(new Error('No se pudo descargar la librería para generar Word. Revisa tu conexión.'));
+
     };
+
     document.head.appendChild(s);
+
   });
+
   return _docxPromesa;
+
 }
+
+</script>
+
+<script src="https://cdnjs.cloudflare.com/ajax/libs/xlsx/0.18.5/xlsx.full.min.js"></script>
+
+<style> 
+
+
 /* ═══════════════════════════════════════════════════════════
    SISTEMA DE PREVENCIÓN LBOX · Identidad Inroute
    Verde lima #8BC53F · Azul marino #1C2B39
