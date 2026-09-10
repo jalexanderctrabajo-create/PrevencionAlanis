@@ -1052,70 +1052,149 @@ function importarExcel(input) {
   if (!file) return;
   input.value = '';
   if (typeof XLSX === 'undefined') { notify('Libreria Excel no cargada', 'err'); return; }
+
+  /* Normaliza texto para comparar: minúsculas, sin acentos, sin espacios ni
+     signos. Así "Version Firmware", "versión firmware" y "VERSION_FIRMWARE"
+     se consideran iguales. Antes todo exigía coincidencia EXACTA y sensible a
+     mayúsculas, por lo que una hoja llamada "lboxs" no era reconocida. */
+  const norm = s => String(s == null ? '' : s)
+    .normalize('NFD').replace(/[\u0300-\u036f]/g, '')
+    .toLowerCase().replace(/[\s_.\-#]/g, '').trim();
+
   const reader = new FileReader();
   reader.onload = (e) => {
     try {
       const wb = XLSX.read(e.target.result, {type:'array', cellDates:true});
-      const lboxSheet = wb.Sheets['lboxS'];
-      if (!lboxSheet) { notify('No se encontro la hoja lboxS', 'err'); return; }
-      const lboxRows = XLSX.utils.sheet_to_json(lboxSheet, {header:1, raw:false, dateNF:'yyyy-mm-dd HH:MM'});
+
+      // ── Localizar la hoja de dispositivos ────────────────────────────
+      // 1) por nombre tolerante  2) por contenido (la que traiga 'objectno')
+      const nombres = wb.SheetNames || [];
+      let nombreHoja = nombres.find(n => ['lboxs','lbox','lboxes'].includes(norm(n)));
+
+      if (!nombreHoja) {
+        nombreHoja = nombres.find(n => {
+          const filas = XLSX.utils.sheet_to_json(wb.Sheets[n], {header:1, raw:false});
+          return filas.slice(0, 30).some(f =>
+            Array.isArray(f) && f.some(cel => norm(cel) === 'objectno'));
+        });
+      }
+
+      if (!nombreHoja) {
+        notify('No se encontró la hoja de dispositivos. Hojas en el archivo: [' +
+          nombres.join(', ') + ']. Se busca una llamada "lboxS" o cualquiera que ' +
+          'contenga una columna "objectno".', 'err', 14000);
+        return;
+      }
+
+      const lboxRows = XLSX.utils.sheet_to_json(wb.Sheets[nombreHoja],
+        {header:1, raw:false, dateNF:'yyyy-mm-dd HH:MM'});
+
+      // ── Localizar la fila de encabezados ─────────────────────────────
+      // Puede no estar en la primera fila ni en la primera columna.
       let headerIdx = -1;
       for (let i = 0; i < lboxRows.length; i++) {
-        if (lboxRows[i] && lboxRows[i][0] === 'objectno') { headerIdx = i; break; }
+        const f = lboxRows[i];
+        if (Array.isArray(f) && f.some(cel => norm(cel) === 'objectno')) { headerIdx = i; break; }
       }
-      if (headerIdx === -1) { notify('No se encontraron encabezados en lboxS', 'err'); return; }
+      if (headerIdx === -1) {
+        notify('La hoja "' + nombreHoja + '" no tiene una columna llamada "objectno".', 'err', 10000);
+        return;
+      }
+
+      // Índice de columnas por nombre normalizado
       const headers = lboxRows[headerIdx];
       const hIdx = {};
-      headers.forEach((h, i) => { if (h) hIdx[h] = i; });
-      const datosSheet = wb.Sheets['Datos'];
+      headers.forEach((h, i) => { const k = norm(h); if (k) hIdx[k] = i; });
+
+      // Busca una columna probando varios nombres posibles
+      const col = (...alias) => {
+        for (const a of alias) { const k = norm(a); if (hIdx[k] !== undefined) return hIdx[k]; }
+        return undefined;
+      };
+      const val = (fila, idx) => (idx === undefined || !fila) ? '' : (fila[idx] ?? '');
+
+      const cEco   = col('objectno','eco','numeroeconomico','economico');
+      const cLbox  = col('serieLBOX','serie','serielbox','lbox');
+      const cFw    = col('Version Firmware','firmwareVersion','firmware','version');
+      const cFecha = col('fecha','fechareporte','ultimoreporte');
+      const cDias  = col('Dias','días','diassinreportar');
+      const cModo  = col('modo','estado');
+      const cVinc  = col('vinculado');
+
+      // ── Hoja "Datos" (opcional): ignición y movimiento ───────────────
+      const nombreDatos = nombres.find(n => norm(n) === 'datos');
       const datosMap = {};
-      if (datosSheet) {
-        const datosRows = XLSX.utils.sheet_to_json(datosSheet, {header:1, raw:false});
-        let dHeaderIdx = -1;
+      if (nombreDatos) {
+        const datosRows = XLSX.utils.sheet_to_json(wb.Sheets[nombreDatos], {header:1, raw:false});
+        let dH = -1;
         for (let i = 0; i < datosRows.length; i++) {
-          if (datosRows[i] && datosRows[i][0] === 'Object No') { dHeaderIdx = i; break; }
+          const f = datosRows[i];
+          if (Array.isArray(f) && f.some(cel => norm(cel) === 'objectno')) { dH = i; break; }
         }
-        if (dHeaderIdx >= 0) {
-          const dHeaders = datosRows[dHeaderIdx];
+        if (dH >= 0) {
           const dIdx = {};
-          dHeaders.forEach((h, i) => { if (h) dIdx[h] = i; });
-          for (let i = dHeaderIdx + 1; i < datosRows.length; i++) {
+          datosRows[dH].forEach((h, i) => { const k = norm(h); if (k) dIdx[k] = i; });
+          const dEco = dIdx['objectno'], dEng = dIdx['engineon'], dMot = dIdx['motion'];
+          for (let i = dH + 1; i < datosRows.length; i++) {
             const r = datosRows[i];
-            if (r && r[dIdx['Object No']]) {
-              datosMap[String(r[dIdx['Object No']])] = {
-                engineOn: r[dIdx['EngineOn']] || '',
-                motion:   r[dIdx['Motion']]   || '',
+            if (r && dEco !== undefined && r[dEco]) {
+              datosMap[String(r[dEco]).trim()] = {
+                engineOn: dEng !== undefined ? (r[dEng] || '') : '',
+                motion:   dMot !== undefined ? (r[dMot] || '') : '',
               };
             }
           }
         }
       }
+
+      // ── Construir las unidades ───────────────────────────────────────
       importData = [];
+      let sinDias = 0, filasLeidas = 0;
       for (let i = headerIdx + 1; i < lboxRows.length; i++) {
         const r = lboxRows[i];
-        if (!r || !r[hIdx['objectno']]) continue;
-        const dias = parseInt(r[hIdx['Dias']]) || 0;
-        if (dias < 1) continue;
-        const eco = String(r[hIdx['objectno']]);
+        const ecoRaw = val(r, cEco);
+        if (!ecoRaw) continue;
+        filasLeidas++;
+
+        // Si no viene la columna Días, se calcula desde la fecha en vez de
+        // descartar la fila (antes un archivo sin "Dias" no importaba nada).
+        let dias = parseInt(val(r, cDias));
+        if (isNaN(dias)) {
+          const f = val(r, cFecha);
+          dias = f ? Math.max(0, Math.floor((Date.now() - new Date(String(f).replace(' ','T')).getTime()) / 86400000)) : 0;
+          if (isNaN(dias)) dias = 0;
+        }
+        if (dias < 1) { sinDias++; continue; }
+
+        const eco = String(ecoRaw).trim();
         const dato = datosMap[eco] || {};
         importData.push({
-          eco, lbox: r[hIdx['serieLBOX']] || '',
-          fw: r[hIdx['Version Firmware']] || '',
-          fechaRep: r[hIdx['fecha']] || '',
+          eco,
+          lbox: String(val(r, cLbox) || '').trim(),
+          fw:   String(val(r, cFw) || '').trim(),
+          fechaRep: val(r, cFecha) || '',
           dias: String(dias),
-          modo: r[hIdx['modo']] || '',
-          vinculado: r[hIdx['vinculado']] || '',
+          modo: val(r, cModo) || '',
+          vinculado: val(r, cVinc) || '',
           engineOn: dato.engineOn || '',
           motion: dato.motion || '',
         });
       }
+
+      if (!importData.length) {
+        notify('Se leyó la hoja "' + nombreHoja + '" (' + filasLeidas + ' filas con ECO) pero ninguna ' +
+          'tiene 1 o más días sin reportar' + (sinDias ? ' (' + sinDias + ' descartadas por 0 días)' : '') + '.', 'err', 12000);
+        return;
+      }
+
       importData.sort((a, b) => parseInt(b.dias) - parseInt(a.dias));
       document.getElementById('import-count').textContent = importData.length;
       document.getElementById('import-min-dias').value = '5';
       filtrarImport();
       document.getElementById('modal-import').style.display = 'flex';
-      notify('Archivo cargado: ' + importData.length + ' unidades con 1+ dias', 'ok');
-    } catch(err) { notify('Error al leer el archivo: ' + err.message, 'err'); }
+      notify('Hoja "' + nombreHoja + '": ' + importData.length + ' unidades con 1+ días', 'ok', 6000);
+
+    } catch(err) { notify('Error al leer el archivo: ' + err.message, 'err', 10000); }
   };
   reader.readAsArrayBuffer(file);
 }
