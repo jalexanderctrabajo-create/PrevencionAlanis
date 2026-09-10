@@ -339,6 +339,7 @@ body{font-family:'Barlow',-apple-system,sans-serif;font-size:14px;color:var(--in
       <button class="btn success" onclick="fetchLiveData()" id="btn-live">🔄 Obtener datos en vivo</button>
       <button class="btn" onclick="document.getElementById('input-xlsx').click()" title="Importar desde Excel guardado">📥 Excel</button>
       <input type="file" id="input-xlsx" accept=".xlsm,.xlsx" style="display:none" onchange="importarExcel(this)">
+      <button class="btn" onclick="abrirModalNavixy()" title="Leer voltaje del Teltonika desde Navixy" style="background:#eef7e6;border-color:#c5e0a5;color:#4a7c1f">🔋 Voltaje</button>
       <button class="btn primary" onclick="generarReporte()" id="btn-report">⬇ Generar .docx</button>
     </div>
   </div>
@@ -600,6 +601,16 @@ const CONFIG = {
     apikey:   '',
   },
 
+  // ── Navixy: lectura automática del voltaje del Teltonika ────────────────
+  // Evita capturar el voltaje a mano. Se lee board_voltage (alimentación del
+  // vehículo). Las credenciales se piden en el modal, no se guardan aquí.
+  NAVIXY: { hash: '', base: 'https://api.navixy.com/v2' },
+
+  // Umbral para decidir SI/NO. Un Teltonika alimentado por el vehículo lee
+  // ~12V (o ~24V en camión); desconectado lee 0 o casi nada. 6V separa ambos
+  // casos sin depender de si el sistema es de 12 o 24 volts.
+  NAVIXY_UMBRAL_VOLTAJE: 6,
+
   // Umbrales del filtro de comunicación (en minutos) para el panel de validación
   WF_UMBRAL_ACTIVO:    2,   // ≤2 min  → comunicación reciente
   WF_UMBRAL_MODERADO:  5,   // ≤5 min  → retraso moderado
@@ -614,6 +625,14 @@ const CONFIG = {
   // normal y NO debe contarse como pérdida de señal. 1440 min = 24 h.
   WF_TOLERANCIA_REPOSO_MIN: 1440,
 };
+
+// Cargar credenciales Navixy guardadas en sesión (si las hay)
+(function loadNavixySesion(){
+  try {
+    const s = JSON.parse(sessionStorage.getItem('lbox_navixy') || 'null');
+    if (s && s.hash) CONFIG.NAVIXY = s;
+  } catch(e){}
+})();
 
 // Cargar credenciales Webfleet guardadas en sesión (si las hay)
 (function loadWebfleetSesion(){
@@ -2432,7 +2451,7 @@ function ejecutarProtocoloSeguridad() {
     return;
   }
 
-  let actualizadas = 0, sinDato = 0, marcadasSI = 0, marcadasNO = 0;
+  let actualizadas = 0, sinDato = 0, marcadasSI = 0, marcadasNO = 0, cascada = 0;
   seleccionadas.forEach(p => {
     const u = wfUnidadesBase.find(x => claveEco(x.eco) === claveEco(p.eco));
     if (!u) return;
@@ -2440,6 +2459,11 @@ function ejecutarProtocoloSeguridad() {
     // Marca automática Posic. LINK: <2 min = SI, 2+ min o sin dato = NO
     u.pos = p.posiciona || 'NO';
     if (u.pos === 'SI') marcadasSI++; else marcadasNO++;
+
+    // Si no posiciona, marcar en automático las acciones remotas como N/A.
+    // Antes esto solo ocurría al capturar a mano; al venir de Webfleet los
+    // campos quedaban vacíos y había que llenarlos uno por uno.
+    if (aplicarCascadaSinLink(u)) cascada++;
 
     if (p.minutos === null) { sinDato++; return; }
     const diasCalculados = Math.floor(p.minutos / 1440); // 1440 min = 1 día
@@ -2450,6 +2474,7 @@ function ejecutarProtocoloSeguridad() {
 
   let msg = '✅ Posic. LINK marcada automáticamente: ' + marcadasSI + ' SI · ' + marcadasNO + ' NO. ' +
     actualizadas + ' con días recalculados.';
+  if (cascada) msg += ' ' + cascada + ' con acciones remotas marcadas N/A (sin LINK).';
   if (sinDato) msg += ' (' + sinDato + ' sin dato de posición).';
   notify(msg, 'ok', 7000);
 
@@ -2682,6 +2707,162 @@ function inp(field, i, val, ph) {
 
 function escHtml(s){ return String(s).replace(/&/g,'&amp;').replace(/"/g,'&quot;'); }
 
+/* ▓▓ VOLTAJE AUTOMÁTICO DESDE NAVIXY ▓▓ ───────────────────────────────────
+   Lee el voltaje de alimentación del Teltonika y marca el campo "voltaje" sin
+   capturarlo a mano. Es el complemento de la validación Webfleet: aquélla
+   resuelve "Posiciona", ésta resuelve "Voltaje" — juntas dejan el diagnóstico
+   casi completo antes de que el técnico toque nada. ───────────────────────── */
+
+let nxResultados = [];   // último cruce ECO ↔ voltaje
+
+function abrirModalNavixy(){
+  if(!units.length){ notify('No hay unidades en el reporte para consultar', 'err'); return; }
+  const m = document.getElementById('modal-navixy');
+  if(!m) return;
+  document.getElementById('nx-hash').value = CONFIG.NAVIXY.hash || '';
+  document.getElementById('nx-base').value = CONFIG.NAVIXY.base || 'https://api.navixy.com/v2';
+  document.getElementById('nx-resultados').style.display = 'none';
+  document.getElementById('nx-count-base').textContent = units.length;
+  m.style.display = 'flex';
+}
+
+function cerrarModalNavixy(){
+  const m = document.getElementById('modal-navixy');
+  if(m) m.style.display = 'none';
+}
+
+async function consultarVoltajesNavixy(){
+  const hash = document.getElementById('nx-hash').value.trim();
+  const base = document.getElementById('nx-base').value.trim() || 'https://api.navixy.com/v2';
+  if(!hash){ notify('Ingresa la API key de Navixy', 'err'); return; }
+
+  CONFIG.NAVIXY = { hash, base };
+  try { sessionStorage.setItem('lbox_navixy', JSON.stringify(CONFIG.NAVIXY)); } catch(e){}
+
+  const btn = document.getElementById('btn-nx-consultar');
+  btn.disabled = true; btn.textContent = 'Consultando Navixy...';
+
+  try {
+    const res = await jsonp({ action:'fetchNavixyVoltajes', nx_hash: hash, nx_base: base });
+    if(res.error) throw new Error(res.error);
+
+    const equipos = res.equipos || [];
+    // Cruce por 'label' del equipo en Navixy contra el ECO de la unidad.
+    // Se usa claveEco() (misma normalización que Webfleet) para tolerar
+    // diferencias de formato: ceros a la izquierda, prefijo "ECO ", espacios.
+    const porEco = {};
+    equipos.forEach(e => {
+      const k = claveEco(e.label);
+      if(k) porEco[k] = e;
+      // Algunos equipos llevan el ECO dentro de un nombre más largo
+      const m = String(e.label||'').match(/\d{2,}/);
+      if(m){ const k2 = claveEco(m[0]); if(k2 && !porEco[k2]) porEco[k2] = e; }
+    });
+
+    const U = CONFIG.NAVIXY_UMBRAL_VOLTAJE;
+    let sinCruce = 0;
+    nxResultados = units.map(u => {
+      const e = porEco[claveEco(u.eco)];
+      if(!e){ sinCruce++; return { eco:u.eco, lbox:u.lbox, encontrado:false, voltaje:null, marca:'' }; }
+      const v = e.board_voltage;
+      // Solo se decide SI/NO con lectura real; sin dato se deja vacío para
+      // que lo resuelva una revisión física, en vez de inventar un diagnóstico.
+      const marca = (v === null || v === undefined) ? '' : (v >= U ? 'SI' : 'NO');
+      return {
+        eco: u.eco, lbox: u.lbox, encontrado: true,
+        label: e.label, modelo: e.modelo,
+        voltaje: v, bateriaInterna: e.battery_voltage,
+        actualizado: e.board_actualizado, marca
+      };
+    });
+
+    document.getElementById('nx-resultados').style.display = 'block';
+    renderTablaNavixy();
+
+    const conSI = nxResultados.filter(r => r.marca === 'SI').length;
+    const conNO = nxResultados.filter(r => r.marca === 'NO').length;
+    notify('Navixy: ' + conSI + ' con voltaje · ' + conNO + ' sin voltaje' +
+      (sinCruce ? ' · ' + sinCruce + ' sin cruzar' : ''), 'ok', 7000);
+
+    if(sinCruce === units.length){
+      notify('⚠️ Ninguna unidad cruzó contra Navixy. El nombre (label) de los equipos ' +
+        'en Navixy debe contener el número económico. Ejemplos recibidos: [' +
+        equipos.slice(0,3).map(e=>e.label).join(', ') + ']', 'err', 15000);
+    }
+  } catch(e){
+    notify('Error al consultar Navixy: ' + e.message, 'err', 10000);
+  }
+  btn.disabled = false; btn.textContent = '🔋 Consultar voltajes';
+}
+
+function renderTablaNavixy(){
+  const tbody = document.getElementById('nx-tbody');
+  if(!tbody) return;
+  if(!nxResultados.length){
+    tbody.innerHTML = '<tr><td colspan="6" class="empty">Sin resultados</td></tr>';
+    return;
+  }
+  tbody.innerHTML = nxResultados.map((r,i) => {
+    const bg = i%2 ? '#f9f9f9' : '#fff';
+    let estado, color;
+    if(!r.encontrado){ estado = 'No encontrada en Navixy'; color = '#888'; }
+    else if(r.marca === 'SI'){ estado = '🟢 Con voltaje'; color = '#1E8449'; }
+    else if(r.marca === 'NO'){ estado = '🔴 Sin voltaje'; color = '#c0392b'; }
+    else { estado = '⚪ Sin lectura'; color = '#888'; }
+    return '<tr style="background:'+bg+'">' +
+      '<td style="text-align:center"><input type="checkbox" class="nx-chk" value="'+esc(r.eco)+'"'+(r.marca?' checked':'')+'></td>' +
+      '<td><b>ECO '+esc(r.eco)+'</b></td>' +
+      '<td style="font-size:10px">'+esc(r.lbox||'—')+'</td>' +
+      '<td style="font-size:10px">'+esc(r.label||'—')+'</td>' +
+      '<td style="text-align:center;font-weight:700">'+(r.voltaje!==null&&r.voltaje!==undefined?Number(r.voltaje).toFixed(2)+' V':'—')+'</td>' +
+      '<td style="text-align:center;color:'+color+';font-weight:600;font-size:11px">'+estado+'</td>' +
+    '</tr>';
+  }).join('');
+}
+
+function aplicarVoltajesNavixy(){
+  const marcados = Array.from(document.querySelectorAll('.nx-chk:checked')).map(x => claveEco(x.value));
+  if(!marcados.length){ notify('Selecciona al menos una unidad', 'err'); return; }
+
+  let aplicadas = 0, sinLectura = 0;
+  nxResultados.forEach(r => {
+    if(marcados.indexOf(claveEco(r.eco)) === -1) return;
+    if(!r.marca){ sinLectura++; return; }
+    const u = units.find(x => claveEco(x.eco) === claveEco(r.eco));
+    if(!u) return;
+    u.voltaje = r.marca;
+    u.comentario = (u.comentario ? u.comentario + ' · ' : '') +
+      'Voltaje ' + Number(r.voltaje).toFixed(2) + 'V (Navixy)';
+    aplicadas++;
+  });
+
+  renderAll();
+  autoguardarLocal();
+  try { apiPost({ action:'saveUnits', data: units }); } catch(e){}
+
+  let msg = '✅ Voltaje marcado automáticamente en ' + aplicadas + ' unidad(es).';
+  if(sinLectura) msg += ' ' + sinLectura + ' sin lectura quedaron sin marcar (requieren revisión física).';
+  notify(msg, 'ok', 8000);
+  cerrarModalNavixy();
+}
+
+/* ── REGLA: sin señal LINK ⇒ acciones remotas no aplican ───────────────────
+   Si la unidad no posiciona (pos = NO), es imposible ejecutar desvinculación
+   ni resets remotos sobre ella, así que esos campos se marcan N/A y se da por
+   no recuperada. El VOLTAJE queda intacto a propósito: se mide en el Teltonika
+   por una vía distinta (revisión física o API de batería), no depende del LINK.
+   Devuelve true si cambió algo, para saber si hay que redibujar. */
+function aplicarCascadaSinLink(u){
+  if (!u || u.pos !== 'NO') return false;
+  const antes = [u.desv, u.rlbox, u.rlink, u.recupero].join('|');
+  u.desv     = 'N/A';
+  u.rlbox    = 'N/A';
+  u.rlink    = 'N/A';
+  u.recupero = 'NO';
+  // voltaje NO se toca: es medición independiente del LINK.
+  return antes !== [u.desv, u.rlbox, u.rlink, u.recupero].join('|');
+}
+
 async function updateUnit(i, field, value) {
   units[i][field] = value;
 
@@ -2690,12 +2871,9 @@ async function updateUnit(i, field, value) {
   units[i].modificadoPor  = CONFIG.RESPONSABLE || '';
   units[i].modificadoEn   = new Date().toISOString();
 
-  // Si Posic. LINK = NO: Desvincular/Reset Lbox/Reset LINK = N/A, Recuperó = NO
+  // Sin señal LINK ⇒ las acciones remotas no aplican (regla centralizada)
   if (field === 'pos' && value === 'NO') {
-    units[i].desv     = 'N/A';
-    units[i].rlbox    = 'N/A';
-    units[i].rlink    = 'N/A';
-    units[i].recupero = 'NO';
+    aplicarCascadaSinLink(units[i]);
     renderCaptura();
   }
 
@@ -3727,6 +3905,63 @@ setInterval(async () => {
 
     <div style="display:flex;justify-content:flex-end;margin-top:16px">
       <button class="btn" onclick="cerrarModalWebfleet()">Cerrar</button>
+    </div>
+  </div>
+</div>
+
+
+<!-- Modal: lectura automática de voltaje desde Navixy -->
+<div id="modal-navixy" style="display:none;position:fixed;inset:0;background:rgba(28,43,57,.6);z-index:9999;align-items:center;justify-content:center;padding:20px">
+  <div style="background:#fff;border-radius:14px;padding:24px;max-width:880px;width:100%;max-height:88vh;overflow-y:auto;box-shadow:0 12px 40px rgba(28,43,57,.3)">
+
+    <div style="display:flex;justify-content:space-between;align-items:flex-start;margin-bottom:6px">
+      <div>
+        <div style="font-size:18px;font-weight:700;color:var(--navy);font-family:'Barlow Semi Condensed',sans-serif">🔋 Voltaje automático · Navixy</div>
+        <div style="font-size:12px;color:var(--muted);margin-top:2px"><span id="nx-count-base">0</span> unidades del reporte</div>
+      </div>
+      <span onclick="cerrarModalNavixy()" style="cursor:pointer;font-size:20px;color:var(--muted)">✕</span>
+    </div>
+
+    <div style="background:var(--lime-l);border-radius:8px;padding:10px 14px;font-size:11px;color:var(--lime-d);margin:12px 0;font-weight:500">
+      Lee el voltaje de alimentación del Teltonika (board_voltage) y marca el campo Voltaje en automático.
+      El cruce se hace por el nombre del equipo en Navixy, que debe contener el número económico.
+    </div>
+
+    <form onsubmit="return false" autocomplete="off" style="display:grid;grid-template-columns:2fr 1fr;gap:10px;margin-bottom:14px">
+      <div>
+        <label style="font-size:10px;color:var(--navy);font-weight:600;text-transform:uppercase;display:block;margin-bottom:4px">API key (hash)</label>
+        <input id="nx-hash" type="password" placeholder="clave de API de Navixy" style="width:100%;padding:7px 9px;border:1px solid var(--line);border-radius:7px;font-size:12px;box-sizing:border-box">
+      </div>
+      <div>
+        <label style="font-size:10px;color:var(--navy);font-weight:600;text-transform:uppercase;display:block;margin-bottom:4px">Servidor</label>
+        <select id="nx-base" style="width:100%;padding:7px 9px;border:1px solid var(--line);border-radius:7px;font-size:12px;box-sizing:border-box">
+          <option value="https://api.navixy.com/v2">Global (api.navixy.com)</option>
+          <option value="https://api.us.navixy.com/v2">Norteamérica (api.us.navixy.com)</option>
+          <option value="https://api.eu.navixy.com/v2">Europa (api.eu.navixy.com)</option>
+        </select>
+      </div>
+    </form>
+
+    <button class="btn primary" id="btn-nx-consultar" onclick="consultarVoltajesNavixy()" style="width:100%;margin-bottom:16px">🔋 Consultar voltajes</button>
+
+    <div id="nx-resultados" style="display:none">
+      <div class="scroll-x" style="max-height:340px;overflow-y:auto;border:1px solid var(--line);border-radius:8px">
+        <table class="tbl" style="font-size:11px;min-width:620px">
+          <thead style="position:sticky;top:0;z-index:2"><tr>
+            <th style="width:30px"><input type="checkbox" onchange="document.querySelectorAll('.nx-chk').forEach(c=>c.checked=this.checked)"></th>
+            <th>#ECO</th><th>LBOX</th><th>Nombre en Navixy</th><th>Voltaje</th><th>Estado</th>
+          </tr></thead>
+          <tbody id="nx-tbody"></tbody>
+        </table>
+      </div>
+      <div style="display:flex;justify-content:flex-end;gap:8px;margin-top:14px">
+        <button class="btn" onclick="document.querySelectorAll('.nx-chk').forEach(c=>c.checked=true)">Seleccionar todos</button>
+        <button class="btn primary" onclick="aplicarVoltajesNavixy()">✅ Aplicar voltaje al reporte</button>
+      </div>
+    </div>
+
+    <div style="display:flex;justify-content:flex-end;margin-top:16px">
+      <button class="btn" onclick="cerrarModalNavixy()">Cerrar</button>
     </div>
   </div>
 </div>
