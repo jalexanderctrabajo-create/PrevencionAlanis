@@ -2160,6 +2160,10 @@ function renderAll(){
   renderUnidades(units);
   renderHistorial(hist);
   renderMensual();
+  // Faltaba: si el usuario estaba en Informes mientras terminaba la
+  // sincronización, la pantalla se quedaba vacía para siempre porque nada
+  // la volvía a dibujar con el historial ya cargado.
+  renderInformes();
 }
 
 let _resizeTMensual;
@@ -2167,6 +2171,7 @@ window.addEventListener('resize', () => {
   clearTimeout(_resizeTMensual);
   _resizeTMensual = setTimeout(() => {
     if (document.getElementById('page-mensual')?.classList.contains('active')) renderMensual();
+    if (document.getElementById('page-informes')?.classList.contains('active')) renderInformes();
   }, 200);
 });
 
