@@ -23858,7 +23858,7 @@ const CONFIG = {
   // Distingue desgaste histórico de degradación activa.
   VENTANA_REINCIDENCIA_DIAS: 90,
   UMBRAL_REINCIDENTE_RECIENTE: 3,        // apariciones en historial para marcar reincidente
-  FOLIO_BASE: 42252,            // folio mínimo; el siguiente será FOLIO_BASE+1
+  // (FOLIO_BASE eliminado: el folio ahora se deriva de la fecha, formato INC-DDMMAA)
   // El trabajo es por ciclos (semanales), no en tiempo real: revisar cada 3
   // minutos generaba carga constante sin aportar nada. 10 minutos es suficiente
   // y el botón Sincronizar sigue disponible para refrescar al instante.
@@ -27520,16 +27520,36 @@ async function eliminar(i){
 
 
 /* ▓▓ 10. CICLO DEL REPORTE ▓▓ ─────────────────────────────────────────────── */
-function getNextFolio() {
-  // Find highest INC number from historial
-  let max = CONFIG.FOLIO_BASE; // base from first known report
+/* Folio con formato de fecha: INC-DDMMAA (ej. INC-100926 = 10/sep/2026).
+   Si en el mismo día se cierra más de un reporte, se agrega sufijo -2, -3…
+   en vez de repetir el folio, que haría imposible distinguirlos en el
+   historial y rompería los informes agrupados por folio.
+   Se basa en la fecha de ejecución del reporte, no en "hoy": si el ciclo se
+   trabajó ayer y se cierra hoy, el folio debe corresponder al trabajo. */
+function getNextFolio(fechaBase) {
+  const ref = fechaBase || (units[0] && units[0].fechaEjec) || '';
+  const iso = normFecha(ref) || new Date().toISOString().slice(0,10);
+  const d = new Date(iso + 'T12:00:00');
+  const f = isNaN(d.getTime()) ? new Date() : d;
+
+  const dd = String(f.getDate()).padStart(2,'0');
+  const mm = String(f.getMonth()+1).padStart(2,'0');
+  const aa = String(f.getFullYear()).slice(-2);
+  const base = 'INC-' + dd + mm + aa;
+
+  // Se cuentan folios ÚNICOS con ese prefijo, no registros: un mismo folio
+  // aparece una vez por cada unidad del reporte.
+  const usados = new Set();
   hist.forEach(h => {
-    if (h.folio && h.folio.startsWith('INC-')) {
-      const n = parseInt(h.folio.replace('INC-',''));
-      if (!isNaN(n) && n > max) max = n;
-    }
+    const fo = String(h.folio || '').trim();
+    if (fo === base || fo.startsWith(base + '-')) usados.add(fo);
   });
-  return 'INC-' + (max + 1);
+
+  if (!usados.has(base)) return base;
+
+  let n = 2;
+  while (usados.has(base + '-' + n)) n++;
+  return base + '-' + n;
 }
 
 async function limpiarReporte(){
