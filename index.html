@@ -23445,7 +23445,7 @@ body{font-family:'Barlow',-apple-system,sans-serif;font-size:14px;color:var(--in
   <div class="topbar">
     <div class="topbar-title" id="page-title">Dashboard</div>
     <div class="topbar-actions">
-      <button class="btn" onclick="syncAll()" id="btn-sync">↻ Sincronizar</button>
+      <button class="btn" onclick="syncManual()" id="btn-sync">↻ Sincronizar</button>
       <button class="btn success" onclick="fetchLiveData()" id="btn-live">🔄 Obtener datos en vivo</button>
       <button class="btn" onclick="document.getElementById('input-xlsx').click()" title="Importar desde Excel guardado">📥 Excel</button>
       <input type="file" id="input-xlsx" accept=".xlsm,.xlsx" style="display:none" onchange="importarExcel(this)">
@@ -23787,8 +23787,14 @@ const CONFIG = {
   VENTANA_REINCIDENCIA_DIAS: 90,
   UMBRAL_REINCIDENTE_RECIENTE: 3,        // apariciones en historial para marcar reincidente
   FOLIO_BASE: 42252,            // folio mínimo; el siguiente será FOLIO_BASE+1
-  SYNC_INTERVAL_MS: 180000,     // sincronización automática cada 3 min
-  JSONP_TIMEOUT_MS: 12000,      // timeout de cada llamada al Apps Script
+  // El trabajo es por ciclos (semanales), no en tiempo real: revisar cada 3
+  // minutos generaba carga constante sin aportar nada. 10 minutos es suficiente
+  // y el botón Sincronizar sigue disponible para refrescar al instante.
+  SYNC_INTERVAL_MS: 600000,     // sincronización automática cada 10 min
+  // Apps Script tarda varios segundos en "despertar" tras un rato inactivo, y
+  // getHist con 1000+ filas no cabía en 12 s. Se amplía para evitar timeouts
+  // que en realidad eran solo lentitud.
+  JSONP_TIMEOUT_MS: 30000,      // timeout de cada llamada al Apps Script
 
   // Prioridad por días sin reporte
   DIAS_OK: 7,                   // 🟢 1-7 días
@@ -25309,20 +25315,81 @@ function exportarMensualExcel(){
 }
 
 
-async function syncAll(){
+/* ── SINCRONIZACIÓN ───────────────────────────────────────────────────────
+   Optimizaciones frente a la versión anterior, que fallaba con frecuencia:
+     · El historial (1000+ filas) ya NO se descarga en cada ciclo. Primero se
+       consulta getHistMeta (solo cuenta filas) y únicamente se baja completo
+       si cambió. Era la causa principal de los timeouts.
+     · Las llamadas van SECUENCIALES: dos etiquetas <script> JSONP simultáneas
+       contra Apps Script se estorban entre sí.
+     · Guarda contra solapamiento: si una sincronización sigue corriendo, la
+       siguiente no arranca encima.
+     · Se pausa mientras la pestaña está en segundo plano, para no gastar
+       cuota de Apps Script sin que nadie esté mirando. */
+
+let _sincronizando = false;
+let _histMetaLocal = { total: -1, ultimoFolio: '' };
+
+async function syncAll(opciones){
+  const op = opciones || {};
+  if (_sincronizando) { console.log('Sincronización en curso, se omite esta llamada.'); return; }
+  _sincronizando = true;
+
   setSyncStatus('loading');
-  document.getElementById('btn-sync').disabled = true;
+  const btn = document.getElementById('btn-sync');
+  if (btn) btn.disabled = true;
+
   try {
-    const [uRes, hRes] = await Promise.all([
-      jsonp({action:'getUnits'}),
-      jsonp({action:'getHist'})
-    ]);
-    // v5 devuelve {ok:true, units:[...]} y {ok:true, hist:[...]} como objetos
+    // 1) Unidades: son pocas y cambian seguido, siempre se traen.
+    const uRes = await jsonp({ action:'getUnits' });
     units = (uRes && uRes.units) ? uRes.units : rowsToObjects(uRes);
-    hist  = (hRes && hRes.hist)  ? hRes.hist  : rowsToObjects(hRes);
+
+    // 2) Historial: primero se pregunta si cambió (consulta barata).
+    let histActualizado = false;
+    if (op.forzarHist || _histMetaLocal.total < 0) {
+      histActualizado = true;   // primera carga o refresco forzado
+    } else {
+      try {
+        const meta = await jsonp({ action:'getHistMeta' });
+        if (meta && meta.ok) {
+          histActualizado = (meta.total !== _histMetaLocal.total) ||
+                            (String(meta.ultimoFolio) !== String(_histMetaLocal.ultimoFolio));
+          if (histActualizado) _histMetaLocal = { total: meta.total, ultimoFolio: meta.ultimoFolio };
+        } else {
+          // Backend sin getHistMeta (versión anterior): se trae completo.
+          histActualizado = true;
+        }
+      } catch(e) {
+        histActualizado = true;   // ante la duda, se refresca
+      }
+    }
+
+    if (histActualizado) {
+      const hRes = await jsonp({ action:'getHist' });
+      hist = (hRes && hRes.hist) ? hRes.hist : rowsToObjects(hRes);
+
+      // La huella se toma del SERVIDOR, no del arreglo local: getHistMeta lee
+      // la última fila de la hoja, y si aquí se guardara otra referencia la
+      // comparación siempre saldría distinta y volvería a descargar todo.
+      try {
+        const metaTras = await jsonp({ action:'getHistMeta' });
+        if (metaTras && metaTras.ok) {
+          _histMetaLocal = { total: metaTras.total, ultimoFolio: String(metaTras.ultimoFolio || '') };
+        } else {
+          _histMetaLocal = { total: hist.length, ultimoFolio: hist.length ? String(hist[hist.length-1].folio||'') : '' };
+        }
+      } catch(e) {
+        _histMetaLocal = { total: hist.length, ultimoFolio: hist.length ? String(hist[hist.length-1].folio||'') : '' };
+      }
+    }
+
     setSyncStatus('ok');
+    window.__ultimaSync = Date.now();
     renderAll();
-    notify('Sincronizado — '+units.length+' unidades', 'ok');
+    if (!op.silencioso) {
+      notify('Sincronizado — ' + units.length + ' unidades' +
+        (histActualizado ? ' · historial actualizado' : ''), 'ok');
+    }
 
     // Solo en el primer arranque: revisar si quedó trabajo local sin sincronizar
     // o un cierre de ciclo a medias.
@@ -25331,6 +25398,7 @@ async function syncAll(){
       revisarAutoguardado();
       if (hayRespaldoCierre()) mostrarBannerRespaldo();
     }
+
   } catch(e) {
     setSyncStatus('err');
     if (e && e.esFalloDeEndpoint) {
@@ -25341,12 +25409,20 @@ async function syncAll(){
         'Abre la consola (F12) para ver la URL exacta que se está llamando.', 'err', 15000);
       console.error('URL que falló:', API);
       console.error('Pruébala directamente en el navegador con: ' + API + '?action=ping&token=' + CONFIG.API_TOKEN);
-    } else {
-      notify('Error de conexión: ' + (e.message || 'desconocido') + '. Reintentando automáticamente al sincronizar.', 'err', 6000);
+    } else if (!op.silencioso) {
+      notify('No se pudo sincronizar: ' + (e.message || 'error desconocido') +
+        '. Tus datos locales están intactos; se reintentará solo.', 'err', 7000);
     }
+    console.warn('Fallo de sincronización:', e);
   }
-  document.getElementById('btn-sync').disabled = false;
+
+  if (btn) btn.disabled = false;
+  _sincronizando = false;
 }
+
+/* El botón manual siempre fuerza el refresco completo del historial. */
+function syncManual(){ return syncAll({ forzarHist: true }); }
+
 
 function renderAll(){
   renderDashboard();
@@ -27958,36 +28034,45 @@ document.getElementById('f-fecha').value = new Date().toISOString().slice(0,10);
 syncAll().then(() => aplicarFiltroPeriodo());
 
 /* ▓▓ 13. INIT / ARRANQUE ▓▓ ──────────────────────────────────────────────── */
-// Auto-sync — only syncs HISTORIAL automatically (configurable en CONFIG.SYNC_INTERVAL_MS)
-// UNIDADES only syncs if Captura page is NOT active (to avoid overwriting edits)
+/* ── SINCRONIZACIÓN AUTOMÁTICA ────────────────────────────────────────────
+   Antes descargaba el historial COMPLETO (1000+ filas) cada 3 minutos, aunque
+   no hubiera cambiado nada: era la causa principal de las fallas. Ahora:
+     · Reutiliza syncAll(), que solo baja el historial si getHistMeta detecta
+       un cambio real.
+     · No corre con la pestaña en segundo plano (nadie está viendo).
+     · No corre mientras se está guardando ni con la página Captura abierta,
+       para no pisar lo que el usuario está escribiendo.
+     · Silencioso: no lanza notificaciones que interrumpan el trabajo. */
 let isSaving = false;
 
 setInterval(async () => {
-  try {
-    // Always sync historial (needed for reincident detection)
-    const hRes = await jsonp({ action: 'getHist' });
-    hist = (hRes && hRes.hist) ? hRes.hist : rowsToObjects(hRes);
+  // Pestaña oculta: no tiene sentido gastar cuota de Apps Script.
+  if (document.hidden) return;
 
-    // Only sync units if user is NOT on Captura page and not currently saving
-    const onCaptura = document.getElementById('page-captura').classList.contains('active');
-    if (!onCaptura && !isSaving) {
-      const uRes = await jsonp({ action: 'getUnits' });
-      units = (uRes && uRes.units) ? uRes.units : rowsToObjects(uRes);
-      renderAll();
-    } else {
-      // Only re-render dashboard and historial, not captura
-      renderDashboard();
-      renderHistorial(hist);
-    }
+  // No interrumpir una captura en curso ni un guardado en proceso.
+  const onCaptura = document.getElementById('page-captura')?.classList.contains('active');
+  if (isSaving || onCaptura) return;
 
-    const now = new Date().toLocaleTimeString('es-MX', {hour:'2-digit', minute:'2-digit'});
-    document.getElementById('sync-label').textContent = 'Sincronizado ' + now;
-    document.getElementById('sync-dot').className = 'dot';
-  } catch(e) {
-    document.getElementById('sync-dot').className = 'dot err';
-    document.getElementById('sync-label').textContent = 'Error de sincronización';
+  await syncAll({ silencioso: true });
+
+  const dot = document.getElementById('sync-dot');
+  if (dot && dot.className.indexOf('err') === -1) {
+    const now = new Date().toLocaleTimeString('es-MX', { hour:'2-digit', minute:'2-digit' });
+    const lbl = document.getElementById('sync-label');
+    if (lbl) lbl.textContent = 'Sincronizado ' + now;
   }
 }, CONFIG.SYNC_INTERVAL_MS);
+
+/* Al volver a la pestaña tras un rato, refrescar de inmediato en vez de
+   esperar al siguiente intervalo. */
+document.addEventListener('visibilitychange', () => {
+  if (document.hidden) return;
+  const onCaptura = document.getElementById('page-captura')?.classList.contains('active');
+  if (isSaving || onCaptura) return;
+  if (Date.now() - (window.__ultimaSync || 0) > CONFIG.SYNC_INTERVAL_MS) {
+    syncAll({ silencioso: true });
+  }
+});
 </script>
 
 <!-- Modal confirmar folio -->
