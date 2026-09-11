@@ -23159,6 +23159,10 @@ function cargarPDF(){
 }
 *{box-sizing:border-box;margin:0;padding:0}
 html,body{overflow-x:hidden;max-width:100vw}
+/* .app es el contenedor flex real (el <body> también es flex). Sin flex:1 se
+   encogía al ancho de su contenido: en un monitor de 2560px el área de trabajo
+   se quedaba en 786px y el resto quedaba vacío. */
+.app{flex:1;min-width:0}
 body{font-family:'Barlow',-apple-system,sans-serif;font-size:14px;color:var(--ink);background:var(--bg);height:100vh;display:flex;-webkit-font-smoothing:antialiased}
 
 /* ── SIDEBAR ─────────────────────────────────────────────── */
@@ -23195,10 +23199,32 @@ body{font-family:'Barlow',-apple-system,sans-serif;font-size:14px;color:var(--in
 
 /* ── MAIN / TOPBAR ───────────────────────────────────────── */
 .main{flex:1;overflow-y:auto;display:flex;flex-direction:column;min-width:0}
-.topbar{background:var(--card);border-bottom:1px solid var(--line);padding:14px 24px;display:flex;align-items:center;justify-content:space-between;gap:8px;position:sticky;top:0;z-index:20}
+.topbar{background:var(--card);border-bottom:1px solid var(--line);padding:14px 24px;display:flex;align-items:center;justify-content:space-between;gap:8px;position:sticky;top:0;z-index:10040}
 .topbar-title{font-family:'Barlow Semi Condensed',sans-serif;font-size:19px;font-weight:700;color:var(--navy);white-space:nowrap;letter-spacing:.3px}
-.topbar-actions{display:flex;gap:8px;flex-wrap:wrap}
-.content{padding:22px 24px;flex:1;max-width:1600px;margin:0 auto;width:100%;box-sizing:border-box}
+.topbar-actions{display:flex;gap:8px;flex-wrap:wrap;align-items:center}
+
+/* ── Menú desplegable de acciones ─────────────────────────────────────── */
+.menu-wrap{position:relative;display:inline-block}
+.menu-desplegable{position:absolute;top:calc(100% + 6px);right:0;min-width:264px;background:#fff;
+  border:1px solid var(--line);border-radius:12px;box-shadow:0 10px 32px rgba(28,43,57,.16);
+  padding:6px;z-index:10050;display:none;animation:menuIn .14s ease}
+.menu-desplegable.abierto{display:block}
+@keyframes menuIn{from{opacity:0;transform:translateY(-6px)}to{opacity:1;transform:none}}
+.menu-titulo{font-size:9px;text-transform:uppercase;letter-spacing:.6px;color:var(--muted);
+  font-weight:700;padding:8px 10px 4px}
+.menu-item{display:flex;align-items:flex-start;gap:10px;width:100%;text-align:left;background:none;
+  border:none;padding:9px 10px;border-radius:8px;cursor:pointer;font-family:'Barlow',sans-serif;
+  color:var(--ink);transition:background .12s}
+.menu-item:hover{background:var(--lime-l)}
+.menu-item:disabled{opacity:.5;cursor:not-allowed}
+.menu-ico{font-size:15px;line-height:1.2;flex-shrink:0}
+.menu-item b{display:block;font-size:12.5px;font-weight:600}
+.menu-item small{display:block;font-size:10.5px;color:var(--muted);margin-top:1px}
+.menu-sep{height:1px;background:var(--line);margin:5px 8px}
+.content{padding:22px 24px;flex:1;width:100%;box-sizing:border-box;transition:padding-right .2s}
+/* Cuando el panel de widgets está visible (fijo a la derecha, 312px), el
+   contenido reserva ese espacio para no quedar debajo de él. */
+body.con-panel .content{padding-right:336px}
 .page{display:none}.page.active{display:block;animation:fadeIn .3s ease}
 @keyframes fadeIn{from{opacity:0;transform:translateY(6px)}to{opacity:1;transform:none}}
 
@@ -23445,12 +23471,36 @@ body{font-family:'Barlow',-apple-system,sans-serif;font-size:14px;color:var(--in
   <div class="topbar">
     <div class="topbar-title" id="page-title">Dashboard</div>
     <div class="topbar-actions">
+      <!-- Las dos acciones de uso más frecuente quedan a la vista; el resto se
+           agrupa en el menú para no saturar la barra ni romperla en pantallas
+           angostas. -->
       <button class="btn" onclick="syncManual()" id="btn-sync">↻ Sincronizar</button>
-      <button class="btn success" onclick="fetchLiveData()" id="btn-live">🔄 Obtener datos en vivo</button>
-      <button class="btn" onclick="document.getElementById('input-xlsx').click()" title="Importar desde Excel guardado">📥 Excel</button>
-      <input type="file" id="input-xlsx" accept=".xlsm,.xlsx" style="display:none" onchange="importarExcel(this)">
-      <button class="btn" onclick="abrirModalNavixy()" title="Leer voltaje del Teltonika desde Navixy" style="background:#eef7e6;border-color:#c5e0a5;color:#4a7c1f">🔋 Voltaje</button>
       <button class="btn primary" onclick="generarReporte()" id="btn-report">⬇ Generar .docx</button>
+
+      <div class="menu-wrap">
+        <button class="btn" id="btn-menu-acciones" onclick="toggleMenuAcciones(event)" aria-haspopup="true" aria-expanded="false">
+          ⋯ Acciones <span style="font-size:9px;opacity:.7">▾</span>
+        </button>
+        <div class="menu-desplegable" id="menu-acciones">
+          <div class="menu-titulo">Obtener datos</div>
+          <button class="menu-item" onclick="cerrarMenuAcciones();fetchLiveData()" id="btn-live">
+            <span class="menu-ico">🔄</span>
+            <span><b>Datos en vivo</b><small>Consultar dispositivos en LBOX</small></span>
+          </button>
+          <button class="menu-item" onclick="cerrarMenuAcciones();document.getElementById('input-xlsx').click()">
+            <span class="menu-ico">📥</span>
+            <span><b>Importar Excel</b><small>Cargar unidades desde archivo</small></span>
+          </button>
+
+          <div class="menu-sep"></div>
+          <div class="menu-titulo">Diagnóstico automático</div>
+          <button class="menu-item" onclick="cerrarMenuAcciones();abrirModalNavixy()">
+            <span class="menu-ico">🔋</span>
+            <span><b>Voltaje (Navixy)</b><small>Marcar voltaje automáticamente</small></span>
+          </button>
+        </div>
+      </div>
+      <input type="file" id="input-xlsx" accept=".xlsm,.xlsx" style="display:none" onchange="importarExcel(this)">
     </div>
   </div>
   <div class="content">
@@ -26009,6 +26059,31 @@ function limpiarDrill(){
   renderUnidades(units);
 }
 
+/* ── Menú de acciones de la barra superior ──────────────────────────────── */
+function toggleMenuAcciones(ev){
+  if(ev) ev.stopPropagation();
+  const m = document.getElementById('menu-acciones');
+  const b = document.getElementById('btn-menu-acciones');
+  if(!m) return;
+  const abierto = m.classList.toggle('abierto');
+  if(b) b.setAttribute('aria-expanded', abierto ? 'true' : 'false');
+}
+
+function cerrarMenuAcciones(){
+  const m = document.getElementById('menu-acciones');
+  const b = document.getElementById('btn-menu-acciones');
+  if(m) m.classList.remove('abierto');
+  if(b) b.setAttribute('aria-expanded','false');
+}
+
+// Cerrar al hacer clic fuera o con Escape: sin esto el menú queda abierto
+// tapando contenido hasta que se vuelva a presionar el botón.
+document.addEventListener('click', (e) => {
+  const m = document.getElementById('menu-acciones');
+  if(m && m.classList.contains('abierto') && !e.target.closest('.menu-wrap')) cerrarMenuAcciones();
+});
+document.addEventListener('keydown', (e) => { if(e.key === 'Escape') cerrarMenuAcciones(); });
+
 /* ▓▓ 5. NAVEGACIÓN / RENDER ▓▓ ────────────────────────────────────────────── */
 function showPage(p){
   document.querySelectorAll('.page').forEach(x=>x.classList.remove('active'));
@@ -26016,7 +26091,13 @@ function showPage(p){
   document.getElementById('page-'+p).classList.add('active');
   document.getElementById('nav-'+p).classList.add('active');
   const rp=document.getElementById('right-panel');
-  if(rp){p==='dashboard'?rp.classList.add('visible'):rp.classList.remove('visible');}
+  if(rp){
+    const mostrar = (p==='dashboard');
+    rp.classList.toggle('visible', mostrar);
+    // El panel es position:fixed, así que el contenido debe reservar su ancho
+    // para no quedar tapado. Sin esta clase, las tablas anchas se metían debajo.
+    document.body.classList.toggle('con-panel', mostrar);
+  }
   const titles={dashboard:'Dashboard',captura:'Captura de unidades',unidades:'Unidades del reporte',historial:'Historial de reportes',mensual:'Dashboards mensuales',informes:'Informes por reporte'};
   if(p==='mensual') renderMensual();
   if(p==='informes') renderInformes();
