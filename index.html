@@ -23284,6 +23284,8 @@ body.con-panel .content{padding-right:336px}
 .badge.pend{background:var(--lime-l);color:var(--lime-d)}
 .badge.link{background:#F1EAFB;color:#6C3FA6}
 .badge.inhib{background:#FFF3E0;color:#B35900}
+.badge.ok{background:var(--green-l);color:#1E6B2A}
+.badge.val{background:#FDEBD0;color:#A04000}
 
 /* ── FORMULARIO ──────────────────────────────────────────── */
 .form-grid{display:grid;grid-template-columns:repeat(auto-fit,minmax(165px,1fr));gap:12px;margin-bottom:14px}
@@ -23532,7 +23534,7 @@ body.con-panel .content{padding-right:336px}
           <div class="menu-titulo">Diagnóstico automático</div>
           <button class="menu-item" onclick="cerrarMenuAcciones();abrirModalNavixy()">
             <span class="menu-ico">🔋</span>
-            <span><b>Voltaje (Navixy)</b><small>Marcar voltaje automáticamente</small></span>
+            <span><b>Diagnóstico (Navixy)</b><small>Posiciona · sin red · sin voltaje</small></span>
           </button>
         </div>
       </div>
@@ -23598,10 +23600,33 @@ body.con-panel .content{padding-right:336px}
         </div>
       </div>
       <div class="card">
-        <div class="card-title">Unidades en este reporte (<span id="count-cap">0</span>)</div>
+        <div style="display:flex;justify-content:space-between;align-items:center;gap:12px;flex-wrap:wrap">
+          <div class="card-title" style="margin:0">Unidades en este reporte (<span id="count-cap">0</span>)</div>
+          <div style="font-size:11px;color:var(--muted)">
+            Selecciona filas para aplicar un valor a varias a la vez · ↑↓ para moverte entre filas
+          </div>
+        </div>
+
+        <!-- Barra de acciones masivas: aparece al seleccionar filas -->
+        <div id="cap-barra-masiva" style="display:none;align-items:center;gap:10px;flex-wrap:wrap;
+             background:var(--lime-l);border:1px solid #c5e0a5;border-radius:9px;padding:10px 14px;margin:10px 0">
+          <b style="font-size:12px;color:var(--lime-d)"><span id="cap-masiva-count">0</span> seleccionadas</b>
+          <span style="font-size:11px;color:var(--muted)">Aplicar a todas:</span>
+          <select onchange="aplicarMasivo('pos',this.value);this.value='—'" style="font-size:11px;padding:4px 6px;border:1px solid var(--line);border-radius:6px">
+            <option value="—">Posic. LINK…</option><option value="SI">SI</option><option value="NO">NO</option>
+          </select>
+          <select onchange="aplicarMasivo('recupero',this.value);this.value='—'" style="font-size:11px;padding:4px 6px;border:1px solid var(--line);border-radius:6px">
+            <option value="—">Recuperó…</option><option value="SI">SI</option><option value="NO">NO</option>
+          </select>
+          <select onchange="aplicarMasivo('voltaje',this.value);this.value='—'" style="font-size:11px;padding:4px 6px;border:1px solid var(--line);border-radius:6px">
+            <option value="—">Voltaje…</option><option value="SI">SI</option><option value="NO">NO</option><option value="No aplica">No aplica</option>
+          </select>
+          <button class="btn" style="font-size:11px;padding:5px 10px" onclick="limpiarSeleccionCaptura()">Quitar selección</button>
+        </div>
+
         <div class="scroll-x"><table class="tbl">
-          <thead><tr><th>#ECO</th><th>LBOX</th><th>Firmware</th><th>Días</th><th>Posic. LINK</th><th>Desvincular</th><th>Reset Lbox</th><th>Reset LINK</th><th>Recuperó</th><th>Voltaje</th><th>Atribución</th><th>Causa</th><th>Comentario</th><th>Nota interna</th><th></th></tr></thead>
-          <tbody id="tbody-captura"><tr><td colspan="15" class="empty">Cargando...</td></tr></tbody>
+          <thead><tr><th style="width:30px"><input type="checkbox" id="cap-chk-todas" onchange="toggleTodasCaptura(this)" title="Seleccionar todas"></th><th>#ECO</th><th>LBOX</th><th>Firmware</th><th>Días</th><th>Posic. LINK</th><th>Desvincular</th><th>Reset Lbox</th><th>Reset LINK</th><th>Recuperó</th><th>Voltaje</th><th>Diagnóstico</th><th>Causa</th><th>Comentario</th><th>Nota interna</th><th></th></tr></thead>
+          <tbody id="tbody-captura"><tr><td colspan="16" class="empty">Cargando...</td></tr></tbody>
         </table></div>
       </div>
     </div>
@@ -23868,6 +23893,10 @@ const CONFIG = {
   // Reglas de negocio
   UMBRAL_REINCIDENTE: 5,
 
+  // Ciclos con falta de red antes de escalar a revisión. Uno es circunstancial
+  // (el vehículo pasó por una zona sin cobertura); repetirlo ya no lo es.
+  CICLOS_SIN_RED_PARA_REVISION: 2,
+
   // Reincidencia reciente: N apariciones dentro de una ventana de tiempo.
   // Distingue desgaste histórico de degradación activa.
   VENTANA_REINCIDENCIA_DIAS: 90,
@@ -23920,10 +23949,24 @@ const CONFIG = {
   // vehículo). Las credenciales se piden en el modal, no se guardan aquí.
   NAVIXY: { hash: '', base: 'https://api.navixy.com/v2' },
 
-  // Umbral para decidir SI/NO. Un Teltonika alimentado por el vehículo lee
-  // ~12V (o ~24V en camión); desconectado lee 0 o casi nada. 6V separa ambos
-  // casos sin depender de si el sistema es de 12 o 24 volts.
-  NAVIXY_UMBRAL_VOLTAJE: 6,
+  // ── Diagnóstico de posicionamiento (Navixy) ─────────────────────────────
+  NAVIXY_UMBRAL_POSICION_MIN: 15,   // minutos sin posición para marcar NO
+
+  // Desfase entre "último dato recibido" y "última posición". Si el servidor
+  // recibe datos ahora con posiciones mucho más viejas, el equipo está
+  // descargando su memoria interna: prueba directa de que le faltó RED, no
+  // energía (sin energía no habría datos que descargar).
+  NAVIXY_DESFASE_BUFFER_MIN: 10,
+
+  // Zona sin cobertura: varias unidades calladas cerca apuntan al lugar, no a
+  // fallas eléctricas individuales simultáneas.
+  NAVIXY_RADIO_ZONA_KM: 5,
+  NAVIXY_MIN_VECINAS_ZONA: 1,       // 1 vecina = 2 unidades calladas juntas
+
+  NAVIXY_GSM_BAJO: 20,              // señal GSM (0-100) que indica falta de red
+  NAVIXY_BATERIA_BAJA: 30,          // batería interna agotándose = perdió alimentación
+  NAVIXY_SILENCIO_LARGO_MIN: 720,   // 12 h sin indicios de red → probable sin voltaje
+  NAVIXY_UMBRAL_VOLTAJE: 6,         // umbral si el sensor de voltaje sí existe
 
   // Umbrales del filtro de comunicación (en minutos) para el panel de validación
   WF_UMBRAL_ACTIVO:    2,   // ≤2 min  → comunicación reciente
@@ -24942,7 +24985,7 @@ function agruparHistPorMes(registros){
     if(!h.fecha) return;
     const key = normFecha(h.fecha).slice(0,7);
     if(!/^\d{4}-\d{2}$/.test(key)) return;
-    if(!monthly[key]) monthly[key] = { total:0, rec:0, noRec:0, causas:{}, lboxes:{}, atrib:{recuperada:0, inhibicion:0, link:0} };
+    if(!monthly[key]) monthly[key] = { total:0, rec:0, noRec:0, causas:{}, lboxes:{}, atrib:{recuperada:0, inhibicion:0, link:0, validar:0} };
     const m = monthly[key];
     m.total++;
     const rec = (h.recupero||'').toUpperCase();
@@ -24959,13 +25002,14 @@ function agruparHistPorMes(registros){
       const c = (h.causa||'').trim();
       const key2 = c && c.length>=2 ? (c.length>28 ? c.slice(0,28)+'…' : c) : 'Sin causa registrada';
       m.causas[key2] = (m.causas[key2]||0) + 1;
-      // Atribución (clasificación automática) — solo tiene sentido con voltaje
-      // CONOCIDO. Un registro sin diagnosticar (rec==='') no se fuerza a
-      // "Posible inhibición" ni "Link": ambas requieren saber si hubo voltaje.
-      if(rec === 'NO'){
-        if(volt==='SI') m.atrib.inhibicion++;
-        else m.atrib.link++;
-      }
+      // Atribución según el árbol central (clasificarUnidad). Antes se decidía
+      // aquí con solo el voltaje, y una unidad que NO posiciona pero tiene
+      // voltaje se contaba como "Posible inhibición" — incorrecto: la
+      // inhibición requiere que el LINK SÍ posicione.
+      const cat = clasificarUnidad(h);
+      if(cat === 'inhibicion')        m.atrib.inhibicion++;
+      else if(cat === 'link_no_resp') m.atrib.link++;
+      else if(cat === 'validar')      m.atrib.validar++;
     }
     if(h.lbox) m.lboxes[h.lbox] = (m.lboxes[h.lbox]||0)+1;
   });
@@ -25078,10 +25122,11 @@ function renderAtribucionesMensual(){
   const ctx = canvas.getContext('2d');
 
   // Totales acumulados en el rango filtrado (mismos filtros que los KPIs de arriba)
-  let totRec=0, totInhib=0, totLink=0, totRevisadas=0;
+  let totRec=0, totInhib=0, totLink=0, totValidar=0, totRevisadas=0;
   keys.forEach(k=>{
     const a = monthly[k].atrib;
     totRec += a.recuperada; totInhib += a.inhibicion; totLink += a.link;
+    totValidar += (a.validar || 0);
     totRevisadas += monthly[k].total;
   });
   // "Sin clasificar": no recuperadas pero sin dato de voltaje conocido, así que
@@ -25089,13 +25134,17 @@ function renderAtribucionesMensual(){
   // fuera de las tarjetas sin explicación — el % Éxito de arriba (sobre el
   // total revisado) y el % de estas tarjetas (antes sobre el total CLASIFICADO)
   // no cuadraban entre sí. Ahora ambos usan la misma base: totRevisadas.
-  const sinClasificar = Math.max(0, totRevisadas - totRec - totInhib - totLink);
+  const sinClasificar = Math.max(0, totRevisadas - totRec - totInhib - totLink - totValidar);
 
+  // Las categorías siguen el árbol de clasificación (clasificarUnidad):
+  // posiciona+no recuperó+voltaje = inhibición · no posiciona+voltaje = LINK no
+  // responde · sin voltaje = validar funcionamiento.
   const cats = [
-    { label:'Recuperada',         n:totRec,        cls:'green', color:'#27ae60' },
-    { label:'Posible inhibición', n:totInhib,      cls:'red',   color:'#e74c3c' },
-    { label:'Link',                n:totLink,       cls:'blue',  color:'#185FA5' },
-    { label:'Sin clasificar',      n:sinClasificar, cls:'gray',  color:'#95a5a6' },
+    { label:'Recuperada',              n:totRec,        cls:'green', color:'#27ae60' },
+    { label:'Posible inhibición',      n:totInhib,      cls:'red',   color:'#e74c3c' },
+    { label:'LINK no responde',        n:totLink,       cls:'blue',  color:'#185FA5' },
+    { label:'Validar funcionamiento',  n:totValidar,    cls:'amber', color:'#e67e22' },
+    { label:'Sin clasificar',          n:sinClasificar, cls:'gray',  color:'#95a5a6' },
   ];
 
   if(!totRevisadas){
@@ -25135,12 +25184,12 @@ function renderAtribucionesMensual(){
 
   keys.forEach((k,i)=>{
     const a = monthly[k].atrib;
-    const sinClasificarMes = Math.max(0, monthly[k].total - a.recuperada - a.inhibicion - a.link);
+    const sinClasificarMes = Math.max(0, monthly[k].total - a.recuperada - a.inhibicion - a.link - (a.validar||0));
     const x = padL + i*barW + barW*0.2;
     const bw = barW*0.6;
     let yAcum = padT+chartH;
-    [['recuperada','#27ae60'],['inhibicion','#e74c3c'],['link','#185FA5'],[null,'#95a5a6']].forEach(([campo,color])=>{
-      const n = campo ? a[campo] : sinClasificarMes;
+    [['recuperada','#27ae60'],['inhibicion','#e74c3c'],['link','#185FA5'],['validar','#e67e22'],[null,'#95a5a6']].forEach(([campo,color])=>{
+      const n = campo ? (a[campo] || 0) : sinClasificarMes;
       const hSeg = (n/maxVal)*chartH;
       ctx.fillStyle = color;
       ctx.fillRect(x, yAcum-hSeg, bw, Math.max(hSeg,0));
@@ -26014,12 +26063,24 @@ function calcAtribucion(pos, recupero) {
   return '';
 }
 
-function atribBadge(pos, recupero) {
-  const a = calcAtribucion(pos, recupero);
-  if (a === 'Link') return '<span class="badge link">📡 Link</span>';
-  if (a === 'Posible inhibición') return '<span class="badge inhib">⚠️ Posible inhibición</span>';
-  return '<span class="badge na">—</span>';
+/* Insignia en vivo del diagnóstico. Antes solo miraba pos y recupero, así que
+   ignoraba el voltaje y podía mostrar algo distinto a lo que concluye el
+   reporte. Ahora usa el árbol central, y la fila refleja el diagnóstico real
+   conforme se captura. */
+function atribBadge(u) {
+  const cat = clasificarUnidad(u);
+  const M = {
+    recuperada:   ['badge ok',    'Recuperada'],
+    inhibicion:   ['badge inhib', 'Posible inhibición'],
+    link_no_resp: ['badge link',  'Sin red'],
+    validar:      ['badge val',   'Validar func.'],
+    sin_dato:     ['badge na',    '—'],
+  };
+  const m = M[cat] || M.sin_dato;
+  const accion = (typeof accionRecomendada === 'function') ? accionRecomendada(u, false) : '';
+  return '<span class="' + m[0] + '" title="' + esc(accion) + '">' + m[1] + '</span>';
 }
+
 
 
 /* — Drill-down: click en KPI → tabla Unidades filtrada — */
@@ -26980,109 +27041,126 @@ async function consultarVoltajesNavixy(){
     const res = await jsonp({ action:'fetchNavixyVoltajes', nx_hash: hash, nx_base: base });
     if(res.error) throw new Error(res.error);
 
+    if(!res.version){
+      notify('El Apps Script desplegado esta DESACTUALIZADO. Subelo de nuevo y republica con ' +
+        'Implementar, Gestionar implementaciones, editar, Version nueva.', 'err', 20000);
+    }
+
     const equipos = res.equipos || [];
-    // Cruce por 'label' del equipo en Navixy contra el ECO de la unidad.
-    // Se usa claveEco() (misma normalización que Webfleet) para tolerar
-    // diferencias de formato: ceros a la izquierda, prefijo "ECO ", espacios.
+    const ahora = res.server_time || Date.now();
+
     const porEco = {};
     equipos.forEach(e => {
       const k = claveEco(e.label);
       if(k) porEco[k] = e;
-      // Algunos equipos llevan el ECO dentro de un nombre más largo
       const m = String(e.label||'').match(/\d{2,}/);
       if(m){ const k2 = claveEco(m[0]); if(k2 && !porEco[k2]) porEco[k2] = e; }
     });
 
-    const U = CONFIG.NAVIXY_UMBRAL_VOLTAJE;
+    const min = (t) => {
+      if(!t) return null;
+      const d = new Date(String(t).replace(' ','T'));
+      return isNaN(d.getTime()) ? null : Math.floor((ahora - d.getTime())/60000);
+    };
+
+    const U = CONFIG.NAVIXY_UMBRAL_POSICION_MIN;
+
     let sinCruce = 0;
-    nxResultados = units.map(u => {
+    let base0 = units.map(u => {
       const e = porEco[claveEco(u.eco)];
-      if(!e){ sinCruce++; return { eco:u.eco, lbox:u.lbox, encontrado:false, voltaje:null, marca:'', fuente:'' }; }
-
-      const v = e.board_voltage;
-      let marca = '', fuente = '';
-
-      if (v !== null && v !== undefined) {
-        // 1) Lectura directa del sensor de voltaje: la más confiable.
-        marca  = v >= U ? 'SI' : 'NO';
-        fuente = 'Sensor ' + (e.board_origen || 'voltaje');
-      } else if (['active','online','connected','just_registered'].includes(String(e.conexion||'').toLowerCase())) {
-        // 2) Sin sensor configurado, pero el equipo está TRANSMITIENDO. Un
-        //    dispositivo que reporta necesariamente tiene energía, así que
-        //    marcarlo "sin voltaje" sería incorrecto. Esto cubre los equipos
-        //    en línea cuyo sensor de voltaje no está dado de alta en Navixy.
-        marca  = 'SI';
-        fuente = 'En línea (sin sensor de voltaje configurado)';
-      } else if (e.ultima_conexion && (Date.now() - new Date(String(e.ultima_conexion).replace(' ','T')).getTime()) < 6*3600000) {
-        // 3) Reportó hace menos de 6 horas: aunque ahora figure inactivo,
-        //    tenía energía muy recientemente.
-        marca  = 'SI';
-        fuente = 'Reportó ' + e.ultima_conexion;
-      } else if (e.battery_level !== null && e.battery_level !== undefined && Number(e.battery_level) > 0) {
-        // 3) Reporta nivel de batería: también implica que está operando.
-        marca  = 'SI';
-        fuente = 'Batería ' + e.battery_level + '%';
-      } else {
-        // 4) Sin ninguna señal: se deja vacío para revisión física, en vez de
-        //    afirmar un diagnóstico que no se puede sostener.
-        marca  = '';
-        fuente = 'Sin datos disponibles';
-      }
-
+      if(!e){ sinCruce++; return { eco:u.eco, lbox:u.lbox, encontrado:false }; }
       return {
         eco: u.eco, lbox: u.lbox, encontrado: true,
         label: e.label, modelo: e.modelo,
-        voltaje: v, bateriaInterna: e.battery_voltage,
-        nivelBateria: e.battery_level, conexion: e.conexion,
-        actualizado: e.board_actualizado, sensores: e.sensores || [],
-        marca, fuente
+        minPos:  min(e.gps_updated),
+        minDato: min(e.last_update),
+        gsm: e.gsm_signal, gpsSig: e.gps_signal, red: e.red,
+        bateria: e.bateria, voltaje: e.board_voltage, origenVoltaje: e.board_origen,
+        conexion: e.conexion, movimiento: e.movimiento,
+        lat: e.lat, lng: e.lng
       };
+    });
+
+    // Unidades calladas y cercanas entre si apuntan a falta de cobertura en la
+    // zona, no a fallas electricas individuales simultaneas.
+    const R = CONFIG.NAVIXY_RADIO_ZONA_KM;
+    const mudas = base0.filter(r => r.encontrado && r.minPos !== null && r.minPos > U && r.lat && r.lng);
+    const distKm = (a,b) => {
+      const rad = x => x*Math.PI/180, Rt = 6371;
+      const dLat = rad(b.lat-a.lat), dLng = rad(b.lng-a.lng);
+      const h = Math.sin(dLat/2)**2 + Math.cos(rad(a.lat))*Math.cos(rad(b.lat))*Math.sin(dLng/2)**2;
+      return 2*Rt*Math.asin(Math.sqrt(h));
+    };
+    mudas.forEach(r => { r.vecinasMudas = mudas.filter(o => o !== r && distKm(r,o) <= R).length; });
+
+    nxResultados = base0.map(r => {
+      if(!r.encontrado) return Object.assign({}, r, { posiciona:'', causa:'', detalle:'No encontrada en Navixy' });
+
+      if(r.minPos !== null && r.minPos <= U){
+        return Object.assign({}, r, { posiciona:'SI', causa:'ok',
+          detalle:'Posicion de hace ' + r.minPos + ' min' });
+      }
+      if(r.minPos === null){
+        return Object.assign({}, r, { posiciona:'', causa:'sin_dato',
+          detalle:'Sin fecha de ultima posicion' });
+      }
+
+      // 1) Datos recientes con posiciones viejas = descarga de memoria interna.
+      //    Solo ocurre si el equipo estuvo ENCENDIDO sin red.
+      if(r.minDato !== null && (r.minPos - r.minDato) >= CONFIG.NAVIXY_DESFASE_BUFFER_MIN){
+        return Object.assign({}, r, { posiciona:'NO', causa:'sin_red',
+          detalle:'Transmitiendo datos guardados (posicion de hace ' + r.minPos +
+                  ' min, dato recibido hace ' + r.minDato + ' min)' });
+      }
+      // 2) Varias unidades calladas en la misma zona.
+      if((r.vecinasMudas || 0) >= CONFIG.NAVIXY_MIN_VECINAS_ZONA){
+        return Object.assign({}, r, { posiciona:'NO', causa:'sin_red',
+          detalle:(r.vecinasMudas+1) + ' unidades sin reportar en un radio de ' + R + ' km' });
+      }
+      // 3) Senal GSM baja en el ultimo reporte.
+      if(r.gsm !== null && r.gsm !== undefined && r.gsm <= CONFIG.NAVIXY_GSM_BAJO){
+        return Object.assign({}, r, { posiciona:'NO', causa:'sin_red',
+          detalle:'Ultima senal GSM baja (' + r.gsm + '%)' });
+      }
+      // 4) Voltaje medido: evidencia directa.
+      if(r.voltaje !== null && r.voltaje !== undefined && r.voltaje < CONFIG.NAVIXY_UMBRAL_VOLTAJE){
+        return Object.assign({}, r, { posiciona:'NO', causa:'sin_voltaje',
+          detalle:'Voltaje medido ' + Number(r.voltaje).toFixed(2) + ' V' });
+      }
+      // 5) Bateria interna agotandose = perdio alimentacion externa.
+      if(r.bateria !== null && r.bateria !== undefined && r.bateria <= CONFIG.NAVIXY_BATERIA_BAJA){
+        return Object.assign({}, r, { posiciona:'NO', causa:'sin_voltaje',
+          detalle:'Bateria interna en ' + r.bateria + '%' });
+      }
+      // 6) Silencio largo sin indicios de red: PROBABLE, no confirmado.
+      if(r.minPos >= CONFIG.NAVIXY_SILENCIO_LARGO_MIN){
+        return Object.assign({}, r, { posiciona:'NO', causa:'sin_voltaje_probable',
+          detalle:'Sin reportar hace ' + Math.floor(r.minPos/60) + ' h, sin indicios de falta de red' });
+      }
+      return Object.assign({}, r, { posiciona:'NO', causa:'indeterminado',
+        detalle:'Sin posicion hace ' + r.minPos + ' min' });
     });
 
     document.getElementById('nx-resultados').style.display = 'block';
     renderTablaNavixy();
 
-    const conSI = nxResultados.filter(r => r.marca === 'SI').length;
-    const conNO = nxResultados.filter(r => r.marca === 'NO').length;
-    notify('Navixy: ' + conSI + ' con voltaje · ' + conNO + ' sin voltaje' +
-      (sinCruce ? ' · ' + sinCruce + ' sin cruzar' : ''), 'ok', 7000);
-
-    // Si el backend no envía 'version', el Apps Script desplegado es anterior
-    // a esta funcionalidad: los campos de conexión no llegan y por eso todo
-    // queda "No determinable". Es el error más común de este proyecto.
-    if (!res.version) {
-      notify('⚠️ El Apps Script desplegado está DESACTUALIZADO: no envía el estado de conexión, ' +
-        'por eso los equipos sin sensor de voltaje quedan "No determinable". ' +
-        'Sube el apps_script_v5.gs nuevo y republica con Implementar → Gestionar implementaciones → ' +
-        'editar ✏️ → Versión nueva.', 'err', 20000);
-      console.warn('Backend sin versión — respuesta recibida:', res);
-    } else {
-      console.log('Backend Navixy:', res.version, '| estados de conexión:', res.diag && res.diag.estadosConexion);
-    }
-
-    // Si la cuenta no tiene sensores de voltaje configurados, conviene decirlo:
-    // el marcado sigue siendo válido (por estado de conexión) pero es una
-    // inferencia, no una medición.
-    const conSensor = nxResultados.filter(r => r.voltaje !== null && r.voltaje !== undefined).length;
-    if(conSensor === 0 && nxResultados.some(r => r.encontrado)){
-      const campos = (res.diag && res.diag.camposDisponibles) ? res.diag.camposDisponibles : [];
-      notify('ℹ️ Ningún equipo expone sensor de voltaje en Navixy, así que el marcado se basa en el ' +
-        'estado de conexión (un equipo que transmite tiene energía). Para tener lecturas exactas, ' +
-        'pide dar de alta el sensor "board_voltage" en Navixy.' +
-        (campos.length ? ' Sensores disponibles hoy: [' + campos.slice(0,12).join(', ') + ']' : ''),
-        'err', 16000);
-      console.warn('Navixy — campos disponibles:', campos);
-    }
+    const n = (cz) => nxResultados.filter(x => x.causa === cz).length;
+    notify('Navixy: ' + nxResultados.filter(x=>x.posiciona==='SI').length + ' posicionando, ' +
+      n('sin_red') + ' sin red, ' +
+      (n('sin_voltaje')+n('sin_voltaje_probable')) + ' sin voltaje' +
+      (sinCruce ? ', ' + sinCruce + ' sin cruzar' : ''), 'ok', 9000);
 
     if(sinCruce === units.length){
-      notify('⚠️ Ninguna unidad cruzó contra Navixy. El nombre (label) de los equipos ' +
-        'en Navixy debe contener el número económico. Ejemplos recibidos: [' +
+      notify('Ninguna unidad cruzo contra Navixy. El nombre del equipo en Navixy debe contener ' +
+        'el numero economico. Ejemplos recibidos: [' +
         equipos.slice(0,3).map(e=>e.label).join(', ') + ']', 'err', 15000);
     }
+    console.log('Navixy diag:', res.diag);
+
   } catch(e){
     notify('Error al consultar Navixy: ' + e.message, 'err', 10000);
   }
-  btn.disabled = false; btn.textContent = '🔋 Consultar voltajes';
+  btn.disabled = false; btn.textContent = 'Consultar posicion y diagnostico';
 }
 
 function renderTablaNavixy(){
@@ -27092,21 +27170,36 @@ function renderTablaNavixy(){
     tbody.innerHTML = '<tr><td colspan="7" class="empty">Sin resultados</td></tr>';
     return;
   }
+
+  // Cada causa trae su accion implicita: quien opera no deberia tener que
+  // deducir que hacer a partir de una etiqueta tecnica.
+  const CAUSAS = {
+    ok:                   ['Posicionando',        '#1E8449', ''],
+    sin_red:              ['Sin red',             '#b35900', 'Esperar cobertura'],
+    sin_voltaje:          ['Sin voltaje',         '#c0392b', 'Revision fisica'],
+    sin_voltaje_probable: ['Probable sin voltaje','#d35400', 'Verificar en sitio'],
+    indeterminado:        ['Indeterminado',       '#888',    'Volver a consultar'],
+    sin_dato:             ['Sin dato',            '#888',    'Revisar en Navixy'],
+    '':                   ['No encontrada',       '#888',    'Revisar nombre en Navixy'],
+  };
+
   tbody.innerHTML = nxResultados.map((r,i) => {
     const bg = i%2 ? '#f9f9f9' : '#fff';
-    let estado, color;
-    if(!r.encontrado){ estado = 'No encontrada en Navixy'; color = '#888'; }
-    else if(r.marca === 'SI'){ estado = '🟢 Con voltaje'; color = '#1E8449'; }
-    else if(r.marca === 'NO'){ estado = '🔴 Sin voltaje'; color = '#c0392b'; }
-    else { estado = '⚪ No determinable'; color = '#888'; }
+    const info = CAUSAS[r.causa] || CAUSAS[''];
+    const etq = info[0], color = info[1], accion = info[2];
+    const tiempo = (r.minPos === null || r.minPos === undefined) ? '-'
+                 : r.minPos < 60 ? r.minPos + ' min'
+                 : Math.floor(r.minPos/60) + ' h';
+    const colPos = r.posiciona === 'SI' ? '#1E8449' : r.posiciona === 'NO' ? '#c0392b' : '#888';
     return '<tr style="background:'+bg+'">' +
-      '<td style="text-align:center"><input type="checkbox" class="nx-chk" value="'+esc(r.eco)+'"'+(r.marca?' checked':'')+'></td>' +
+      '<td style="text-align:center"><input type="checkbox" class="nx-chk" value="'+esc(r.eco)+'"'+(r.posiciona?' checked':'')+'></td>' +
       '<td><b>ECO '+esc(r.eco)+'</b></td>' +
-      '<td style="font-size:10px">'+esc(r.lbox||'—')+'</td>' +
-      '<td style="font-size:10px">'+esc(r.label||'—')+'</td>' +
-      '<td style="text-align:center;font-weight:700">'+(r.voltaje!==null&&r.voltaje!==undefined?Number(r.voltaje).toFixed(2)+' V':'—')+'</td>' +
-      '<td style="text-align:center;color:'+color+';font-weight:600;font-size:11px">'+estado+'</td>' +
-      '<td style="font-size:10px;color:var(--muted)" title="'+esc(r.sensores&&r.sensores.length?('Sensores: '+r.sensores.join(', ')):'')+'">'+esc(r.fuente||'—')+'</td>' +
+      '<td style="font-size:10px">'+esc(r.lbox||'-')+'</td>' +
+      '<td style="text-align:center;font-weight:700">'+tiempo+'</td>' +
+      '<td style="text-align:center;font-weight:800;color:'+colPos+'">'+(r.posiciona||'-')+'</td>' +
+      '<td style="text-align:center;color:'+color+';font-weight:600;font-size:11px">'+etq+
+        (accion?'<br><span style="font-size:9px;font-weight:400;color:var(--muted)">'+accion+'</span>':'')+'</td>' +
+      '<td style="font-size:10px;color:var(--muted)">'+esc(r.detalle||'-')+'</td>' +
     '</tr>';
   }).join('');
 }
@@ -27115,30 +27208,54 @@ function aplicarVoltajesNavixy(){
   const marcados = Array.from(document.querySelectorAll('.nx-chk:checked')).map(x => claveEco(x.value));
   if(!marcados.length){ notify('Selecciona al menos una unidad', 'err'); return; }
 
-  let aplicadas = 0, sinLectura = 0;
+  let pos = 0, volt = 0, red = 0, sinConcluir = 0;
+
   nxResultados.forEach(r => {
     if(marcados.indexOf(claveEco(r.eco)) === -1) return;
-    if(!r.marca){ sinLectura++; return; }
     const u = units.find(x => claveEco(x.eco) === claveEco(r.eco));
     if(!u) return;
-    u.voltaje = r.marca;
-    // El comentario deja constancia del origen: no es lo mismo una lectura de
-    // 12.8V que una inferencia por "equipo en línea". Quien revise el reporte
-    // después debe poder distinguirlas.
-    const detalle = (r.voltaje !== null && r.voltaje !== undefined)
-      ? Number(r.voltaje).toFixed(2) + 'V'
-      : (r.fuente || 'Navixy');
-    u.comentario = (u.comentario ? u.comentario + ' · ' : '') + 'Voltaje: ' + detalle + ' (Navixy)';
-    aplicadas++;
+
+    // "Posiciona" se conoce siempre que haya dato de posicion.
+    if(r.posiciona === 'SI' || r.posiciona === 'NO'){
+      u.pos = r.posiciona;
+      pos++;
+      if(r.posiciona === 'NO') aplicarCascadaSinLink(u);
+    }
+
+    // El VOLTAJE solo se marca con evidencia suficiente. Marcar "sin voltaje"
+    // a una unidad que solo perdio cobertura mandaria un tecnico a revisar un
+    // vehiculo que esta bien, asi que se prefiere dejarlo vacio.
+    if(r.causa === 'ok'){
+      u.voltaje = 'SI';   // esta transmitiendo: necesariamente tiene energia
+      volt++;
+    } else if(r.causa === 'sin_voltaje'){
+      u.voltaje = 'NO';
+      volt++;
+    } else if(r.causa === 'sin_red'){
+      red++;              // sin red no dice nada del voltaje: se deja sin marcar
+    } else {
+      sinConcluir++;
+    }
+
+    // La causa queda registrada con su evidencia, para que el reporte explique
+    // por que se concluyo cada cosa.
+    if(r.causa === 'sin_red')                   u.causa = u.causa || 'Sin cobertura de red';
+    else if(r.causa === 'sin_voltaje')          u.causa = u.causa || 'Sin voltaje de alimentacion';
+    else if(r.causa === 'sin_voltaje_probable') u.causa = u.causa || 'Probable falta de voltaje';
+
+    if(r.detalle){
+      u.comentario = (u.comentario ? u.comentario + ' - ' : '') + r.detalle + ' (Navixy)';
+    }
   });
 
   renderAll();
   autoguardarLocal();
   try { apiPost({ action:'saveUnits', data: units }); } catch(e){}
 
-  let msg = '✅ Voltaje marcado automáticamente en ' + aplicadas + ' unidad(es).';
-  if(sinLectura) msg += ' ' + sinLectura + ' sin lectura quedaron sin marcar (requieren revisión física).';
-  notify(msg, 'ok', 8000);
+  let msg = pos + ' con Posiciona marcado, ' + volt + ' con Voltaje marcado.';
+  if(red) msg += ' ' + red + ' sin red: el voltaje NO se marco, porque la falta de cobertura no dice nada sobre la energia.';
+  if(sinConcluir) msg += ' ' + sinConcluir + ' sin evidencia suficiente.';
+  notify(msg, 'ok', 12000);
   cerrarModalNavixy();
 }
 
@@ -27159,6 +27276,126 @@ function aplicarCascadaSinLink(u){
   return antes !== [u.desv, u.rlbox, u.rlink, u.recupero].join('|');
 }
 
+/* ── CAPTURA DINÁMICA ──────────────────────────────────────────────────────
+   Reduce el trabajo manual durante el llenado del reporte. */
+
+/* Causa sugerida según el árbol de clasificación. El sistema ya deduce la
+   categoría, así que no tiene sentido escribir la causa a mano cada vez. Se
+   prellena solo si el campo está vacío: nunca sobrescribe lo que el técnico
+   ya escribió. */
+const CAUSA_SUGERIDA = {
+  link_no_resp: 'Sin cobertura de red',
+  inhibicion:   'Posible inhibición de señal',
+  validar:      'Sin voltaje de alimentación',
+};
+
+function sugerirCausa(u){
+  if(u.causa && String(u.causa).trim()) return false;   // respeta lo capturado
+  const cat = clasificarUnidad(u);
+  const sug = CAUSA_SUGERIDA[cat];
+  if(!sug) return false;
+  u.causa = sug;
+  return true;
+}
+
+/* ── Navegación por teclado en la tabla de captura ────────────────────────
+   Con 24 unidades y 6 campos cada una, moverse con el mouse es lo más lento
+   del proceso. Las flechas arriba/abajo saltan a la misma columna de la fila
+   vecina, como en una hoja de cálculo. */
+function navTeclado(ev){
+  const el = ev.target;
+  if(!el.matches('#tbody-captura select, #tbody-captura input[type="text"]')) return;
+
+  const celda = el.closest('td');
+  const fila  = el.closest('tr');
+  if(!celda || !fila) return;
+  const col = Array.from(fila.children).indexOf(celda);
+
+  let destino = null;
+  if(ev.key === 'ArrowDown' || (ev.key === 'Enter' && !ev.shiftKey)){
+    destino = fila.nextElementSibling;
+  } else if(ev.key === 'ArrowUp' || (ev.key === 'Enter' && ev.shiftKey)){
+    destino = fila.previousElementSibling;
+  } else {
+    return;
+  }
+
+  // En los <select> las flechas cambian el valor, así que solo se intercepta
+  // cuando hay fila a dónde ir; si no, se deja el comportamiento normal.
+  if(!destino) return;
+  const celdaDestino = destino.children[col];
+  const campo = celdaDestino && celdaDestino.querySelector('select, input[type="text"]');
+  if(!campo) return;
+
+  ev.preventDefault();
+  campo.focus();
+  if(campo.select) campo.select();
+}
+
+document.addEventListener('keydown', navTeclado);
+
+/* ── Selección múltiple para acciones masivas ───────────────────────────── */
+let capturaSeleccion = new Set();
+
+function toggleFilaCaptura(i, chk){
+  if(chk.checked) capturaSeleccion.add(i); else capturaSeleccion.delete(i);
+  actualizarBarraMasiva();
+}
+
+function toggleTodasCaptura(chk){
+  capturaSeleccion.clear();
+  if(chk.checked) units.forEach((_,i)=>capturaSeleccion.add(i));
+  document.querySelectorAll('.cap-chk').forEach(x => { x.checked = chk.checked; });
+  actualizarBarraMasiva();
+}
+
+function actualizarBarraMasiva(){
+  const barra = document.getElementById('cap-barra-masiva');
+  const n = capturaSeleccion.size;
+  if(!barra) return;
+  barra.style.display = n ? 'flex' : 'none';
+  const lbl = document.getElementById('cap-masiva-count');
+  if(lbl) lbl.textContent = n;
+}
+
+/* Aplica un valor a todas las unidades seleccionadas de una sola vez. Con 24
+   unidades que comparten diagnóstico, capturarlas una por una eran ~100 clics. */
+async function aplicarMasivo(campo, valor){
+  if(!capturaSeleccion.size){ notify('Selecciona al menos una unidad', 'err'); return; }
+  if(valor === '—' || valor === '') return;
+
+  let n = 0, causas = 0;
+  capturaSeleccion.forEach(i => {
+    const u = units[i];
+    if(!u) return;
+    u[campo] = valor;
+    u.modificadoPor = CONFIG.RESPONSABLE || '';
+    u.modificadoEn  = new Date().toISOString();
+    // Al marcar que no posiciona, se dispara la misma cascada de la captura
+    // individual: las acciones remotas no aplican.
+    if(campo === 'pos' && valor === 'NO') aplicarCascadaSinLink(u);
+    if(sugerirCausa(u)) causas++;
+    n++;
+  });
+
+  renderCaptura(); renderDashboard(); autoguardarLocal();
+  isSaving = true;
+  try { await apiPost({ action:'saveUnits', data: units }); }
+  catch(e){ notify('No se pudo guardar en Sheets; el cambio quedó respaldado localmente.', 'err', 7000); }
+  isSaving = false;
+
+  notify(n + ' unidad(es) actualizadas' + (causas ? ' · ' + causas + ' con causa sugerida' : ''), 'ok');
+}
+
+/* Limpia la selección al salir o tras aplicar, para no arrastrar estado. */
+function limpiarSeleccionCaptura(){
+  capturaSeleccion.clear();
+  document.querySelectorAll('.cap-chk').forEach(x => { x.checked = false; });
+  const todas = document.getElementById('cap-chk-todas');
+  if(todas) todas.checked = false;
+  actualizarBarraMasiva();
+}
+
 async function updateUnit(i, field, value) {
   units[i][field] = value;
 
@@ -27170,6 +27407,12 @@ async function updateUnit(i, field, value) {
   // Sin señal LINK ⇒ las acciones remotas no aplican (regla centralizada)
   if (field === 'pos' && value === 'NO') {
     aplicarCascadaSinLink(units[i]);
+  }
+
+  // Al completar el diagnóstico, sugerir la causa correspondiente. Se hace
+  // aquí y no al guardar para que el técnico la vea y pueda corregirla.
+  if (['pos','recupero','voltaje'].includes(field)) {
+    sugerirCausa(units[i]);
     renderCaptura();
   }
 
@@ -27395,11 +27638,12 @@ function renderWidgetProgreso() {
 function renderCaptura(){
   document.getElementById('count-cap').textContent=units.length;
   const tbody=document.getElementById('tbody-captura');
-  if(!units.length){tbody.innerHTML='<tr><td colspan="15" class="empty">Sin unidades aún. Usa el botón "Obtener datos en vivo" o captura manualmente.</td></tr>';return;}
+  if(!units.length){tbody.innerHTML='<tr><td colspan="16" class="empty">Sin unidades aún. Usa el botón "Obtener datos en vivo" o captura manualmente.</td></tr>';return;}
   const SN  = ['—','SI','NO','N/A'];
   const SIA = ['—','SI/A','NO','N/A'];
   const SV  = ['—','SI','NO','No aplica'];
   tbody.innerHTML=units.map((u,i)=>`<tr style="background:${i%2?'#f9f9f9':'#fff'}">
+    <td style="text-align:center"><input type="checkbox" class="cap-chk" ${capturaSeleccion.has(i)?'checked':''} onchange="toggleFilaCaptura(${i},this)"></td>
     <td style="white-space:nowrap">
       <b style="font-size:12px">ECO ${esc(u.eco)}</b>
       ${reincCount(u.lbox)>=5?'<span class="tag-reinc">reinc. ×'+reincCount(u.lbox)+'</span>':reincCount(u.lbox)>0?'<span class="tag-reinc" style="background:#f39c12">×'+reincCount(u.lbox)+'</span>':''}
@@ -27414,7 +27658,7 @@ function renderCaptura(){
     <td>${sel('rlink',i,u.rlink||'—',SIA)}</td>
     <td>${sel('recupero',i,u.recupero||'—',SN)}</td>
     <td>${sel('voltaje',i,u.voltaje||'—',SV)}</td>
-    <td>${atribBadge(u.pos,u.recupero)}</td>
+    <td>${atribBadge(u)}</td>
     <td>${inp('causa',i,u.causa,'causa')}</td>
     <td>${inp('comentario',i,u.comentario,'comentario')}</td>
     <td>${inp('nota',i,u.nota,'nota interna')}</td>
@@ -27436,7 +27680,7 @@ function renderUnidades(data){
     <td class="${dClass(u.dias)}">${esc(u.dias)}</td>
     <td>${badge(u.pos)}</td><td>${badge(u.desv)}</td><td>${badge(u.rlbox)}</td><td>${badge(u.rlink)}</td>
     <td>${badge(u.recupero)}</td><td>${badge(u.voltaje)}</td>
-    <td>${atribBadge(u.pos,u.recupero)}</td>
+    <td>${atribBadge(u)}</td>
     <td style="font-size:11px;max-width:90px;overflow:hidden;text-overflow:ellipsis;white-space:nowrap">${esc(u.causa||'—')}</td>
     <td style="font-size:11px;max-width:100px;overflow:hidden;text-overflow:ellipsis;white-space:nowrap">${esc(u.comentario||'—')}</td>
     <td>${inp('nota',i,u.nota,'nota interna')}</td>
@@ -27631,20 +27875,93 @@ function serieExitoPorCiclo(maxCiclos = 6){
     .map(f => ({ ...f, pct: f.total ? Math.round((f.rec/f.total)*100) : 0 }));
 }
 
+/* ── ÁRBOL DE CLASIFICACIÓN DE UNIDADES ────────────────────────────────────
+   Fuente única de verdad. Antes la misma pregunta se respondía distinto en
+   tres lugares (reporte, atribuciones y tablas), y una unidad que NO posiciona
+   pero tiene voltaje se contaba como "Posible inhibición" — cuando inhibición
+   requiere que el LINK SÍ posicione.
+
+   El árbol:
+     ¿LINK posiciona?
+       NO ──> ¿Teltonika tiene voltaje?
+                NO  -> validar        (requiere validar funcionamiento)
+                SI  -> link_no_resp   (LINK no responde -> reset remoto)
+                ''  -> sin_dato
+       SI ──> ¿LBOX se recuperó?
+                SI  -> recuperada
+                NO  -> ¿Teltonika tiene voltaje?
+                         SI  -> inhibicion  (posible inhibición)
+                         NO  -> validar
+                         ''  -> sin_dato                                     */
+function clasificarUnidad(u){
+  const pos  = String(u.pos||'').toUpperCase();
+  const rec  = String(u.recupero||'').toUpperCase();
+  const volt = String(u.voltaje||'').toUpperCase();
+
+  if(pos !== 'SI' && pos !== 'NO') return 'sin_dato';
+
+  if(pos === 'NO'){
+    if(volt === 'NO') return 'validar';
+    if(volt === 'SI') return 'link_no_resp';
+    return 'sin_dato';              // sin voltaje capturado: no se concluye
+  }
+
+  // pos === 'SI' (el LINK sí posiciona)
+  if(rec === 'SI') return 'recuperada';
+  if(volt === 'SI') return 'inhibicion';   // posiciona, no recuperó, con voltaje
+  if(volt === 'NO') return 'validar';
+  return 'sin_dato';
+}
+
+/* Etiquetas y acciones de cada categoría, para reutilizarlas en toda la app. */
+const CLASIF = {
+  recuperada:   { etq:'Recuperada',               accion:'Sin acción requerida' },
+  inhibicion:   { etq:'Posible Inhibición',       accion:'Escalar a revisión física' },
+  link_no_resp: { etq:'LINK no responde',         accion:'Se mantiene bajo monitoreo' },
+  validar:      { etq:'Validar funcionamiento',   accion:'Unidad requiere validar funcionamiento' },
+  sin_dato:     { etq:'Sin diagnóstico completo', accion:'Completar diagnóstico' },
+};
+
+/* Cuenta en cuántos CICLOS distintos (folios) una unidad quedó en cierta
+   categoría. Necesario para la regla de escalamiento: una unidad sin red en un
+   ciclo se deja en monitoreo, pero si repite el patrón ya no es un problema
+   pasajero de cobertura y amerita revisión. */
+function ciclosEnCategoria(lbox, cat){
+  if(!lbox) return 0;
+  const folios = new Set();
+  hist.forEach(h => {
+    if(h.lbox !== lbox) return;
+    if(clasificarUnidad(h) === cat) folios.add(String(h.folio||h.fecha||''));
+  });
+  return folios.size;
+}
+
 /* Acción recomendada por unidad, derivada del diagnóstico ya capturado.
    Evita que el cliente tenga que interpretar la clasificación por su cuenta. */
 function accionRecomendada(u, esReinc){
-  const rec  = String(u.recupero||'').toUpperCase();
-  const volt = String(u.voltaje||'').toUpperCase();
-  const pos  = String(u.pos||'').toUpperCase();
+  // Los reincidentes tienen prioridad: cambiar el equipo resuelve más que
+  // repetir la misma acción que ya falló varias veces.
+  if(esReinc && String(u.recupero||'').toUpperCase() !== 'SI'){
+    return 'Evaluar reemplazo del equipo';
+  }
 
-  if(rec === 'SI') return 'Sin acción — monitoreo normal';
-  if(esReinc)      return 'Evaluar reemplazo del equipo';
-  if(volt === 'NO')return 'Revisión física: arnés y alimentación';
-  if(pos === 'NO' && volt === 'SI') return 'Reset remoto del dispositivo';
-  if(pos === 'SI' && rec !== 'SI')  return 'Verificar posible inhibición';
-  return 'Diagnóstico en sitio';
+  const cat = clasificarUnidad(u);
+
+  // Falta de red repetida: un ciclo sin cobertura es normal, pero si el mismo
+  // equipo lo repite ya no es circunstancial y hay que revisarlo. Se cuentan
+  // los ciclos ANTERIORES del historial más el actual.
+  if(cat === 'link_no_resp'){
+    const ciclosPrevios = ciclosEnCategoria(u.lbox, 'link_no_resp');
+    if(ciclosPrevios >= CONFIG.CICLOS_SIN_RED_PARA_REVISION - 1){
+      return 'Requiere revisión — ' + (ciclosPrevios + 1) + ' ciclos sin red';
+    }
+    return 'Se mantiene bajo monitoreo';
+  }
+
+  return (CLASIF[cat] || CLASIF.sin_dato).accion;
 }
+
+
 
 /* Dibuja la tendencia de % de éxito en un canvas fuera de pantalla y la
    devuelve como PNG (Uint8Array) para incrustarla en el documento Word. */
@@ -27878,13 +28195,21 @@ async function generarReporte(){
     // exactamente una tabla. Antes, las unidades sin voltaje capturado (''), o las
     // marcadas con pos='SI' por la validación Webfleet pero no recuperadas,
     // no entraban en ninguna tabla y DESAPARECÍAN del reporte.
-    const recuperadas        = units.filter(u => u.recupero==='SI');
-    const noRecuperadas      = units.filter(u => u.recupero!=='SI');
-    const sinVoltaje         = noRecuperadas.filter(u => u.voltaje==='NO');
-    const sinLinkConVoltaje  = noRecuperadas.filter(u => u.voltaje!=='NO');  // voltaje SI o sin capturar
+    // Clasificación por el árbol central (clasificarUnidad), para que las
+    // tablas del reporte digan lo mismo que el resto del sistema. Antes la
+    // Tabla 2 se llamaba "Sin LINK con voltaje" pero incluía unidades que SÍ
+    // posicionaban, porque solo se miraba el voltaje.
+    const recuperadas = units.filter(u => u.recupero==='SI');
+    const porCat = (cat) => units.filter(u => u.recupero!=='SI' && clasificarUnidad(u) === cat);
+
+    const sinLinkConVoltaje  = porCat('link_no_resp');  // no posiciona, con voltaje → reset remoto
+    const posibleInhibicion  = porCat('inhibicion');    // posiciona, no recuperó, con voltaje
+    const sinVoltaje         = porCat('validar');       // sin voltaje → validar funcionamiento
+    const sinDiagnostico     = porCat('sin_dato');      // diagnóstico incompleto
 
     // Red de seguridad: ninguna unidad debe quedar fuera del reporte.
-    const clasificadas = recuperadas.length + sinVoltaje.length + sinLinkConVoltaje.length;
+    const clasificadas = recuperadas.length + sinVoltaje.length + sinLinkConVoltaje.length +
+                         posibleInhibicion.length + sinDiagnostico.length;
     if (clasificadas !== units.length) {
       console.warn('Reporte: ' + (units.length - clasificadas) + ' unidad(es) sin clasificar.');
     }
@@ -27930,8 +28255,12 @@ async function generarReporte(){
       partes.push(sinLinkConVoltaje.length + ' unidad(es) cuentan con alimentación eléctrica pero no ' +
         'reportan posicionamiento, por lo que son candidatas a intervención remota.');
     }
+    if (posibleInhibicion.length) {
+      partes.push(posibleInhibicion.length + ' unidad(es) posicionan y cuentan con voltaje pero no recuperaron, ' +
+        'escenario compatible con inhibición de señal.');
+    }
     if (sinVoltaje.length) {
-      partes.push(sinVoltaje.length + ' unidad(es) no registran voltaje y requieren revisión física en sitio.');
+      partes.push(sinVoltaje.length + ' unidad(es) no registran voltaje y requieren validar funcionamiento en sitio.');
     }
     if (reincidentes.length) {
       partes.push(reincidentes.length + ' unidad(es) presentan fallas recurrentes y se recomienda evaluar su reemplazo.');
@@ -27947,12 +28276,21 @@ async function generarReporte(){
     const observaciones = [];
     if (sinLinkConVoltaje.length) {
       observaciones.push(sinLinkConVoltaje.length + ' unidad(es) de la Tabla 2 cuentan con voltaje pero sin ' +
-        'posicionamiento: se recomienda programar reset remoto durante la semana en curso, priorizando ' +
-        'las de mayor número de días sin reporte.');
+        'posicionamiento LINK, lo que corresponde a falta de cobertura: se mantienen bajo monitoreo. ' +
+        'Las que repitan la condición en dos ciclos consecutivos se escalan a revisión física.');
+    }
+    if (posibleInhibicion.length) {
+      observaciones.push(posibleInhibicion.length + ' unidad(es) de la Tabla 3 presentan posible inhibición: ' +
+        'el LINK posiciona y hay voltaje, pero el LBOX no recuperó. Al descartarse energía y cobertura, ' +
+        'se escalan a revisión física.');
     }
     if (sinVoltaje.length) {
-      observaciones.push(sinVoltaje.length + ' unidad(es) de la Tabla 3 no registran voltaje y requieren ' +
-        'visita física. Se sugiere coordinar con el área de mantenimiento de flota para revisar arnés y alimentación.');
+      observaciones.push(sinVoltaje.length + ' unidad(es) de la Tabla 4 requieren validar funcionamiento por ' +
+        'falta de voltaje. Se sugiere coordinar con el área de mantenimiento de flota para revisar arnés y alimentación.');
+    }
+    if (sinDiagnostico.length) {
+      observaciones.push(sinDiagnostico.length + ' unidad(es) de la Tabla 5 quedaron con diagnóstico incompleto ' +
+        'y conviene completar su verificación antes del siguiente ciclo.');
     }
     if (reincidentes.length) {
       observaciones.push(reincidentes.length + ' unidad(es) han presentado fallas repetidas en ciclos anteriores. ' +
@@ -28146,19 +28484,44 @@ async function generarReporte(){
           new Paragraph({ children:[new PageBreak()] }),
           ...seccionTabla(2, AMBER,
             'Unidades sin comunicación LINK con voltaje presente',
-            'Las siguientes '+sinLinkConVoltaje.length+' unidades no reportan posicionamiento LINK; sin embargo, el voltaje de alimentación Teltonika es correcto. Este escenario sugiere una posible falla de comunicación, configuración o firmware que puede abordarse mediante intervención remota o revisión en sitio sin necesidad de revisión eléctrica.',
+            'Las siguientes '+sinLinkConVoltaje.length+' unidades no reportan posicionamiento LINK; sin embargo, el voltaje de alimentación Teltonika es correcto. Al estar descartada la falta de energía, el escenario corresponde a ausencia de cobertura, por lo que las unidades se mantienen bajo monitoreo. Si la condición se repite en dos ciclos consecutivos, se escala a revisión física.',
             sinLinkConVoltaje,
             'No se registraron unidades en esta categoría.'
           ),
 
-          // ── TABLA 3: SIN VOLTAJE ───────────────────────
+          // ── TABLA 3: POSIBLE INHIBICIÓN ────────────────
+          // Categoría nueva: el LINK SÍ posiciona y hay voltaje, pero el LBOX
+          // no recuperó. Antes estas unidades se mezclaban en la Tabla 2, que
+          // las describía como "sin comunicación LINK" — justo lo contrario.
           new Paragraph({ children:[new PageBreak()] }),
           ...seccionTabla(3, RED,
-            'Unidades sin voltaje de alimentación Teltonika',
+            'Unidades con posible inhibición',
+            'Las siguientes '+posibleInhibicion.length+' unidades cuentan con voltaje de alimentación y el LINK sí reporta posicionamiento; sin embargo, el LBOX no recuperó comunicación. Al descartarse tanto la falta de energía como la de cobertura, este escenario es compatible con una inhibición de señal y se escala a revisión física.',
+            posibleInhibicion,
+            'No se registraron unidades en esta categoría.'
+          ),
+
+          // ── TABLA 4: VALIDAR FUNCIONAMIENTO ────────────
+          new Paragraph({ children:[new PageBreak()] }),
+          ...seccionTabla(4, RED,
+            'Unidades que requieren validar funcionamiento',
             'Las siguientes '+sinVoltaje.length+' unidades no registran voltaje en el dispositivo Teltonika asociado. Esta condición impide la operación del LBOX y requiere revisión física prioritaria en campo para determinar si se trata de una falla eléctrica del vehículo, del arnés de conexión o del propio dispositivo.',
             sinVoltaje,
             'No se registraron unidades en esta categoría.'
           ),
+
+          // ── TABLA 5: DIAGNÓSTICO INCOMPLETO ───────────
+          // Solo aparece si hay unidades sin diagnosticar: así ninguna queda
+          // fuera del reporte sin que se note.
+          ...(sinDiagnostico.length ? [
+            new Paragraph({ children:[new PageBreak()] }),
+            ...seccionTabla(5, MID,
+              'Unidades con diagnóstico incompleto',
+              'Las siguientes '+sinDiagnostico.length+' unidades no cuentan con la información suficiente (posicionamiento o voltaje) para determinar una causa. Se recomienda completar su verificación antes del siguiente ciclo.',
+              sinDiagnostico,
+              ''
+            )
+          ] : []),
 
           // ── REINCIDENTES ───────────────────────────────
           hr(BLUE_M),
@@ -28456,16 +28819,14 @@ document.addEventListener('visibilitychange', () => {
 
     <div style="display:flex;justify-content:space-between;align-items:flex-start;margin-bottom:6px">
       <div>
-        <div style="font-size:18px;font-weight:700;color:var(--navy);font-family:'Barlow Semi Condensed',sans-serif">🔋 Voltaje automático · Navixy</div>
+        <div style="font-size:18px;font-weight:700;color:var(--navy);font-family:'Barlow Semi Condensed',sans-serif">🛰️ Diagnóstico de posicionamiento · Navixy</div>
         <div style="font-size:12px;color:var(--muted);margin-top:2px"><span id="nx-count-base">0</span> unidades del reporte</div>
       </div>
       <span onclick="cerrarModalNavixy()" style="cursor:pointer;font-size:20px;color:var(--muted)">✕</span>
     </div>
 
     <div style="background:var(--lime-l);border-radius:8px;padding:10px 14px;font-size:11px;color:var(--lime-d);margin:12px 0;font-weight:500">
-      Lee el voltaje de alimentación del Teltonika (board_voltage) y marca el campo Voltaje en automático.
-      El cruce se hace por el nombre del equipo en Navixy, que debe contener el número económico.
-    </div>
+      Detecta cuales unidades estan posicionando y, cuando no lo hacen, distingue si es por falta de RED (el equipo guarda posiciones en su memoria y las descarga al reconectar) o por falta de VOLTAJE. El cruce se hace por el nombre del equipo en Navixy, que debe contener el numero economico.</div>
 
     <form onsubmit="return false" autocomplete="off" style="display:grid;grid-template-columns:2fr 1fr;gap:10px;margin-bottom:14px">
       <div>
@@ -28482,21 +28843,21 @@ document.addEventListener('visibilitychange', () => {
       </div>
     </form>
 
-    <button class="btn primary" id="btn-nx-consultar" onclick="consultarVoltajesNavixy()" style="width:100%;margin-bottom:16px">🔋 Consultar voltajes</button>
+    <button class="btn primary" id="btn-nx-consultar" onclick="consultarVoltajesNavixy()" style="width:100%;margin-bottom:16px">🛰️ Consultar posición y diagnóstico</button>
 
     <div id="nx-resultados" style="display:none">
       <div class="scroll-x" style="max-height:340px;overflow-y:auto;border:1px solid var(--line);border-radius:8px">
         <table class="tbl" style="font-size:11px;min-width:620px">
           <thead style="position:sticky;top:0;z-index:1010"><tr>
             <th style="width:30px"><input type="checkbox" onchange="document.querySelectorAll('.nx-chk').forEach(c=>c.checked=this.checked)"></th>
-            <th>#ECO</th><th>LBOX</th><th>Nombre en Navixy</th><th>Voltaje</th><th>Estado</th><th>Fuente del dato</th>
+            <th>#ECO</th><th>LBOX</th><th>Sin posicion</th><th>Posiciona</th><th>Diagnostico</th><th>Evidencia</th>
           </tr></thead>
           <tbody id="nx-tbody"></tbody>
         </table>
       </div>
       <div style="display:flex;justify-content:flex-end;gap:8px;margin-top:14px">
         <button class="btn" onclick="document.querySelectorAll('.nx-chk').forEach(c=>c.checked=true)">Seleccionar todos</button>
-        <button class="btn primary" onclick="aplicarVoltajesNavixy()">✅ Aplicar voltaje al reporte</button>
+        <button class="btn primary" onclick="aplicarVoltajesNavixy()">✅ Aplicar diagnóstico al reporte</button>
       </div>
     </div>
 
