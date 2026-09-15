@@ -23860,10 +23860,11 @@ body.con-panel .content{padding-right:336px}
       <div class="card" style="margin-bottom:16px">
         <div class="card-title">📡 Qué muestra esta pantalla</div>
         <div style="font-size:12px;color:var(--muted);line-height:1.6">
-          Analiza la reincidencia por <b>dispositivo LINK</b> (la serie del Teltonika), no por vehículo.
+          Analiza la reincidencia por <b>dispositivo LINK</b> , no por vehículo.
           Solo considera los registros donde la unidad <b>NO estaba posicionando</b>, que es cuando el LINK
           es el sospechoso. Si un mismo LINK pierde comunicación en varios ciclos, el problema es del
-          aparato y no del vehículo — y eso justifica su reemplazo en vez de seguir revisando instalaciones.
+          aparato y no del vehículo — y eso justifica su reemplazo en vez de seguir revisando instalaciones
+           de momento se encuentra en pruebas..
         </div>
       </div>
 
@@ -24763,7 +24764,7 @@ async function confirmarLimpiar() {
 
   try {
     // ── PASO 1: guardar en HISTORIAL ─────────────────────────────────────
-    // CRÍTICO: esto va SECUENCIAL, nunca en paralelo con clearUnits. Antes se
+    // CRÍTICO:va SECUENCIAL, nunca en paralelo con clearUnits. Antes se
     // usaba Promise.all, así que si addHist fallaba pero clearUnits tenía
     // éxito, el reporte se borraba SIN haberse guardado nunca en el historial
     // = pérdida permanente de datos. Ahora solo se borra tras confirmar.
