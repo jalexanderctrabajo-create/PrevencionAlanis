@@ -23496,6 +23496,7 @@ body.con-panel .content{padding-right:336px}
   <div class="nav-item" onclick="showPage('historial')" id="nav-historial"><span class="ico">🕓</span> Historial</div>
   <div class="nav-item" onclick="showPage('mensual')" id="nav-mensual"><span class="ico">📅</span> Mensual</div>
   <div class="nav-item" onclick="showPage('informes')" id="nav-informes"><span class="ico">📑</span> Informes</div>
+  <div class="nav-item" onclick="showPage('link')" id="nav-link"><span class="ico">📡</span> Reincidencia LINK</div>
   <div class="user-info">
     <div class="user-name">Alexander Cedillo</div>
     <div class="user-role">KAM Asistencia</div>
@@ -23853,6 +23854,86 @@ body.con-panel .content{padding-right:336px}
 
     </div>
 
+    <!-- ══ REINCIDENCIA DE DISPOSITIVOS LINK ═════════════════════════ -->
+    <div class="page" id="page-link">
+
+      <div class="card" style="margin-bottom:16px">
+        <div class="card-title">📡 Qué muestra esta pantalla</div>
+        <div style="font-size:12px;color:var(--muted);line-height:1.6">
+          Analiza la reincidencia por <b>dispositivo LINK</b> (la serie del Teltonika), no por vehículo.
+          Solo considera los registros donde la unidad <b>NO estaba posicionando</b>, que es cuando el LINK
+          es el sospechoso. Si un mismo LINK pierde comunicación en varios ciclos, el problema es del
+          aparato y no del vehículo — y eso justifica su reemplazo en vez de seguir revisando instalaciones.
+        </div>
+      </div>
+
+      <div class="card" style="margin-bottom:16px">
+        <div class="card-title">🔎 Filtros</div>
+        <div style="display:flex;gap:12px;flex-wrap:wrap;align-items:flex-end">
+          <div>
+            <label style="font-size:10px;color:var(--muted);text-transform:uppercase;font-weight:600;display:block;margin-bottom:4px">Mínimo de pérdidas</label>
+            <select id="lk-min" onchange="renderLink()" style="padding:7px 10px;border:1px solid var(--line);border-radius:7px;font-size:12px">
+              <option value="1">1 o más</option>
+              <option value="2" selected>2 o más</option>
+              <option value="3">3 o más</option>
+              <option value="5">5 o más</option>
+            </select>
+          </div>
+          <div>
+            <label style="font-size:10px;color:var(--muted);text-transform:uppercase;font-weight:600;display:block;margin-bottom:4px">Periodo</label>
+            <select id="lk-periodo" onchange="renderLink()" style="padding:7px 10px;border:1px solid var(--line);border-radius:7px;font-size:12px">
+              <option value="0">Todo el historial</option>
+              <option value="90">Últimos 90 días</option>
+              <option value="180">Últimos 180 días</option>
+              <option value="365">Último año</option>
+            </select>
+          </div>
+          <div>
+            <label style="font-size:10px;color:var(--muted);text-transform:uppercase;font-weight:600;display:block;margin-bottom:4px">Buscar</label>
+            <input type="text" id="lk-buscar" oninput="renderLink()" placeholder="serie LINK o ECO…"
+                   style="padding:7px 10px;border:1px solid var(--line);border-radius:7px;font-size:12px;min-width:180px">
+          </div>
+          <div style="margin-left:auto;display:flex;gap:8px">
+            <button class="btn" onclick="exportarLinkExcel()">📊 Excel</button>
+            <button class="btn primary" id="btn-lk-pdf" onclick="exportarLinkPDF()">📄 PDF</button>
+          </div>
+        </div>
+        <div id="lk-resumen-label" style="font-size:11px;color:var(--muted);margin-top:10px"></div>
+      </div>
+
+      <!-- Indicadores -->
+      <div class="kpi-grid" id="lk-kpis"></div>
+
+      <!-- Tabla principal -->
+      <div class="card" style="margin-bottom:16px">
+        <div class="card-title">📡 Dispositivos LINK con pérdidas recurrentes</div>
+        <div style="font-size:11px;color:var(--muted);margin-bottom:12px">
+          Ordenado por número de pérdidas. Haz clic en una fila para ver cada evento con su fecha, folio y diagnóstico.
+        </div>
+        <div class="scroll-x">
+          <table class="tbl" style="min-width:840px">
+            <thead><tr>
+              <th>#</th><th>Serie LINK</th><th>Modelo</th><th>Pérdidas</th><th>Recientes</th>
+              <th>Vehículos</th><th>Causa dominante</th><th>Periodo</th><th>Veredicto</th>
+            </tr></thead>
+            <tbody id="lk-tbody"></tbody>
+          </table>
+        </div>
+      </div>
+
+      <!-- Unidades sin serie registrada -->
+      <div class="card" id="lk-card-sinserie" style="margin-bottom:16px;display:none">
+        <div class="card-title">⚠️ Registros sin serie de LINK</div>
+        <div style="font-size:11px;color:var(--muted);margin-bottom:10px">
+          Estos registros no posicionaban pero no tienen la serie del LINK guardada, así que quedan fuera
+          del análisis. La serie se captura al ejecutar el diagnóstico de Navixy.
+        </div>
+        <div id="lk-sinserie" style="font-size:12px"></div>
+      </div>
+
+    </div>
+
+
   </div>
 </div>
   
@@ -23887,7 +23968,9 @@ const CONFIG = {
 
   // Cliente y contacto
   CLIENTE: 'Grupo Alanis',
-  CONTACTO_INROUTE: 'Consultor07@inroute.com.mx',
+  // Los correos NO se escriben aquí: este archivo es público en GitHub. El
+  // backend los entrega con la acción getDestino (ver cargarDestinatarios).
+  CONTACTO_INROUTE: '',
   RESPONSABLE: 'Alexander Cedillo',
 
   // Reglas de negocio
@@ -24645,7 +24728,7 @@ async function cerrarYEnviar() {
   document.getElementById('modal-folio-numero').textContent = nextFolio;
   document.getElementById('modal-folio-fecha').textContent  = fecha;
   document.getElementById('modal-folio-count').textContent  = units.length;
-  document.getElementById('modal-envio-destino').textContent = 'msegura@alanis.com.mx';
+  document.getElementById('modal-envio-destino').textContent = CONFIG.EMAIL_DESTINO || 'destinatario configurado en el servidor';
   document.getElementById('modal-envio-section').style.display = 'block';
   abrirModal('modal-folio');
   // Marcar que al confirmar también se envía
@@ -24723,7 +24806,7 @@ async function confirmarLimpiar() {
           units:  unitsEncoded
         });
         if (res.ok) {
-          notify(`✅ Reporte ${folio} enviado a msegura@alanis.com.mx`, 'ok');
+          notify(`✅ Reporte ${folio} enviado a ${CONFIG.EMAIL_DESTINO || 'el cliente'}`, 'ok');
         } else {
           notify('Error al enviar correo: ' + (res.error || 'desconocido'), 'err');
         }
@@ -25516,6 +25599,18 @@ function exportarMensualExcel(){
 let _sincronizando = false;
 let _histMetaLocal = { total: -1, ultimoFolio: '' };
 
+/* Los correos del cliente y del consultor viven en el Apps Script, no en este
+   archivo, porque el HTML se publica en GitHub. Se piden al arrancar. */
+async function cargarDestinatarios(){
+  try {
+    const r = await jsonp({ action:'getDestino' });
+    if (r && r.ok) {
+      CONFIG.EMAIL_DESTINO   = r.destino  || '';
+      CONFIG.CONTACTO_INROUTE = r.contacto || '';
+    }
+  } catch(e) { /* sin esto el reporte se genera igual, solo sin mostrar el correo */ }
+}
+
 async function syncAll(opciones){
   const op = opciones || {};
   if (_sincronizando) { console.log('Sincronización en curso, se omite esta llamada.'); return; }
@@ -25581,6 +25676,7 @@ async function syncAll(opciones){
     // o un cierre de ciclo a medias.
     if (!window.__revisadoRespaldos) {
       window.__revisadoRespaldos = true;
+      cargarDestinatarios();
       revisarAutoguardado();
       if (hayRespaldoCierre()) mostrarBannerRespaldo();
     }
@@ -25620,6 +25716,7 @@ function renderAll(){
   // sincronización, la pantalla se quedaba vacía para siempre porque nada
   // la volvía a dibujar con el historial ya cargado.
   renderInformes();
+  renderLink();
 }
 
 let _resizeTMensual;
@@ -25891,6 +25988,7 @@ async function consultarPosicionesWebfleet() {
       if (!p || !p.pos_time) {
         return { 
           eco: u.eco, lbox: u.lbox || '', objectname: '', pos_time: '', 
+          serieLink: p ? (p.serie_link || '') : '',
           minutos: null, standstill: '', ignition: '', speed: '', estado: 'sin_dato',
           posiciona: 'NO'
         };
@@ -25939,6 +26037,8 @@ async function consultarPosicionesWebfleet() {
         minutos: minutos, 
         estado: estado,
         posiciona: posiciona,
+        // Serie del dispositivo LINK: base del análisis de reincidencia por aparato
+        serieLink: p.serie_link || '',
         standstill: p.standstill, 
         ignition: p.ignition, 
         speed: p.speed
@@ -25976,6 +26076,17 @@ async function consultarPosicionesWebfleet() {
 
     // Si NINGUNA unidad cruzó contra Webfleet, el resultado sería "todas NO" pero
     // por falta de datos, no porque realmente no posicionen. Hay que avisarlo.
+    // Si Webfleet responde pero ningún registro trae la serie del LINK, la
+    // pantalla de reincidencia quedará vacía. Conviene avisarlo con los campos
+    // reales para poder ajustar la detección.
+    if (res.diag && res.diag.totalObjetos > 0 && res.diag.conSerieLink === 0) {
+      notify('ℹ️ Webfleet no devolvió la serie del LINK en ningún registro, así que la pantalla ' +
+        'de Reincidencia LINK quedará vacía. Campos recibidos: [' +
+        (res.diag.camposDisponibles || []).join(', ') + ']', 'err', 16000);
+      console.warn('Webfleet — campos disponibles:', res.diag.camposDisponibles);
+      console.warn('Webfleet — registro de ejemplo:', res.diag.ejemploRegistro);
+    }
+
     if (sinCruce > 0) {
       const ejemploApp = wfUnidadesBase.slice(0,3).map(u=>u.eco).join(', ');
       const ejemploWf  = (res.posiciones||[]).slice(0,3).map(p=>p.objectno).join(', ');
@@ -26023,6 +26134,10 @@ function ejecutarProtocoloSeguridad() {
   seleccionadas.forEach(p => {
     const u = wfUnidadesBase.find(x => claveEco(x.eco) === claveEco(p.eco));
     if (!u) return;
+
+    // Serie del LINK: se guarda siempre que Webfleet la devuelva, para poder
+    // analizar la reincidencia por dispositivo en la pantalla correspondiente.
+    if (p.serieLink) u.serieLink = p.serieLink;
 
     // Marca automática Posic. LINK: <2 min = SI, 2+ min o sin dato = NO
     u.pos = p.posiciona || 'NO';
@@ -26322,9 +26437,10 @@ function showPage(p){
     // para no quedar tapado. Sin esta clase, las tablas anchas se metían debajo.
     document.body.classList.toggle('con-panel', mostrar);
   }
-  const titles={dashboard:'Dashboard',captura:'Captura de unidades',unidades:'Unidades del reporte',historial:'Historial de reportes',mensual:'Dashboards mensuales',informes:'Informes por reporte'};
+  const titles={dashboard:'Dashboard',captura:'Captura de unidades',unidades:'Unidades del reporte',historial:'Historial de reportes',mensual:'Dashboards mensuales',informes:'Informes por reporte',link:'Reincidencia de dispositivos LINK'};
   if(p==='mensual') renderMensual();
   if(p==='informes') renderInformes();
+  if(p==='link') renderLink();
   document.getElementById('page-title').textContent = titles[p]||p;
 }
 
@@ -26394,6 +26510,436 @@ function inp(field, i, val, ph) {
 }
 
 function escHtml(s){ return String(s).replace(/&/g,'&amp;').replace(/"/g,'&quot;'); }
+
+/* ▓▓ REINCIDENCIA DE DISPOSITIVOS LINK ▓▓ ──────────────────────────────────
+   Agrupa por SERIE DEL LINK (el Teltonika), no por vehículo ni por LBOX. La
+   diferencia importa: si el mismo aparato pierde comunicación en varios ciclos
+   y encima en vehículos distintos, el problema es del dispositivo. Si siempre
+   es el mismo vehículo, apunta a la instalación.
+
+   Solo entran los registros donde la unidad NO estaba posicionando — es el
+   único escenario donde el LINK es sospechoso. Incluir los que sí posicionaban
+   diluiría el conteo y volvería inútil el análisis. */
+
+let lkExpandido = null;
+
+function agruparPorLink(){
+  const minDias = parseInt(document.getElementById('lk-periodo')?.value || '0');
+  const corte = minDias > 0 ? Date.now() - (minDias * 86400000) : null;
+
+  const porLink = {};
+  const sinSerie = [];
+
+  [...hist, ...units].forEach(r => {
+    // Solo pérdidas de comunicación: pos === 'NO'
+    if(String(r.pos||'').toUpperCase() !== 'NO') return;
+
+    const f = normFecha(r.fecha || r.fechaEjec);
+    if(corte && f){
+      const t = new Date(f).getTime();
+      if(!isNaN(t) && t < corte) return;
+    }
+
+    const serie = String(r.serieLink || '').trim();
+    if(!serie){
+      sinSerie.push({ eco:r.eco, lbox:r.lbox, fecha:f, folio:r.folio || '(ciclo actual)' });
+      return;
+    }
+
+    if(!porLink[serie]){
+      porLink[serie] = { serie, modelo:r.modeloLink || '', perdidas:0, ecos:new Set(),
+                         causas:{}, eventos:[], primera:'', ultima:'' };
+    }
+    const L = porLink[serie];
+    L.perdidas++;
+    if(r.eco) L.ecos.add(String(r.eco));
+    if(r.modeloLink && !L.modelo) L.modelo = r.modeloLink;
+
+    const cat = clasificarUnidad(r);
+    L.causas[cat] = (L.causas[cat]||0) + 1;
+
+    L.eventos.push({ fecha:f, folio:r.folio || '(ciclo actual)', eco:r.eco,
+                     lbox:r.lbox, cat, voltaje:r.voltaje || '', causa:r.causa || '' });
+
+    if(f){
+      if(!L.primera || f < L.primera) L.primera = f;
+      if(!L.ultima  || f > L.ultima)  L.ultima  = f;
+    }
+  });
+
+  // Métricas derivadas
+  Object.values(porLink).forEach(L => {
+    L.eventos.sort((a,b) => (b.fecha||'').localeCompare(a.fecha||''));
+    L.numEcos = L.ecos.size;
+    // Pérdidas dentro de la ventana de degradación activa
+    const corteRec = Date.now() - (CONFIG.VENTANA_REINCIDENCIA_DIAS * 86400000);
+    L.recientes = L.eventos.filter(e => {
+      const t = e.fecha ? new Date(e.fecha).getTime() : NaN;
+      return !isNaN(t) && t >= corteRec;
+    }).length;
+    L.causaTop = Object.keys(L.causas).sort((a,b)=>L.causas[b]-L.causas[a])[0] || 'sin_dato';
+
+    /* Veredicto: la conclusión accionable. Un LINK que falla en VARIOS
+       vehículos señala al aparato; en uno solo, a la instalación de ese
+       vehículo. Sin suficientes eventos, no se concluye. */
+    if(L.perdidas < 2){
+      L.veredicto = 'monitoreo';
+    } else if(L.numEcos >= 2){
+      L.veredicto = 'reemplazo';       // falló en distintos vehículos
+    } else if(L.recientes >= CONFIG.UMBRAL_REINCIDENTE_RECIENTE){
+      L.veredicto = 'reemplazo';       // degradación activa en el mismo vehículo
+    } else {
+      L.veredicto = 'instalacion';     // recurrente pero en un solo vehículo
+    }
+  });
+
+  return { porLink, sinSerie };
+}
+
+const LK_VEREDICTO = {
+  reemplazo:   ['Evaluar reemplazo del LINK', '#c0392b', '#FADBD8'],
+  instalacion: ['Revisar instalación del vehículo', '#b35900', '#FDEBD0'],
+  monitoreo:   ['Mantener en monitoreo', '#5D6D7E', '#EDF1F3'],
+};
+
+function renderLink(){
+  if(!document.getElementById('page-link')) return;
+
+  const { porLink, sinSerie } = agruparPorLink();
+  const min = parseInt(document.getElementById('lk-min')?.value || '2');
+  const q = (document.getElementById('lk-buscar')?.value || '').trim().toLowerCase();
+
+  let lista = Object.values(porLink).filter(L => L.perdidas >= min);
+  if(q){
+    lista = lista.filter(L =>
+      L.serie.toLowerCase().includes(q) ||
+      Array.from(L.ecos).some(e => String(e).toLowerCase().includes(q)));
+  }
+  lista.sort((a,b) => b.perdidas - a.perdidas || b.numEcos - a.numEcos);
+
+  renderLkKpis(porLink, lista);
+  renderLkTabla(lista);
+  renderLkSinSerie(sinSerie);
+
+  const lbl = document.getElementById('lk-resumen-label');
+  if(lbl){
+    const totalEventos = Object.values(porLink).reduce((s,L)=>s+L.perdidas,0);
+    lbl.textContent = Object.keys(porLink).length + ' dispositivos LINK con pérdidas · ' +
+      totalEventos + ' eventos analizados · ' + lista.length + ' cumplen el filtro' +
+      (sinSerie.length ? ' · ' + sinSerie.length + ' registros sin serie' : '');
+  }
+}
+
+function renderLkKpis(porLink, lista){
+  const el = document.getElementById('lk-kpis');
+  if(!el) return;
+  const todos = Object.values(porLink);
+  const paraReemplazo = todos.filter(L => L.veredicto === 'reemplazo').length;
+  const paraInstalacion = todos.filter(L => L.veredicto === 'instalacion').length;
+  const multiEco = todos.filter(L => L.numEcos >= 2).length;
+  const eventos = todos.reduce((s,L)=>s+L.perdidas,0);
+
+  el.innerHTML =
+    '<div class="kpi"><div class="kpi-label">LINK con pérdidas</div><div class="kpi-val blue">'+todos.length+'</div></div>' +
+    '<div class="kpi"><div class="kpi-label">Eventos de pérdida</div><div class="kpi-val gray">'+eventos+'</div></div>' +
+    '<div class="kpi" title="Fallaron en 2 o más vehículos distintos, o presentan degradación activa">' +
+      '<div class="kpi-label">Evaluar reemplazo</div><div class="kpi-val red">'+paraReemplazo+'</div></div>' +
+    '<div class="kpi" title="Recurrentes pero siempre en el mismo vehículo">' +
+      '<div class="kpi-label">Revisar instalación</div><div class="kpi-val amber">'+paraInstalacion+'</div></div>' +
+    '<div class="kpi" title="El mismo LINK falló en vehículos distintos: señala al aparato">' +
+      '<div class="kpi-label">Fallan en varios vehículos</div><div class="kpi-val red">'+multiEco+'</div></div>';
+}
+
+function renderLkTabla(lista){
+  const tb = document.getElementById('lk-tbody');
+  if(!tb) return;
+  if(!lista.length){
+    tb.innerHTML = '<tr><td colspan="9" class="empty">Ningún dispositivo LINK cumple el filtro. ' +
+      'Si es la primera vez que usas esta pantalla, ejecuta el diagnóstico de Navixy para que se ' +
+      'registre la serie del LINK en las unidades.</td></tr>';
+    return;
+  }
+
+  const filas = [];
+  lista.forEach((L,i) => {
+    const v = LK_VEREDICTO[L.veredicto] || LK_VEREDICTO.monitoreo;
+    const etqCausa = (CLASIF[L.causaTop] || CLASIF.sin_dato).etq;
+    const cNum = L.perdidas >= 5 ? 'var(--red)' : L.perdidas >= 3 ? 'var(--amber)' : 'var(--muted)';
+
+    filas.push(
+      '<tr onclick="toggleLk(' + JSON.stringify(L.serie).replace(/"/g,'&quot;') + ')" ' +
+        'style="cursor:pointer;background:' + (i%2?'#f9f9f9':'#fff') + '" title="Clic para ver los eventos">' +
+        '<td style="color:var(--muted);font-weight:700">#' + (i+1) + '</td>' +
+        '<td style="font-family:monospace;font-size:11px"><b>' + esc(L.serie) + '</b></td>' +
+        '<td style="font-size:10px;color:var(--muted)">' + esc(L.modelo||'—') + '</td>' +
+        '<td style="text-align:center;font-weight:800;color:' + cNum + '">' + L.perdidas + '</td>' +
+        '<td style="text-align:center;font-size:11px;color:var(--muted)">' + L.recientes + '</td>' +
+        '<td style="text-align:center">' +
+          (L.numEcos >= 2
+            ? '<span class="tag-reinc" style="background:#c0392b" title="Falló en vehículos distintos">' + L.numEcos + ' vehículos</span>'
+            : '<span style="font-size:11px;color:var(--muted)">' + esc(Array.from(L.ecos)[0]||'—') + '</span>') + '</td>' +
+        '<td style="font-size:11px">' + esc(etqCausa) + '</td>' +
+        '<td style="font-size:10px;white-space:nowrap">' + esc(L.primera||'?') + ' → ' + esc(L.ultima||'?') + '</td>' +
+        '<td style="font-size:10px"><span style="background:' + v[2] + ';color:' + v[1] +
+          ';padding:3px 7px;border-radius:10px;font-weight:600">' + v[0] + '</span></td>' +
+      '</tr>'
+    );
+
+    if(lkExpandido === L.serie){
+      const ev = L.eventos.map(e => {
+        const cat = CLASIF[e.cat] || CLASIF.sin_dato;
+        return '<tr>' +
+          '<td style="font-size:11px;white-space:nowrap">' + esc(e.fecha||'—') + '</td>' +
+          '<td style="font-size:11px">' + esc(e.folio) + '</td>' +
+          '<td><b>ECO ' + esc(e.eco||'—') + '</b></td>' +
+          '<td style="font-size:10px">' + esc(e.lbox||'—') + '</td>' +
+          '<td style="font-size:11px">' + esc(cat.etq) + '</td>' +
+          '<td style="text-align:center">' + esc(e.voltaje||'—') + '</td>' +
+          '<td style="font-size:11px">' + esc(e.causa||'—') + '</td>' +
+        '</tr>';
+      }).join('');
+
+      const aviso = L.numEcos >= 2
+        ? '<div style="background:#FADBD8;border-left:4px solid #c0392b;padding:8px 12px;border-radius:6px;' +
+          'margin-bottom:12px;font-size:11px;color:#7B241C"><b>Este LINK falló en ' + L.numEcos +
+          ' vehículos distintos.</b> El patrón sigue al dispositivo, no al vehículo, así que el ' +
+          'reemplazo del equipo es la acción indicada.</div>'
+        : '<div style="background:#FDEBD0;border-left:4px solid #b35900;padding:8px 12px;border-radius:6px;' +
+          'margin-bottom:12px;font-size:11px;color:#7E3300"><b>Siempre en el mismo vehículo.</b> ' +
+          'Antes de cambiar el LINK conviene revisar la instalación, el arnés y la zona de operación ' +
+          'habitual de esa unidad.</div>';
+
+      filas.push(
+        '<tr><td colspan="9" style="background:#fbfcfd;padding:14px 16px">' + aviso +
+          '<div style="font-size:11px;font-weight:700;color:var(--navy);margin-bottom:6px">' +
+            'Eventos de pérdida (' + L.eventos.length + ')</div>' +
+          '<div class="scroll-x"><table class="tbl" style="min-width:680px">' +
+            '<thead><tr><th>Fecha</th><th>Folio</th><th>#ECO</th><th>LBOX</th>' +
+            '<th>Diagnóstico</th><th>Voltaje</th><th>Causa</th></tr></thead>' +
+            '<tbody>' + ev + '</tbody></table></div>' +
+        '</td></tr>'
+      );
+    }
+  });
+
+  tb.innerHTML = filas.join('');
+}
+
+/* ── Exportación del análisis de LINK ─────────────────────────────────── */
+function datosLinkExport(){
+  const { porLink, sinSerie } = agruparPorLink();
+  const min = parseInt(document.getElementById('lk-min')?.value || '2');
+  const per = document.getElementById('lk-periodo')?.value || '0';
+  const lista = Object.values(porLink).filter(L => L.perdidas >= min)
+    .sort((a,b) => b.perdidas - a.perdidas || b.numEcos - a.numEcos);
+  const alcance = per === '0' ? 'Historial completo' : 'Últimos ' + per + ' días';
+  return { lista, sinSerie, alcance, min };
+}
+
+function exportarLinkExcel(){
+  if(typeof XLSX === 'undefined'){ notify('La librería de Excel no está disponible', 'err'); return; }
+  const { lista, sinSerie, alcance, min } = datosLinkExport();
+  if(!lista.length){ notify('No hay dispositivos LINK para exportar', 'err'); return; }
+
+  const wb = XLSX.utils.book_new();
+
+  // Hoja 1: resumen por dispositivo
+  const resumen = lista.map((L,i) => ({
+    'Pos': i+1,
+    'Serie LINK': L.serie,
+    'Modelo': L.modelo,
+    'Perdidas de comunicacion': L.perdidas,
+    'Perdidas recientes (90d)': L.recientes,
+    'Vehiculos distintos': L.numEcos,
+    'Vehiculos': Array.from(L.ecos).join(', '),
+    'Causa dominante': (CLASIF[L.causaTop] || CLASIF.sin_dato).etq,
+    'Primera perdida': L.primera,
+    'Ultima perdida': L.ultima,
+    'Veredicto': (LK_VEREDICTO[L.veredicto] || LK_VEREDICTO.monitoreo)[0]
+  }));
+  const h1 = XLSX.utils.json_to_sheet(resumen);
+  h1['!cols'] = [{wch:5},{wch:20},{wch:18},{wch:24},{wch:22},{wch:18},{wch:26},{wch:22},{wch:16},{wch:16},{wch:30}];
+  h1['!freeze'] = { xSplit:0, ySplit:1 };
+  XLSX.utils.book_append_sheet(wb, h1, 'Resumen LINK');
+
+  // Hoja 2: cada evento de pérdida
+  const detalle = [];
+  lista.forEach((L,i) => L.eventos.forEach(e => detalle.push({
+    'Pos': i+1, 'Serie LINK': L.serie, 'Fecha': e.fecha, 'Folio': e.folio,
+    'ECO': e.eco, 'LBOX': e.lbox,
+    'Diagnostico': (CLASIF[e.cat] || CLASIF.sin_dato).etq,
+    'Voltaje': e.voltaje, 'Causa': e.causa
+  })));
+  const h2 = XLSX.utils.json_to_sheet(detalle);
+  h2['!cols'] = [{wch:5},{wch:20},{wch:12},{wch:16},{wch:12},{wch:18},{wch:22},{wch:10},{wch:32}];
+  h2['!freeze'] = { xSplit:0, ySplit:1 };
+  XLSX.utils.book_append_sheet(wb, h2, 'Eventos');
+
+  // Hoja 3: candidatos a reemplazo — la hoja accionable
+  const reemplazo = lista.filter(L => L.veredicto === 'reemplazo').map(L => ({
+    'Serie LINK': L.serie, 'Modelo': L.modelo, 'Perdidas': L.perdidas,
+    'Vehiculos distintos': L.numEcos, 'Vehiculos': Array.from(L.ecos).join(', '),
+    'Motivo': L.numEcos >= 2 ? 'Fallo en varios vehiculos' : 'Degradacion activa',
+    'Ultima perdida': L.ultima
+  }));
+  if(reemplazo.length){
+    const h3 = XLSX.utils.json_to_sheet(reemplazo);
+    h3['!cols'] = [{wch:20},{wch:18},{wch:12},{wch:20},{wch:26},{wch:28},{wch:16}];
+    XLSX.utils.book_append_sheet(wb, h3, 'Candidatos a reemplazo');
+  }
+
+  // Hoja 4: metadatos
+  XLSX.utils.book_append_sheet(wb, XLSX.utils.json_to_sheet([
+    { Campo:'Cliente', Valor: CONFIG.CLIENTE || 'Grupo Alanis' },
+    { Campo:'Informe', Valor: 'Reincidencia de dispositivos LINK' },
+    { Campo:'Alcance', Valor: alcance },
+    { Campo:'Filtro aplicado', Valor: min + ' o mas perdidas' },
+    { Campo:'Dispositivos listados', Valor: lista.length },
+    { Campo:'Registros sin serie de LINK', Valor: sinSerie.length },
+    { Campo:'Generado', Valor: new Date().toLocaleString('es-MX') },
+    { Campo:'Responsable', Valor: CONFIG.RESPONSABLE || '' },
+    { Campo:'Criterio', Valor: 'Solo registros con pos = NO (perdida de comunicacion)' },
+    { Campo:'Criterio reemplazo', Valor: 'Fallo en 2+ vehiculos, o ' + CONFIG.UMBRAL_REINCIDENTE_RECIENTE + '+ perdidas en ' + CONFIG.VENTANA_REINCIDENCIA_DIAS + ' dias' },
+  ]), 'Informacion');
+
+  XLSX.writeFile(wb, 'Reincidencia_LINK_' + new Date().toISOString().slice(0,10) + '.xlsx');
+  notify('Excel exportado: ' + lista.length + ' dispositivos LINK', 'ok', 6000);
+}
+
+async function exportarLinkPDF(){
+  const { lista, alcance, min, sinSerie } = datosLinkExport();
+  if(!lista.length){ notify('No hay dispositivos LINK para exportar', 'err'); return; }
+
+  const btn = document.getElementById('btn-lk-pdf');
+  const txt = btn ? btn.textContent : '';
+  if(btn){ btn.disabled = true; btn.textContent = 'Generando PDF...'; }
+
+  try{
+    const { jsPDF } = await cargarPDF();
+    const doc = new jsPDF({ orientation:'landscape', unit:'pt', format:'a4' });
+    const W = doc.internal.pageSize.getWidth();
+    const NAVY=[28,43,57], LIME=[139,197,63], GRIS=[107,122,133], ROJO=[192,57,43], AMBAR=[179,89,0];
+
+    doc.setFillColor(...NAVY); doc.rect(0,0,W,74,'F');
+    doc.setFillColor(...LIME);  doc.rect(0,74,W,3,'F');
+    doc.setTextColor(255,255,255); doc.setFont('helvetica','bold'); doc.setFontSize(20);
+    doc.text('INROUTE', 40, 33);
+    doc.setFont('helvetica','normal'); doc.setFontSize(8); doc.setTextColor(179,212,240);
+    doc.text('TELEMATICS SOLUTIONS', 40, 46);
+    doc.setTextColor(255,255,255); doc.setFont('helvetica','bold'); doc.setFontSize(14);
+    doc.text('Reincidencia de dispositivos LINK', 190, 32);
+    doc.setFont('helvetica','normal'); doc.setFontSize(9); doc.setTextColor(203,216,227);
+    doc.text((CONFIG.CLIENTE || 'Grupo Alanis') + '   ·   ' + alcance + '   ·   ' +
+             new Date().toLocaleDateString('es-MX'), 190, 47);
+
+    const reemplazo = lista.filter(L => L.veredicto === 'reemplazo').length;
+    const multi = lista.filter(L => L.numEcos >= 2).length;
+
+    doc.setTextColor(...NAVY); doc.setFont('helvetica','bold'); doc.setFontSize(10);
+    doc.text('Resumen', 40, 104);
+    doc.setFont('helvetica','normal'); doc.setFontSize(9); doc.setTextColor(60,60,60);
+    doc.text(doc.splitTextToSize(
+      lista.length + ' dispositivos LINK registran ' + min + ' o más pérdidas de comunicación en el ' +
+      'periodo analizado. De ellos, ' + reemplazo + ' son candidatos a reemplazo y ' + multi +
+      ' presentaron fallas en más de un vehículo, lo que indica que el patrón sigue al dispositivo y no ' +
+      'a la instalación.' + (sinSerie.length ? ' ' + sinSerie.length + ' registros quedaron fuera por no ' +
+      'tener la serie del LINK capturada.' : ''), W-80), 40, 118);
+
+    const filas = lista.map((L,i) => [
+      '#'+(i+1), L.serie, L.modelo || '-', String(L.perdidas), String(L.recientes),
+      L.numEcos >= 2 ? L.numEcos + ' vehiculos' : (Array.from(L.ecos)[0] || '-'),
+      (L.primera||'?') + ' a ' + (L.ultima||'?'),
+      (LK_VEREDICTO[L.veredicto] || LK_VEREDICTO.monitoreo)[0]
+    ]);
+
+    doc.autoTable({
+      startY: 152,
+      head: [['#','Serie LINK','Modelo','Pérdidas','Recientes','Vehículos','Periodo','Veredicto']],
+      body: filas,
+      theme: 'grid',
+      styles: { font:'helvetica', fontSize:8, cellPadding:4, lineColor:[220,225,230], lineWidth:0.5 },
+      headStyles: { fillColor:NAVY, textColor:[255,255,255], fontStyle:'bold', fontSize:8, halign:'center' },
+      alternateRowStyles: { fillColor:[247,249,250] },
+      columnStyles: {
+        0:{ cellWidth:30, halign:'center', textColor:GRIS },
+        1:{ cellWidth:110, fontStyle:'bold' },
+        2:{ cellWidth:80 },
+        3:{ cellWidth:52, halign:'center', fontStyle:'bold' },
+        4:{ cellWidth:56, halign:'center' },
+        5:{ cellWidth:74, halign:'center' },
+        6:{ cellWidth:118, fontSize:7.5 },
+        7:{ cellWidth:'auto' }
+      },
+      didParseCell: function(d){
+        if(d.section !== 'body') return;
+        const L = lista[d.row.index];
+        if(d.column.index === 3) d.cell.styles.textColor = L.perdidas>=5?ROJO:L.perdidas>=3?AMBAR:GRIS;
+        if(d.column.index === 5 && L.numEcos>=2){ d.cell.styles.textColor=ROJO; d.cell.styles.fontStyle='bold'; }
+        if(d.column.index === 7) d.cell.styles.textColor = L.veredicto==='reemplazo'?ROJO:L.veredicto==='instalacion'?AMBAR:GRIS;
+      },
+      margin: { left:40, right:40 },
+      didDrawPage: function(){
+        const H = doc.internal.pageSize.getHeight();
+        doc.setDrawColor(220,225,230); doc.setLineWidth(0.5);
+        doc.line(40, H-38, W-40, H-38);
+        doc.setFontSize(7.5); doc.setTextColor(...GRIS); doc.setFont('helvetica','normal');
+        doc.text('Inroute Telematics · Sistema de Prevención Proactiva LBOX', 40, H-24);
+        doc.text('Página ' + doc.internal.getCurrentPageInfo().pageNumber, W-40, H-24, { align:'right' });
+      }
+    });
+
+    let y = doc.lastAutoTable.finalY + 22;
+    const H = doc.internal.pageSize.getHeight();
+    if(y > H - 110){ doc.addPage(); y = 60; }
+    doc.setFillColor(253,235,208); doc.rect(40, y-12, W-80, 62, 'F');
+    doc.setFillColor(...AMBAR);    doc.rect(40, y-12, 3, 62, 'F');
+    doc.setTextColor(126,51,0); doc.setFont('helvetica','bold'); doc.setFontSize(9);
+    doc.text('Cómo leer este informe', 52, y+2);
+    doc.setFont('helvetica','normal'); doc.setFontSize(8); doc.setTextColor(70,70,70);
+    doc.text(doc.splitTextToSize(
+      'Solo se consideran los registros donde la unidad NO estaba posicionando, que es cuando el LINK es ' +
+      'el sospechoso. La columna Vehículos es la clave del veredicto: si un mismo LINK falló en varios ' +
+      'vehículos distintos, el patrón sigue al dispositivo y procede su reemplazo. Si siempre falla en el ' +
+      'mismo vehículo, conviene revisar primero la instalación y la zona de operación antes de sustituir el equipo.',
+      W-104), 52, y+16);
+
+    doc.save('Reincidencia_LINK_' + new Date().toISOString().slice(0,10) + '.pdf');
+    notify('PDF exportado: ' + lista.length + ' dispositivos LINK', 'ok', 6000);
+  } catch(e){
+    notify('No se pudo generar el PDF: ' + e.message, 'err', 9000);
+  }
+  if(btn){ btn.disabled = false; btn.textContent = txt; }
+}
+
+function toggleLk(serie){
+  lkExpandido = (lkExpandido === serie) ? null : serie;
+  renderLink();
+}
+
+function renderLkSinSerie(sinSerie){
+  const card = document.getElementById('lk-card-sinserie');
+  const el = document.getElementById('lk-sinserie');
+  if(!card || !el) return;
+  if(!sinSerie.length){ card.style.display = 'none'; return; }
+  card.style.display = 'block';
+
+  // Se agrupan por ECO para no listar el mismo vehículo muchas veces.
+  const porEco = {};
+  sinSerie.forEach(s => {
+    const k = String(s.eco || '—');
+    porEco[k] = (porEco[k] || 0) + 1;
+  });
+  const top = Object.entries(porEco).sort((a,b)=>b[1]-a[1]).slice(0, 24);
+
+  el.innerHTML = '<div style="display:flex;flex-wrap:wrap;gap:6px">' +
+    top.map(([eco,n]) =>
+      '<span style="background:var(--gray-l,#EDF1F3);border:1px solid var(--line);border-radius:14px;' +
+      'padding:3px 10px;font-size:11px">ECO ' + esc(eco) + ' <b>×' + n + '</b></span>').join('') +
+    '</div>' +
+    (Object.keys(porEco).length > 24
+      ? '<div style="font-size:11px;color:var(--muted);margin-top:8px">y ' +
+        (Object.keys(porEco).length - 24) + ' más…</div>' : '');
+}
 
 /* ▓▓ INFORMES POR REPORTE ▓▓ ──────────────────────────────────────────────
    Desglose del historial agrupado por folio (ciclo de prevención). A
@@ -27122,6 +27668,7 @@ async function consultarVoltajesNavixy(){
       return {
         eco: u.eco, lbox: u.lbox, encontrado: true,
         label: e.label, modelo: e.modelo,
+        serieTeltonika: e.serie_teltonika || '', modeloTeltonika: e.modelo_teltonika || '',
         minPos:  min(e.gps_updated),
         minDato: min(e.last_update),
         gsm: e.gsm_signal, gpsSig: e.gps_signal, red: e.red,
@@ -27217,7 +27764,7 @@ function renderTablaNavixy(){
   const tbody = document.getElementById('nx-tbody');
   if(!tbody) return;
   if(!nxResultados.length){
-    tbody.innerHTML = '<tr><td colspan="7" class="empty">Sin resultados</td></tr>';
+    tbody.innerHTML = '<tr><td colspan="8" class="empty">Sin resultados</td></tr>';
     return;
   }
 
@@ -27245,6 +27792,7 @@ function renderTablaNavixy(){
       '<td style="text-align:center"><input type="checkbox" class="nx-chk" value="'+esc(r.eco)+'"'+(r.posiciona?' checked':'')+'></td>' +
       '<td><b>ECO '+esc(r.eco)+'</b></td>' +
       '<td style="font-size:10px">'+esc(r.lbox||'-')+'</td>' +
+      '<td style="font-size:10px;font-family:monospace">'+esc(r.serieTeltonika||'-')+'</td>' +
       '<td style="text-align:center;font-weight:700">'+tiempo+'</td>' +
       '<td style="text-align:center;font-weight:800;color:'+colPos+'">'+(r.posiciona||'-')+'</td>' +
       '<td style="text-align:center;color:'+color+';font-weight:600;font-size:11px">'+etq+
@@ -28915,7 +29463,7 @@ document.addEventListener('visibilitychange', () => {
         <table class="tbl" style="font-size:11px;min-width:620px">
           <thead style="position:sticky;top:0;z-index:1010"><tr>
             <th style="width:30px"><input type="checkbox" onchange="document.querySelectorAll('.nx-chk').forEach(c=>c.checked=this.checked)"></th>
-            <th>#ECO</th><th>LBOX</th><th>Sin posicion</th><th>Posiciona</th><th>Diagnostico</th><th>Evidencia</th>
+            <th>#ECO</th><th>LBOX</th><th>Serie Teltonika</th><th>Sin posicion</th><th>Posiciona</th><th>Diagnostico</th><th>Evidencia</th>
           </tr></thead>
           <tbody id="nx-tbody"></tbody>
         </table>
