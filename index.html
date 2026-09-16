@@ -25647,7 +25647,25 @@ async function syncAll(opciones){
 
     if (histActualizado) {
       const hRes = await jsonp({ action:'getHist' });
-      hist = (hRes && hRes.hist) ? hRes.hist : rowsToObjects(hRes);
+
+      // PROTECCIÓN CRÍTICA: si el backend devuelve un error (p.ej. 'Origen no
+      // permitido' por validación de origen, o cualquier fallo de red), NO se
+      // sobrescribe hist con un array vacío. Antes esto ocurría silenciosamente:
+      // hRes.hist era undefined → rowsToObjects(hRes) → [] → hist vacío.
+      if (hRes && hRes.error) {
+        throw new Error('getHist: ' + hRes.error +
+          (hRes.detalle ? ' — ' + hRes.detalle : ''));
+      }
+      const histNuevo = (hRes && hRes.hist) ? hRes.hist : rowsToObjects(hRes);
+      if (!histNuevo.length && hist.length > 0) {
+        // El servidor devolvió vacío pero localmente hay datos: es sospechoso.
+        // Se conserva el local y se avisa en vez de vaciarlo silenciosamente.
+        console.warn('getHist devolvió 0 registros pero hay', hist.length, 'en memoria. Se conserva la copia local.');
+        notify('⚠️ El servidor devolvió historial vacío pero tienes ' + hist.length +
+          ' registros en memoria. Se conservó la copia local. Revisa la conexión.', 'err', 12000);
+      } else {
+        hist = histNuevo;
+      }
 
       // La huella se toma del SERVIDOR, no del arreglo local: getHistMeta lee
       // la última fila de la hoja, y si aquí se guardara otra referencia la
