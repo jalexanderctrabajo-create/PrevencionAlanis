@@ -23705,7 +23705,7 @@ body.con-panel .content{padding-right:336px}
         </div>
 
         <div class="scroll-x"><table class="tbl">
-          <thead><tr><th style="width:30px"><input type="checkbox" id="cap-chk-todas" onchange="toggleTodasCaptura(this)" title="Seleccionar todas"></th><th>#ECO</th><th>LBOX</th><th>Firmware</th><th>Días</th><th>Posic. LINK</th><th>Desvincular</th><th>Reset Lbox</th><th>Reset LINK</th><th>Recuperó</th><th>Voltaje</th><th>Diagnóstico</th><th>Causa</th><th>Comentario</th><th>Nota interna</th><th></th></tr></thead>
+          <thead><tr><th style="width:30px"><input type="checkbox" id="cap-chk-todas" onchange="toggleTodasCaptura(this)" title="Seleccionar todas"></th><th>#ECO</th><th>LBOX</th><th>Firmware</th><th>Días</th><th>Posic. LINK</th><th>Desvincular</th><th>Reset Lbox</th><th>Reset LINK</th><th>Recuperó</th><th>Voltaje</th><th>Diagnóstico</th><th>Causa</th><th>Comentario</th><th>Nota interna</th><th>Capturó</th><th></th></tr></thead>
           <tbody id="tbody-captura"><tr><td colspan="16" class="empty">Cargando...</td></tr></tbody>
         </table></div>
       </div>
@@ -24851,7 +24851,13 @@ async function confirmarLimpiar() {
     dias: u.dias, pos: u.pos, desv: u.desv,
     rlbox: u.rlbox, rlink: u.rlink,
     recupero: u.recupero, voltaje: u.voltaje,
-    causa: u.causa, comentario: u.comentario
+    causa: u.causa, comentario: u.comentario,
+    serieLink: u.serieLink || '',
+    /* Quién capturó ESTA unidad. Se toma de modificadoPor, que se escribe en
+       cada edición: así un reporte trabajado entre varias personas conserva
+       quién hizo cada registro, en vez de atribuirlo todo a quien lo cerró.
+       Si la unidad nunca se editó, se usa el usuario que cierra el ciclo. */
+    agente: u.modificadoPor || usuarioActual()
   }));
 
   // ── RESPALDO LOCAL ANTES DE CUALQUIER OPERACIÓN DESTRUCTIVA ────────────
@@ -26259,6 +26265,11 @@ function ejecutarProtocoloSeguridad() {
     // analizar la reincidencia por dispositivo en la pantalla correspondiente.
     if (p.serieLink) u.serieLink = p.serieLink;
 
+    // Quien ejecuta el diagnóstico automático queda como responsable de esa
+    // captura: la decisión de aplicarlo al reporte fue suya.
+    u.modificadoPor = usuarioActual();
+    u.modificadoEn  = new Date().toISOString();
+
     // Marca automática Posic. LINK: <2 min = SI, 2+ min o sin dato = NO
     u.pos = p.posiciona || 'NO';
     if (u.pos === 'SI') marcadasSI++; else marcadasNO++;
@@ -26463,6 +26474,15 @@ function abrirModal(id){
 function ocultarModal(id){
   const m = document.getElementById(id);
   if (m) m.style.display = 'none';
+}
+
+/* Identidad del usuario que está capturando. Se usa para marcar cada unidad
+   y para que el historial conserve quién hizo cada registro. Antes se usaba
+   una constante fija, así que todos los registros quedaban con el mismo
+   nombre sin importar quién trabajara. */
+function usuarioActual(){
+  if (CONFIG.USUARIO) return CONFIG.USUARIO.nombre || CONFIG.USUARIO.usuario || '';
+  return CONFIG.RESPONSABLE || '';
 }
 
 /* ── SESIÓN Y PERFILES ────────────────────────────────────────────────────
@@ -27076,7 +27096,7 @@ function exportarLinkExcel(){
     { Campo:'Dispositivos listados', Valor: lista.length },
     { Campo:'Registros sin serie de LINK', Valor: sinSerie.length },
     { Campo:'Generado', Valor: new Date().toLocaleString('es-MX') },
-    { Campo:'Responsable', Valor: CONFIG.RESPONSABLE || '' },
+    { Campo:'Responsable', Valor: usuarioActual() },
     { Campo:'Criterio', Valor: 'Solo registros con pos = NO (perdida de comunicacion)' },
     { Campo:'Criterio reemplazo', Valor: 'Fallo en 2+ vehiculos, o ' + CONFIG.UMBRAL_REINCIDENTE_RECIENTE + '+ perdidas en ' + CONFIG.VENTANA_REINCIDENCIA_DIAS + ' dias' },
   ]), 'Informacion');
@@ -27670,7 +27690,7 @@ function exportarReincidentesExcel(){
     { Campo:'Reportes incluidos', Valor: claves.length },
     { Campo:'Unidades listadas',  Valor: lista.length },
     { Campo:'Generado',           Valor: new Date().toLocaleString('es-MX') },
-    { Campo:'Responsable',        Valor: CONFIG.RESPONSABLE || '' },
+    { Campo:'Responsable',        Valor: usuarioActual() },
     { Campo:'Criterio reincidente',        Valor: '2 o más apariciones en el alcance seleccionado' },
     { Campo:'Criterio degradación activa', Valor: CONFIG.UMBRAL_REINCIDENTE_RECIENTE + '+ fallas en ' + CONFIG.VENTANA_REINCIDENCIA_DIAS + ' días' },
   ]), 'Información');
@@ -28092,6 +28112,9 @@ function aplicarVoltajesNavixy(){
     const u = units.find(x => claveEco(x.eco) === claveEco(r.eco));
     if(!u) return;
 
+    u.modificadoPor = usuarioActual();
+    u.modificadoEn  = new Date().toISOString();
+
     // "Posiciona" se conoce siempre que haya dato de posicion.
     if(r.posiciona === 'SI' || r.posiciona === 'NO'){
       u.pos = r.posiciona;
@@ -28246,7 +28269,7 @@ async function aplicarMasivo(campo, valor){
     const u = units[i];
     if(!u) return;
     u[campo] = valor;
-    u.modificadoPor = CONFIG.RESPONSABLE || '';
+    u.modificadoPor = usuarioActual();
     u.modificadoEn  = new Date().toISOString();
     // Al marcar que no posiciona, se dispara la misma cascada de la captura
     // individual: las acciones remotas no aplican.
@@ -28278,7 +28301,7 @@ async function updateUnit(i, field, value) {
 
   // Trazabilidad: deja constancia de quién tocó la unidad y cuándo. Útil si
   // más adelante hay que auditar de dónde salió un diagnóstico del reporte.
-  units[i].modificadoPor  = CONFIG.RESPONSABLE || '';
+  units[i].modificadoPor  = usuarioActual();
   units[i].modificadoEn   = new Date().toISOString();
 
   // Sin señal LINK ⇒ las acciones remotas no aplican (regla centralizada)
@@ -28528,7 +28551,7 @@ function renderWidgetProgreso() {
 function renderCaptura(){
   document.getElementById('count-cap').textContent=units.length;
   const tbody=document.getElementById('tbody-captura');
-  if(!units.length){tbody.innerHTML='<tr><td colspan="16" class="empty">Sin unidades aún. Usa el botón "Obtener datos en vivo" o captura manualmente.</td></tr>';return;}
+  if(!units.length){tbody.innerHTML='<tr><td colspan="17" class="empty">Sin unidades aún. Usa el botón "Obtener datos en vivo" o captura manualmente.</td></tr>';return;}
   const SN  = ['—','SI','NO','N/A'];
   const SIA = ['—','SI/A','NO','N/A'];
   const SV  = ['—','SI','NO','No aplica'];
@@ -28552,6 +28575,7 @@ function renderCaptura(){
     <td>${inp('causa',i,u.causa,'causa')}</td>
     <td>${inp('comentario',i,u.comentario,'comentario')}</td>
     <td>${inp('nota',i,u.nota,'nota interna')}</td>
+    <td style="font-size:10px;color:var(--muted);white-space:nowrap" title="${esc(u.modificadoEn ? new Date(u.modificadoEn).toLocaleString('es-MX') : '')}">${esc(u.modificadoPor || '—')}</td>
     <td><button class="btn danger" style="padding:2px 8px;font-size:11px" onclick="eliminar(${i})">✕</button></td>
   </tr>`).join('');
 }
