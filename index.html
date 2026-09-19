@@ -23470,11 +23470,15 @@ body.con-panel .content{padding-right:336px}
         style="flex:1;padding:6px 10px;border:1px solid #d0d0d0;border-radius:7px;font-size:12px" 
         oninput="filtrarImport()">
       <select id="import-min-dias" onchange="filtrarImport()" 
-        style="font-size:12px;padding:5px 8px;border:1px solid #d0d0d0;border-radius:7px">
-        <option value="1">1+ días</option>
+        style="font-size:12px;padding:5px 8px;border:1px solid #d0d0d0;border-radius:7px"
+        title="Días mínimos sin reportar. Las unidades que reportaron hoy nunca se incluyen.">
+        <option value="1" selected>1+ días</option>
+        <option value="2">2+ días</option>
         <option value="3">3+ días</option>
-        <option value="5" selected>5+ días</option>
+        <option value="5">5+ días</option>
+        <option value="7">7+ días</option>
         <option value="10">10+ días</option>
+        <option value="15">15+ días</option>
         <option value="30">30+ días</option>
       </select>
       <button class="btn" onclick="seleccionarTodos()">Seleccionar todos</button>
@@ -23500,6 +23504,43 @@ body.con-panel .content{padding-right:336px}
     </div>
   </div>
 </div>
+<!-- ══ PANTALLA DE ACCESO ═══════════════════════════════════════════════ -->
+<div id="pantalla-login" style="position:fixed;inset:0;z-index:20000;background:linear-gradient(135deg,#1C2B39 0%,#243845 100%);
+     display:flex;align-items:center;justify-content:center;padding:20px">
+  <div style="background:#fff;border-radius:16px;box-shadow:0 20px 60px rgba(0,0,0,.3);
+       padding:36px 34px;width:100%;max-width:400px">
+
+    <div style="text-align:center;margin-bottom:26px">
+      <div style="font-size:26px;font-weight:800;color:#1C2B39;letter-spacing:-.5px">INROUTE</div>
+      <div style="font-size:9px;color:#8BC53F;letter-spacing:2px;font-weight:700;margin-top:2px">TELEMATICS SOLUTIONS</div>
+      <div style="font-size:13px;color:#5D6D7E;margin-top:14px">Sistema de Prevención LBOX</div>
+    </div>
+
+    <div id="login-error" style="display:none;background:#FADBD8;border-left:4px solid #c0392b;
+         padding:10px 14px;border-radius:7px;font-size:12px;color:#7B241C;margin-bottom:16px"></div>
+
+    <label style="font-size:10px;color:#5D6D7E;text-transform:uppercase;font-weight:700;display:block;margin-bottom:5px">Usuario</label>
+    <input type="text" id="login-usuario" autocomplete="username"
+           onkeydown="if(event.key==='Enter')document.getElementById('login-password').focus()"
+           style="width:100%;padding:11px 13px;border:1px solid #d5d8dc;border-radius:8px;font-size:14px;
+                  margin-bottom:14px;box-sizing:border-box;font-family:inherit">
+
+    <label style="font-size:10px;color:#5D6D7E;text-transform:uppercase;font-weight:700;display:block;margin-bottom:5px">Contraseña</label>
+    <input type="password" id="login-password" autocomplete="current-password"
+           onkeydown="if(event.key==='Enter')hacerLogin()"
+           style="width:100%;padding:11px 13px;border:1px solid #d5d8dc;border-radius:8px;font-size:14px;
+                  margin-bottom:20px;box-sizing:border-box;font-family:inherit">
+
+    <button id="btn-login" onclick="hacerLogin()"
+            style="width:100%;padding:12px;background:#8BC53F;color:#fff;border:none;border-radius:8px;
+                   font-size:14px;font-weight:700;cursor:pointer;font-family:inherit">Entrar</button>
+
+    <div style="font-size:10px;color:#95a5a6;text-align:center;margin-top:18px;line-height:1.5">
+      La sesión permanece activa 12 horas.<br>Tus credenciales se verifican en el servidor.
+    </div>
+  </div>
+</div>
+
 <div class="menu-fondo" onclick="toggleSidebar()"></div>
 <div class="app" style="display:flex;height:100vh">
 <div class="sidebar">
@@ -23511,10 +23552,11 @@ body.con-panel .content{padding-right:336px}
     </div>
     <div class="logo-sub">Telematics Solutions</div>
     <div class="logo-app">Prevención LBOX</div>
-    <div class="cliente-lbl">Cliente</div>
+    <div class="cliente-lbl">Perfil / Cliente</div>
+    <div id="selector-perfil" style="margin-bottom:8px"></div>
     <div id="cuenta-display" class="cliente-sel" onclick="abrirModalCuenta()" style="display:flex;align-items:center;justify-content:space-between">
-      <span id="cuenta-nombre">Grupo Alanis</span>
-      <span style="font-size:10px;opacity:.7">▾ cambiar</span>
+      <span id="cuenta-nombre">Credenciales LBOX</span>
+      <span style="font-size:10px;opacity:.7">▾ configurar</span>
     </div>
     <div class="sync-row"><span class="dot loading" id="sync-dot"></span><span id="sync-label">Conectando...</span></div>
   </div>
@@ -23526,8 +23568,17 @@ body.con-panel .content{padding-right:336px}
   <div class="nav-item" onclick="showPage('informes')" id="nav-informes"><span class="ico">📑</span> Informes</div>
   <div class="nav-item" onclick="showPage('link')" id="nav-link"><span class="ico">📡</span> Reincidencia LINK</div>
   <div class="user-info">
-    <div class="user-name">Alexander Cedillo</div>
-    <div class="user-role">KAM Asistencia</div>
+    <div class="sidebar-footer" style="margin-top:auto;padding:14px 16px;border-top:1px solid rgba(255,255,255,.1)">
+    <div style="display:flex;align-items:center;justify-content:space-between;gap:8px">
+      <div style="min-width:0">
+        <div id="usuario-actual" style="font-size:12px;font-weight:600;color:#fff;overflow:hidden;text-overflow:ellipsis;white-space:nowrap">—</div>
+        <div id="usuario-rol" style="font-size:10px;color:rgba(255,255,255,.5);text-transform:capitalize">—</div>
+      </div>
+      <button onclick="if(confirm('¿Cerrar sesión?'))cerrarSesion()" title="Cerrar sesión"
+              style="background:none;border:1px solid rgba(255,255,255,.2);color:rgba(255,255,255,.7);
+                     border-radius:6px;padding:5px 9px;font-size:11px;cursor:pointer;flex-shrink:0">Salir</button>
+    </div>
+  </div>
   </div>
 </div>
 <div class="main">
@@ -23999,6 +24050,12 @@ const CONFIG = {
   // Los correos NO se escriben aquí: este archivo es público en GitHub. El
   // backend los entrega con la acción getDestino (ver cargarDestinatarios).
   CONTACTO_INROUTE: '',
+
+  // ── Sesión y perfil activo (se llenan al iniciar sesión) ────────────────
+  SESION: '',                    // token firmado que devuelve el backend
+  USUARIO: null,                 // { usuario, nombre, rol, perfiles }
+  PERFIL: '',                    // cliente activo; enruta las hojas del Sheet
+  PERFILES_DISPONIBLES: [],
   RESPONSABLE: 'Alexander Cedillo',
 
   // Reglas de negocio
@@ -24184,10 +24241,19 @@ function jsonpRaw(params){
       delete window[cbName];
       const tag = document.getElementById(cbName);
       if(tag) tag.remove();
+      // Si la sesión venció, se vuelve al login en lugar de fallar en silencio
+      // con errores confusos en cada pantalla.
+      if (data && data.requiereLogin) { cerrarSesion(true); }
       resolve(data);
     };
 
-    const url = API + '?' + new URLSearchParams({...params, token: CONFIG.API_TOKEN, callback: cbName});
+    /* La sesión y el perfil activo se añaden aquí, en un solo lugar: así
+       ninguna llamada puede olvidarlos y terminar leyendo o escribiendo en el
+       perfil equivocado. */
+    const extra = { token: CONFIG.API_TOKEN, callback: cbName };
+    if (CONFIG.SESION) extra.sesion = CONFIG.SESION;
+    if (CONFIG.PERFIL) extra.perfil = CONFIG.PERFIL;
+    const url = API + '?' + new URLSearchParams({...params, ...extra});
     const script = document.createElement('script');
     script.id = cbName;
     script.src = url;
@@ -24538,6 +24604,10 @@ function importarExcel(input) {
             dias = 0;
           }
         }
+        /* Las unidades que reportaron HOY no entran al reporte: no hay nada
+           que prevenir en un dispositivo que está comunicando correctamente.
+           Se excluyen aquí, en la carga, para que ningún filtro posterior
+           pueda incluirlas por accidente. */
         if (dias < 1) { sinDias++; continue; }
 
         const eco = String(ecoRaw).trim();
@@ -24566,10 +24636,14 @@ function importarExcel(input) {
 
       importData.sort((a, b) => parseInt(b.dias) - parseInt(a.dias));
       document.getElementById('import-count').textContent = importData.length;
-      document.getElementById('import-min-dias').value = '5';
+      /* El filtro arranca en 1 día para mostrar TODO lo que se importó. Antes
+         se forzaba a '5' aquí, lo que ocultaba las unidades de 1 a 4 días y
+         daba la impresión de que el archivo no se había leído completo. */
+      document.getElementById('import-min-dias').value = '1';
       filtrarImport();
       abrirModal('modal-import');
-      notify('Hoja "' + nombreHoja + '": ' + importData.length + ' unidades con 1+ días', 'ok', 6000);
+      notify('Hoja "' + nombreHoja + '": ' + importData.length + ' unidades con 1+ días sin reportar' +
+        (sinDias ? ' · ' + sinDias + ' omitidas por haber reportado hoy' : ''), 'ok', 7000);
 
     } catch(err) { notify('Error al leer el archivo: ' + err.message, 'err', 10000); }
   };
@@ -26389,6 +26463,165 @@ function abrirModal(id){
 function ocultarModal(id){
   const m = document.getElementById(id);
   if (m) m.style.display = 'none';
+}
+
+/* ── SESIÓN Y PERFILES ────────────────────────────────────────────────────
+   La sesión se valida en el Apps Script, no aquí: el navegador solo guarda el
+   token que devolvió el servidor. Esto significa que editar este archivo no
+   permite entrar — la verificación ocurre del otro lado.
+
+   Limitación honesta: el token vive en sessionStorage y es legible por
+   cualquier script de esta página. Protege contra acceso casual y separa
+   permisos entre usuarios; no protege contra alguien con acceso al navegador. */
+
+function mostrarLogin(mensaje){
+  const pantalla = document.getElementById('pantalla-login');
+  if(pantalla) pantalla.style.display = 'flex';
+  const err = document.getElementById('login-error');
+  if(err){
+    if(mensaje){ err.textContent = mensaje; err.style.display = 'block'; }
+    else err.style.display = 'none';
+  }
+  const u = document.getElementById('login-usuario');
+  if(u) setTimeout(()=>u.focus(), 100);
+}
+
+function ocultarLogin(){
+  const pantalla = document.getElementById('pantalla-login');
+  if(pantalla) pantalla.style.display = 'none';
+}
+
+async function hacerLogin(){
+  const usuario  = (document.getElementById('login-usuario').value || '').trim();
+  const password = document.getElementById('login-password').value || '';
+  if(!usuario || !password){ mostrarLogin('Ingresa usuario y contraseña'); return; }
+
+  const btn = document.getElementById('btn-login');
+  btn.disabled = true; btn.textContent = 'Verificando...';
+
+  try {
+    // La llamada va SIN sesión (login es acción pública en el backend)
+    const res = await jsonp({ action:'login', usuario, password });
+
+    if(res && res.error){
+      mostrarLogin(res.error);
+      document.getElementById('login-password').value = '';
+    } else if(res && res.ok){
+      CONFIG.SESION  = res.sesion;
+      CONFIG.USUARIO = { usuario: res.usuario, nombre: res.nombre, rol: res.rol, perfiles: res.perfiles };
+      try {
+        sessionStorage.setItem('lbox_sesion', JSON.stringify({
+          sesion: res.sesion, usuario: CONFIG.USUARIO, venceEn: res.venceEn
+        }));
+      } catch(e){}
+
+      document.getElementById('login-password').value = '';
+      ocultarLogin();
+      actualizarUsuarioUI();
+      await cargarPerfiles();
+      await syncAll({ forzarHist:true });
+      notify('Bienvenido, ' + (res.nombre || res.usuario), 'ok', 5000);
+    } else {
+      mostrarLogin('Respuesta inesperada del servidor');
+    }
+  } catch(e){
+    mostrarLogin('No se pudo conectar con el servidor: ' + (e.message || 'error'));
+  }
+
+  btn.disabled = false; btn.textContent = 'Entrar';
+}
+
+function cerrarSesion(porExpiracion){
+  CONFIG.SESION = '';
+  CONFIG.USUARIO = null;
+  try { sessionStorage.removeItem('lbox_sesion'); } catch(e){}
+  // Los datos en memoria se limpian: son de un usuario que ya no está activo.
+  units = []; hist = [];
+  mostrarLogin(porExpiracion ? 'Tu sesión expiró. Vuelve a ingresar.' : '');
+}
+
+/* Restaura la sesión al recargar la página, si no ha vencido. */
+function restaurarSesion(){
+  try {
+    const g = JSON.parse(sessionStorage.getItem('lbox_sesion') || 'null');
+    if(g && g.sesion && g.venceEn && Date.now() < g.venceEn){
+      CONFIG.SESION = g.sesion;
+      CONFIG.USUARIO = g.usuario;
+      return true;
+    }
+  } catch(e){}
+  return false;
+}
+
+function actualizarUsuarioUI(){
+  const el = document.getElementById('usuario-actual');
+  if(el && CONFIG.USUARIO){
+    el.textContent = CONFIG.USUARIO.nombre || CONFIG.USUARIO.usuario;
+  }
+  const rol = document.getElementById('usuario-rol');
+  if(rol && CONFIG.USUARIO) rol.textContent = CONFIG.USUARIO.rol || 'usuario';
+}
+
+/* ── Perfiles (clientes) ───────────────────────────────────────────────── */
+async function cargarPerfiles(){
+  try {
+    const res = await jsonp({ action:'listarPerfiles' });
+    if(res && res.ok){
+      CONFIG.PERFILES_DISPONIBLES = res.perfiles || [];
+      // Un usuario solo ve los perfiles que tiene asignados.
+      const permitidos = (CONFIG.USUARIO && CONFIG.USUARIO.perfiles) || ['*'];
+      if(permitidos.indexOf('*') === -1){
+        CONFIG.PERFILES_DISPONIBLES = CONFIG.PERFILES_DISPONIBLES.filter(p => permitidos.indexOf(p) !== -1);
+      }
+      if(!CONFIG.PERFIL || CONFIG.PERFILES_DISPONIBLES.indexOf(CONFIG.PERFIL) === -1){
+        CONFIG.PERFIL = CONFIG.PERFILES_DISPONIBLES[0] || res.porDefecto || 'ALANIS';
+      }
+      renderSelectorPerfil();
+    }
+  } catch(e){ console.warn('No se pudieron cargar los perfiles:', e); }
+}
+
+function renderSelectorPerfil(){
+  const el = document.getElementById('selector-perfil');
+  if(!el) return;
+  const lista = CONFIG.PERFILES_DISPONIBLES || [];
+  if(lista.length <= 1){
+    // Con un solo perfil no tiene sentido un selector: se muestra el nombre.
+    el.innerHTML = '<div style="font-size:13px;font-weight:600;color:#fff">' +
+      esc(CONFIG.PERFIL || 'ALANIS') + '</div>';
+    return;
+  }
+  el.innerHTML = '<select onchange="cambiarPerfil(this.value)" ' +
+    'style="background:rgba(255,255,255,.12);color:#fff;border:1px solid rgba(255,255,255,.25);' +
+    'border-radius:7px;padding:6px 10px;font-size:12px;width:100%;font-family:inherit;cursor:pointer">' +
+    lista.map(p => '<option value="' + esc(p) + '"' + (p === CONFIG.PERFIL ? ' selected' : '') +
+      ' style="color:#1C2B39">' + esc(p) + '</option>').join('') +
+    '</select>';
+}
+
+async function cambiarPerfil(perfil){
+  if(perfil === CONFIG.PERFIL) return;
+
+  // Cambiar de cliente con trabajo sin cerrar podría mezclar datos.
+  if(units.length && !confirm('Hay ' + units.length + ' unidades en el reporte activo de ' +
+     CONFIG.PERFIL + '.\n\nAl cambiar de perfil se cargarán los datos de ' + perfil +
+     ' y el reporte actual quedará guardado en su propio perfil.\n\n¿Continuar?')){
+    renderSelectorPerfil();   // revertir el select
+    return;
+  }
+
+  CONFIG.PERFIL = perfil;
+  try { sessionStorage.setItem('lbox_perfil', perfil); } catch(e){}
+
+  // Se limpia el estado del perfil anterior antes de cargar el nuevo, para
+  // que nunca se mezclen datos de dos clientes en pantalla.
+  units = []; hist = [];
+  _histMetaLocal = { total: -1, ultimoFolio: '' };
+  renderAll();
+
+  notify('Cambiando a ' + perfil + '...', 'ok', 3000);
+  await syncAll({ forzarHist:true });
+  renderSelectorPerfil();
 }
 
 /* ── Menú lateral ocultable ────────────────────────────────────────────────
@@ -29266,7 +29499,26 @@ async function generarReporte(){
 }
 
 document.getElementById('f-fecha').value = new Date().toISOString().slice(0,10);
-syncAll().then(() => aplicarFiltroPeriodo());
+
+/* ── ARRANQUE ─────────────────────────────────────────────────────────────
+   La app no carga datos hasta que haya una sesión válida. Si hay una sesión
+   guardada y vigente, se reanuda sin pedir credenciales otra vez. */
+(async function arrancar(){
+  CONFIG.PERFIL = (function(){
+    try { return sessionStorage.getItem('lbox_perfil') || ''; } catch(e){ return ''; }
+  })();
+
+  if (restaurarSesion()) {
+    ocultarLogin();
+    actualizarUsuarioUI();
+    await cargarPerfiles();
+    await syncAll();
+    aplicarFiltroPeriodo();
+  } else {
+    // Sin sesión: la pantalla de login queda visible y no se consulta nada.
+    mostrarLogin();
+  }
+})();
 
 /* ▓▓ 13. INIT / ARRANQUE ▓▓ ──────────────────────────────────────────────── */
 /* ── SINCRONIZACIÓN AUTOMÁTICA ────────────────────────────────────────────
@@ -29281,6 +29533,8 @@ syncAll().then(() => aplicarFiltroPeriodo());
 let isSaving = false;
 
 setInterval(async () => {
+  // Sin sesión activa no hay nada que sincronizar.
+  if (!CONFIG.SESION) return;
   // Pestaña oculta: no tiene sentido gastar cuota de Apps Script.
   if (document.hidden) return;
 
