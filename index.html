@@ -23339,8 +23339,12 @@ body.con-panel .content{padding-right:336px}
 .tag-reinc{background:var(--red-l);color:#9A2520;font-size:10px;padding:2px 7px;border-radius:5px;font-weight:700;margin-left:4px}
 
 /* ── NOTIFICACIONES ──────────────────────────────────────── */
-.notif{position:fixed;top:20px;right:20px;padding:13px 20px;border-radius:10px;font-size:13px;z-index:3000;opacity:0;transition:opacity .3s,transform .3s;color:#fff;background:var(--navy);max-width:340px;font-weight:500;box-shadow:0 8px 24px rgba(28,43,57,.2);transform:translateX(20px)}
-.notif.show{opacity:1;transform:none}.notif.err{background:var(--red)}.notif.ok{background:var(--lime-d)}
+/* pointer-events:none es CRÍTICO. La notificación se oculta con opacity:0,
+   pero seguía ocupando su espacio y capturando los clics de la esquina
+   superior derecha — justo donde están los botones de la barra. El resultado
+   era que "Acciones" y "Generar .docx" parecían inhabilitados. */
+.notif{position:fixed;top:20px;right:20px;padding:13px 20px;border-radius:10px;font-size:13px;z-index:3000;opacity:0;pointer-events:none;transition:opacity .3s,transform .3s;color:#fff;background:var(--navy);max-width:340px;font-weight:500;box-shadow:0 8px 24px rgba(28,43,57,.2);transform:translateX(20px)}
+.notif.show{opacity:1;transform:none;pointer-events:auto}.notif.err{background:var(--red)}.notif.ok{background:var(--lime-d)}
 
 .scroll-x{overflow-x:auto;max-width:100%;min-width:0}
 .two-col{display:grid;grid-template-columns:repeat(auto-fit,minmax(300px,1fr));gap:16px}
@@ -23541,6 +23545,67 @@ body.con-panel .content{padding-right:336px}
   </div>
 </div>
 
+<!-- ══ ADMINISTRACIÓN DE USUARIOS ═══════════════════════════════════════ -->
+<div id="modal-admin" style="display:none;position:fixed;inset:0;background:rgba(28,43,57,.6);z-index:1000;align-items:center;justify-content:center;padding:20px">
+  <div style="background:#fff;border-radius:14px;max-width:900px;width:100%;max-height:88vh;overflow-y:auto;padding:26px 28px">
+    <div style="display:flex;justify-content:space-between;align-items:flex-start;margin-bottom:6px">
+      <div>
+        <div style="font-size:17px;font-weight:700;color:var(--navy)">👥 Administración de usuarios</div>
+        <div style="font-size:11px;color:var(--muted);margin-top:3px">Alta, roles y acceso por cliente</div>
+      </div>
+      <button onclick="cerrarModalAdmin()" style="background:none;border:none;font-size:22px;cursor:pointer;color:var(--muted);line-height:1">×</button>
+    </div>
+
+    <div style="background:var(--lime-l);border-radius:8px;padding:10px 14px;font-size:11px;color:var(--lime-d);margin:14px 0">
+      Los permisos se validan en el servidor. Ocultar un botón no impide la acción: el rol es lo que la autoriza.
+    </div>
+
+    <!-- Formulario -->
+    <div style="background:#f8f9fa;border:1px solid var(--line);border-radius:10px;padding:16px;margin-bottom:18px">
+      <div style="font-size:12px;font-weight:700;color:var(--navy);margin-bottom:12px" id="admin-form-titulo">Nuevo usuario</div>
+      <div style="display:grid;grid-template-columns:repeat(auto-fit,minmax(170px,1fr));gap:12px">
+        <div>
+          <label style="font-size:10px;color:var(--muted);text-transform:uppercase;font-weight:700;display:block;margin-bottom:4px">Usuario</label>
+          <input type="text" id="adm-usuario" placeholder="ej. msegura" style="width:100%;padding:8px 10px;border:1px solid var(--line);border-radius:7px;font-size:12px;box-sizing:border-box">
+        </div>
+        <div>
+          <label style="font-size:10px;color:var(--muted);text-transform:uppercase;font-weight:700;display:block;margin-bottom:4px">Nombre completo</label>
+          <input type="text" id="adm-nombre" placeholder="ej. María Segura" style="width:100%;padding:8px 10px;border:1px solid var(--line);border-radius:7px;font-size:12px;box-sizing:border-box">
+        </div>
+        <div>
+          <label style="font-size:10px;color:var(--muted);text-transform:uppercase;font-weight:700;display:block;margin-bottom:4px">Contraseña</label>
+          <input type="password" id="adm-password" placeholder="mín. 8 caracteres" style="width:100%;padding:8px 10px;border:1px solid var(--line);border-radius:7px;font-size:12px;box-sizing:border-box">
+        </div>
+        <div>
+          <label style="font-size:10px;color:var(--muted);text-transform:uppercase;font-weight:700;display:block;margin-bottom:4px">Rol</label>
+          <select id="adm-rol" onchange="mostrarPermisosRol()" style="width:100%;padding:8px 10px;border:1px solid var(--line);border-radius:7px;font-size:12px;background:#fff;box-sizing:border-box"></select>
+        </div>
+        <div>
+          <label style="font-size:10px;color:var(--muted);text-transform:uppercase;font-weight:700;display:block;margin-bottom:4px">Clientes permitidos</label>
+          <input type="text" id="adm-perfiles" placeholder="* = todos, o ALANIS,FLETAMENTO" style="width:100%;padding:8px 10px;border:1px solid var(--line);border-radius:7px;font-size:12px;box-sizing:border-box">
+        </div>
+      </div>
+      <div id="adm-permisos-info" style="font-size:10.5px;color:var(--muted);margin-top:10px"></div>
+      <div style="display:flex;gap:8px;margin-top:14px">
+        <button class="btn primary" onclick="guardarUsuarioAdmin()" id="btn-adm-guardar">Guardar usuario</button>
+        <button class="btn" onclick="limpiarFormAdmin()">Limpiar</button>
+      </div>
+    </div>
+
+    <!-- Lista -->
+    <div class="scroll-x">
+      <table class="tbl" style="min-width:640px">
+        <thead><tr><th>Usuario</th><th>Nombre</th><th>Rol</th><th>Clientes</th><th>Estado</th><th></th></tr></thead>
+        <tbody id="adm-tbody"><tr><td colspan="6" class="empty">Cargando…</td></tr></tbody>
+      </table>
+    </div>
+
+    <div style="text-align:right;margin-top:18px">
+      <button class="btn" onclick="cerrarModalAdmin()">Cerrar</button>
+    </div>
+  </div>
+</div>
+
 <div class="menu-fondo" onclick="toggleSidebar()"></div>
 <div class="app" style="display:flex;height:100vh">
 <div class="sidebar">
@@ -23616,6 +23681,20 @@ body.con-panel .content{padding-right:336px}
             <span class="menu-ico">🔋</span>
             <span><b>Diagnóstico (Navixy)</b><small>Posiciona · sin red · sin voltaje</small></span>
           </button>
+
+          <!-- Solo se muestra a quien tiene el permiso; el servidor lo valida igual -->
+          <div id="menu-seccion-admin" style="display:none">
+            <div class="menu-sep"></div>
+            <div class="menu-titulo">Administración</div>
+            <button class="menu-item" onclick="cerrarMenuAcciones();abrirModalAdmin()">
+              <span class="menu-ico">👥</span>
+              <span><b>Usuarios y roles</b><small>Alta, permisos y acceso por cliente</small></span>
+            </button>
+            <button class="menu-item" onclick="cerrarMenuAcciones();crearPerfilNuevo()">
+              <span class="menu-ico">🏢</span>
+              <span><b>Agregar cliente</b><small>Nuevo espacio de datos separado</small></span>
+            </button>
+          </div>
         </div>
       </div>
       <input type="file" id="input-xlsx" accept=".xlsm,.xlsx" style="display:none" onchange="importarExcel(this)">
@@ -24342,11 +24421,31 @@ function rowsToObjects(rows){
 
 // ── FETCH LIVE DATA FROM APIs VIA APPS SCRIPT PROXY ──────────────────────
 
+/* Los ítems del menú tienen estructura interna (icono + título + descripción).
+   Asignarles textContent la destruye y el ítem queda inservible hasta recargar.
+   Este helper cambia solo la línea del título, conservando el resto. */
+function estadoItemMenu(id, ocupado, texto){
+  const el = document.getElementById(id);
+  if(!el) return;
+  el.disabled = !!ocupado;
+  const titulo = el.querySelector('b');
+  if(titulo){
+    if(ocupado){
+      if(!titulo.dataset.original) titulo.dataset.original = titulo.textContent;
+      titulo.textContent = texto || 'Procesando...';
+    } else {
+      titulo.textContent = titulo.dataset.original || texto || titulo.textContent;
+      delete titulo.dataset.original;
+    }
+  } else if(texto){
+    // Botón normal (no ítem de menú): comportamiento clásico
+    el.textContent = texto;
+  }
+}
+
 /* ▓▓ 3. DATOS EN VIVO ▓▓ ──────────────────────────────────────────────────── */
 async function fetchLiveData() {
-  const btn = document.getElementById('btn-live');
-  btn.disabled = true;
-  btn.textContent = 'Consultando APIs...';
+  estadoItemMenu('btn-live', true, 'Consultando APIs...');
   notify('Consultando LBOX y Webfleet... puede tardar 20-30 segundos', 'info', 10000);
 
   try {
@@ -24371,15 +24470,18 @@ async function fetchLiveData() {
     }
     if (!lboxUnits.length) {
       notify('La API LBOX no devolvió dispositivos. Verifica las credenciales de la cuenta.', 'err', 6000);
-      document.getElementById('btn-live').disabled = false;
-      document.getElementById('btn-live').textContent = '🔄 Obtener datos en vivo';
+      estadoItemMenu('btn-live', false);
       return;
     }
 
     // Calcula días sin reportar desde fechaDesicronizacion
     function calcDiasDesde(fechaStr){
       if(!fechaStr) return 0;
-      const f = new Date(fechaStr.replace(' ','T'));
+      // ISO con Z (API nueva) lo entiende new Date() directo; el formato viejo
+      // con espacio necesita la T. Se prueban ambos.
+      const s = String(fechaStr);
+      let f = new Date(s);
+      if(isNaN(f)) f = new Date(s.replace(' ','T'));
       if(isNaN(f)) return 0;
       return Math.floor((Date.now() - f.getTime()) / 86400000);
     }
@@ -24398,21 +24500,34 @@ async function fetchLiveData() {
 
     // Mapea los campos reales de la API LBOX al formato de la app.
     // Filtra solo los NO sincronizados (sincronizado === '0') = sin reportar.
+    /* La API nueva (movomx) no tiene el campo 'sincronizado': trae TODOS los
+       vehículos y el criterio pasa a ser la antigüedad de lastReportDate.
+       Filtrar por 'sincronizado' aquí devolvería cero unidades siempre. */
+    const esApiNueva = (lboxRes.version === 'v1') ||
+                       lboxUnits.some(u => u.fecha && String(u.fecha).indexOf('T') !== -1 && !u.sincronizado);
+
     importData = lboxUnits
-      .filter(u => String(u.sincronizado) === '0')
+      .filter(u => esApiNueva ? true : String(u.sincronizado) === '0')
       .map(u => {
-        const dias = calcDiasDesde(u.fechaDesicronizacion);       // método app
-        const diasExcel = calcDiasExcel(u.fecha);                  // método Excel viejo
+        // Cada API nombra distinto la fecha del último reporte.
+        const fechaReporte = u.lastReportDate || u.fechaDesicronizacion || u.fecha || '';
+        const dias = calcDiasDesde(fechaReporte);
+        // En la API nueva no hay dos métodos que comparar: la fecha es una sola.
+        const diasExcel = esApiNueva ? dias : calcDiasExcel(u.fecha);
         return {
           eco:        String(u.objectno || ''),
-          lbox:       u.serieLBOX || '',
-          fw:         u.firmwareVersion || '',
-          fechaRep:   u.fechaDesicronizacion || u.fecha || '',
+          lbox:       u.serieLBOX || u.friendlyName || '',
+          fw:         u.fwVersion || u.firmwareVersion || '',
+          fechaRep:   fechaReporte,
           dias:       String(dias),
           diasExcel:  String(diasExcel),
-          fechaContacto: u.fecha || '',
-          modo:       u.modo || '',
-          vinculado:  u.vinculado || '',
+          fechaContacto: u.fecha || fechaReporte,
+          modo:       u.modo || u.mode || '',
+          vinculado:  u.vinculado || u.status || '',
+          // La API nueva ya trae la serie del LINK: alimenta la pantalla de
+          // reincidencia sin necesidad de consultar Webfleet.
+          serieLink:  u.serieLink || '',
+          ubicacion:  u.ubicacion || '',
         };
       })
       .filter(u => u.eco && parseInt(u.dias) >= 1);
@@ -24420,20 +24535,22 @@ async function fetchLiveData() {
     importData.sort((a, b) => parseInt(b.dias) - parseInt(a.dias));
 
     const totalDisp = lboxUnits.length;
-    const sinRep = lboxUnits.filter(u => String(u.sincronizado) === '0').length;
+    const sinRep = esApiNueva
+      ? importData.length
+      : lboxUnits.filter(u => String(u.sincronizado) === '0').length;
 
     document.getElementById('import-count').textContent = importData.length;
     document.getElementById('import-min-dias').value = '1';
     filtrarImport();
     abrirModal('modal-import');
-    notify('LBOX: ' + totalDisp + ' dispositivos, ' + sinRep + ' sin sincronizar, ' + importData.length + ' con 1+ días', 'ok', 6000);
+    notify('LBOX' + (esApiNueva ? ' (movomx)' : '') + ': ' + totalDisp + ' dispositivos · ' +
+      importData.length + ' con 1+ días sin reportar', 'ok', 7000);
 
   } catch(err) {
     notify('Error: ' + err.message, 'err', 6000);
   }
 
-  btn.disabled = false;
-  btn.textContent = 'Obtener datos en vivo';
+  estadoItemMenu('btn-live', false);
 }
 
 // ── IMPORT FROM EXCEL ─────────────────────────────────────────────────────
@@ -26485,6 +26602,146 @@ function usuarioActual(){
   return CONFIG.RESPONSABLE || '';
 }
 
+/* ── ADMINISTRACIÓN DE USUARIOS ───────────────────────────────────────────
+   Todas estas acciones exigen permiso 'usuarios' en el servidor. El frontend
+   solo oculta el acceso: si alguien llama la acción sin el rol, el backend la
+   rechaza igual. */
+let ROLES_DISPONIBLES = [];
+
+function abrirModalAdmin(){
+  if(!tienePermisoUI('usuarios')){
+    notify('Tu rol no permite administrar usuarios', 'err');
+    return;
+  }
+  cerrarCapasFlotantes();
+  document.getElementById('modal-admin').style.display = 'flex';
+  limpiarFormAdmin();
+  cargarUsuariosAdmin();
+}
+
+function cerrarModalAdmin(){
+  document.getElementById('modal-admin').style.display = 'none';
+}
+
+async function cargarUsuariosAdmin(){
+  const tb = document.getElementById('adm-tbody');
+  try {
+    const res = await jsonp({ action:'listarUsuarios' });
+    if(res && res.error){
+      tb.innerHTML = '<tr><td colspan="6" class="empty">' + esc(res.error) + '</td></tr>';
+      return;
+    }
+    ROLES_DISPONIBLES = res.roles || [];
+    llenarSelectRoles();
+
+    const us = res.usuarios || [];
+    if(!us.length){ tb.innerHTML = '<tr><td colspan="6" class="empty">Sin usuarios</td></tr>'; return; }
+
+    tb.innerHTML = us.map((u,i) => {
+      const rolInfo = ROLES_DISPONIBLES.find(r => r.id === u.rol);
+      return '<tr style="background:' + (i%2?'#f9f9f9':'#fff') + '">' +
+        '<td style="font-family:monospace;font-size:11px"><b>' + esc(u.usuario) + '</b></td>' +
+        '<td style="font-size:12px">' + esc(u.nombre || '—') + '</td>' +
+        '<td style="font-size:11px">' + esc(rolInfo ? rolInfo.nombre : u.rol) + '</td>' +
+        '<td style="font-size:10px;color:var(--muted)">' + esc(u.perfiles === '*' ? 'Todos' : u.perfiles) + '</td>' +
+        '<td style="text-align:center">' + (u.activo
+          ? '<span class="badge si">Activo</span>'
+          : '<span class="badge na">Inactivo</span>') + '</td>' +
+        '<td style="white-space:nowrap">' +
+          '<button class="btn" style="font-size:10px;padding:3px 8px" onclick=\'editarUsuarioAdmin(' +
+            JSON.stringify(u).replace(/'/g,'&#39;').replace(/"/g,'&quot;') + ')\'>Editar</button> ' +
+          (u.usuario !== 'admin' && u.activo
+            ? '<button class="btn" style="font-size:10px;padding:3px 8px;color:#c0392b" onclick="desactivarUsuarioAdmin(\'' +
+              esc(u.usuario) + '\')">Desactivar</button>' : '') +
+        '</td>' +
+      '</tr>';
+    }).join('');
+  } catch(e){
+    tb.innerHTML = '<tr><td colspan="6" class="empty">Error: ' + esc(e.message||'') + '</td></tr>';
+  }
+}
+
+function llenarSelectRoles(){
+  const sel = document.getElementById('adm-rol');
+  if(!sel || !ROLES_DISPONIBLES.length) return;
+  sel.innerHTML = ROLES_DISPONIBLES.map(r =>
+    '<option value="' + esc(r.id) + '">' + esc(r.nombre) + '</option>').join('');
+  mostrarPermisosRol();
+}
+
+/* Muestra qué puede hacer el rol elegido: evita asignar permisos a ciegas. */
+function mostrarPermisosRol(){
+  const sel = document.getElementById('adm-rol');
+  const info = document.getElementById('adm-permisos-info');
+  if(!sel || !info) return;
+  const rol = ROLES_DISPONIBLES.find(r => r.id === sel.value);
+  if(!rol){ info.textContent = ''; return; }
+
+  const ETIQUETAS = {
+    leer:'ver datos', capturar:'capturar unidades', cerrar:'cerrar ciclos',
+    enviar:'enviar reportes', configurar:'configurar', usuarios:'administrar usuarios',
+    perfiles:'crear clientes'
+  };
+  info.innerHTML = '<b>Permite:</b> ' +
+    rol.permisos.map(p => ETIQUETAS[p] || p).join(' · ');
+}
+
+function limpiarFormAdmin(){
+  ['adm-usuario','adm-nombre','adm-password','adm-perfiles'].forEach(id => {
+    const el = document.getElementById(id); if(el) el.value = '';
+  });
+  const p = document.getElementById('adm-perfiles'); if(p) p.value = '*';
+  const t = document.getElementById('adm-form-titulo'); if(t) t.textContent = 'Nuevo usuario';
+  const u = document.getElementById('adm-usuario'); if(u) u.disabled = false;
+  mostrarPermisosRol();
+}
+
+function editarUsuarioAdmin(u){
+  document.getElementById('adm-usuario').value = u.usuario;
+  document.getElementById('adm-usuario').disabled = true;   // el usuario no se renombra
+  document.getElementById('adm-nombre').value = u.nombre || '';
+  document.getElementById('adm-password').value = '';
+  document.getElementById('adm-rol').value = u.rol || 'consulta';
+  document.getElementById('adm-perfiles').value = u.perfiles || '*';
+  document.getElementById('adm-form-titulo').textContent = 'Editando: ' + u.usuario +
+    ' (deja la contraseña vacía para conservarla)';
+  mostrarPermisosRol();
+  document.getElementById('adm-nombre').focus();
+}
+
+async function guardarUsuarioAdmin(){
+  const usuario  = (document.getElementById('adm-usuario').value || '').trim().toLowerCase();
+  const nombre   = (document.getElementById('adm-nombre').value || '').trim();
+  const password = document.getElementById('adm-password').value || '';
+  const rol      = document.getElementById('adm-rol').value;
+  const perfiles = (document.getElementById('adm-perfiles').value || '*').trim();
+
+  if(!usuario){ notify('El usuario es obligatorio', 'err'); return; }
+
+  const btn = document.getElementById('btn-adm-guardar');
+  btn.disabled = true; btn.textContent = 'Guardando...';
+  try {
+    const res = await jsonp({ action:'guardarUsuario', usuario, nombre, password, rol, perfiles });
+    if(res && res.error){ notify(res.error, 'err', 8000); }
+    else {
+      notify(res.creado ? 'Usuario ' + usuario + ' creado' : 'Usuario ' + usuario + ' actualizado', 'ok');
+      limpiarFormAdmin();
+      cargarUsuariosAdmin();
+    }
+  } catch(e){ notify('Error: ' + (e.message||''), 'err'); }
+  btn.disabled = false; btn.textContent = 'Guardar usuario';
+}
+
+async function desactivarUsuarioAdmin(usuario){
+  if(!confirm('¿Desactivar el acceso de ' + usuario + '?\n\n' +
+     'No se borra: el historial conserva las capturas que hizo.')) return;
+  try {
+    const res = await jsonp({ action:'eliminarUsuario', usuario });
+    if(res && res.error) notify(res.error, 'err');
+    else { notify('Usuario desactivado', 'ok'); cargarUsuariosAdmin(); }
+  } catch(e){ notify('Error: ' + (e.message||''), 'err'); }
+}
+
 /* ── SESIÓN Y PERFILES ────────────────────────────────────────────────────
    La sesión se valida en el Apps Script, no aquí: el navegador solo guarda el
    token que devolvió el servidor. Esto significa que editar este archivo no
@@ -26528,7 +26785,8 @@ async function hacerLogin(){
       document.getElementById('login-password').value = '';
     } else if(res && res.ok){
       CONFIG.SESION  = res.sesion;
-      CONFIG.USUARIO = { usuario: res.usuario, nombre: res.nombre, rol: res.rol, perfiles: res.perfiles };
+      CONFIG.USUARIO = { usuario: res.usuario, nombre: res.nombre, rol: res.rol,
+                         perfiles: res.perfiles, permisos: res.permisos || [] };
       try {
         sessionStorage.setItem('lbox_sesion', JSON.stringify({
           sesion: res.sesion, usuario: CONFIG.USUARIO, venceEn: res.venceEn
@@ -26574,12 +26832,20 @@ function restaurarSesion(){
 }
 
 function actualizarUsuarioUI(){
+  // La sección de administración solo aparece si el rol la incluye.
+  const secAdmin = document.getElementById('menu-seccion-admin');
+  if(secAdmin) secAdmin.style.display = tienePermisoUI('usuarios') ? 'block' : 'none';
+
   const el = document.getElementById('usuario-actual');
   if(el && CONFIG.USUARIO){
     el.textContent = CONFIG.USUARIO.nombre || CONFIG.USUARIO.usuario;
   }
   const rol = document.getElementById('usuario-rol');
-  if(rol && CONFIG.USUARIO) rol.textContent = CONFIG.USUARIO.rol || 'usuario';
+  if(rol && CONFIG.USUARIO){
+    const NOMBRES = { admin:'Administrador', supervisor:'Supervisor',
+                      operador:'Operador', consulta:'Solo consulta' };
+    rol.textContent = NOMBRES[CONFIG.USUARIO.rol] || CONFIG.USUARIO.rol || 'usuario';
+  }
 }
 
 /* ── Perfiles (clientes) ───────────────────────────────────────────────── */
@@ -26605,18 +26871,64 @@ function renderSelectorPerfil(){
   const el = document.getElementById('selector-perfil');
   if(!el) return;
   const lista = CONFIG.PERFILES_DISPONIBLES || [];
-  if(lista.length <= 1){
-    // Con un solo perfil no tiene sentido un selector: se muestra el nombre.
-    el.innerHTML = '<div style="font-size:13px;font-weight:600;color:#fff">' +
-      esc(CONFIG.PERFIL || 'ALANIS') + '</div>';
+  const puedeCrear = tienePermisoUI('perfiles');
+
+  // Siempre se muestra como desplegable, aunque haya un solo perfil: así queda
+  // claro con qué cliente se está trabajando y cómo cambiar.
+  el.innerHTML =
+    '<select id="sel-perfil" onchange="alCambiarPerfil(this)" ' +
+    'style="background:rgba(255,255,255,.12);color:#fff;border:1px solid rgba(255,255,255,.25);' +
+    'border-radius:7px;padding:7px 10px;font-size:12.5px;width:100%;font-family:inherit;cursor:pointer;font-weight:600">' +
+      lista.map(p => '<option value="' + esc(p) + '"' + (p === CONFIG.PERFIL ? ' selected' : '') +
+        ' style="color:#1C2B39">' + esc(p) + '</option>').join('') +
+      (puedeCrear ? '<option disabled style="color:#999">──────────</option>' +
+        '<option value="__nuevo__" style="color:#1C2B39">+ Agregar cliente…</option>' : '') +
+    '</select>';
+}
+
+/* Intermediario del select: distingue cambiar de perfil de crear uno nuevo. */
+function alCambiarPerfil(sel){
+  if(sel.value === '__nuevo__'){
+    sel.value = CONFIG.PERFIL;      // revertir para no dejar el select en el ítem
+    crearPerfilNuevo();
     return;
   }
-  el.innerHTML = '<select onchange="cambiarPerfil(this.value)" ' +
-    'style="background:rgba(255,255,255,.12);color:#fff;border:1px solid rgba(255,255,255,.25);' +
-    'border-radius:7px;padding:6px 10px;font-size:12px;width:100%;font-family:inherit;cursor:pointer">' +
-    lista.map(p => '<option value="' + esc(p) + '"' + (p === CONFIG.PERFIL ? ' selected' : '') +
-      ' style="color:#1C2B39">' + esc(p) + '</option>').join('') +
-    '</select>';
+  cambiarPerfil(sel.value);
+}
+
+async function crearPerfilNuevo(){
+  const nombre = prompt('Nombre del nuevo cliente:\n\n' +
+    'Se creará su propio espacio de unidades e historial, separado de los demás.\n' +
+    'Solo letras y números (ej. FLETAMENTO, TRANSPORTESXYZ).');
+  if(!nombre) return;
+
+  const limpio = nombre.normalize('NFD').replace(/[\u0300-\u036f]/g,'')
+    .toUpperCase().replace(/[^A-Z0-9]/g,'');
+  if(limpio.length < 3){ notify('El nombre debe tener al menos 3 letras o números', 'err'); return; }
+
+  if((CONFIG.PERFILES_DISPONIBLES||[]).includes(limpio)){
+    notify('El cliente ' + limpio + ' ya existe', 'err');
+    return;
+  }
+
+  try {
+    const res = await jsonp({ action:'crearPerfil', perfil: limpio });
+    if(res && res.error){ notify(res.error, 'err', 8000); return; }
+    notify('Cliente ' + limpio + ' creado. Ya puedes cambiar a él.', 'ok', 7000);
+    await cargarPerfiles();
+  } catch(e){
+    notify('No se pudo crear el cliente: ' + (e.message||'error'), 'err', 8000);
+  }
+}
+
+/* Comprobación de permisos para MOSTRAR u ocultar controles. Es cortesía
+   visual: la validación real ocurre en el servidor, así que ocultar un botón
+   no es lo que protege la acción. */
+function tienePermisoUI(permiso){
+  if(!CONFIG.USUARIO) return false;
+  const p = CONFIG.USUARIO.permisos;
+  if(!p) return CONFIG.USUARIO.rol === 'admin';   // compatibilidad
+  return p.indexOf(permiso) !== -1;
 }
 
 async function cambiarPerfil(perfil){
