@@ -26635,6 +26635,7 @@ async function cargarUsuariosAdmin(){
     llenarSelectRoles();
 
     const us = res.usuarios || [];
+    admUsuariosVisibles = us;
     if(!us.length){ tb.innerHTML = '<tr><td colspan="6" class="empty">Sin usuarios</td></tr>'; return; }
 
     tb.innerHTML = us.map((u,i) => {
@@ -26648,11 +26649,9 @@ async function cargarUsuariosAdmin(){
           ? '<span class="badge si">Activo</span>'
           : '<span class="badge na">Inactivo</span>') + '</td>' +
         '<td style="white-space:nowrap">' +
-          '<button class="btn" style="font-size:10px;padding:3px 8px" onclick=\'editarUsuarioAdmin(' +
-            JSON.stringify(u).replace(/'/g,'&#39;').replace(/"/g,'&quot;') + ')\'>Editar</button> ' +
+          '<button class="btn" style="font-size:10px;padding:3px 8px" onclick="editarUsuarioAdminIdx(' + i + ')">Editar</button> ' +
           (u.usuario !== 'admin' && u.activo
-            ? '<button class="btn" style="font-size:10px;padding:3px 8px;color:#c0392b" onclick="desactivarUsuarioAdmin(\'' +
-              esc(u.usuario) + '\')">Desactivar</button>' : '') +
+            ? '<button class="btn" style="font-size:10px;padding:3px 8px;color:#c0392b" onclick="desactivarUsuarioAdminIdx(' + i + ')">Desactivar</button>' : '') +
         '</td>' +
       '</tr>';
     }).join('');
@@ -26695,6 +26694,13 @@ function limpiarFormAdmin(){
   const u = document.getElementById('adm-usuario'); if(u) u.disabled = false;
   mostrarPermisosRol();
 }
+
+/* SEGURIDAD: los botones solo pasan un índice. Antes se incrustaba el objeto
+   del usuario (con su nombre) dentro del onclick, y un nombre con comillas
+   codificadas podía ejecutar código en la sesión de otro administrador. */
+let admUsuariosVisibles = [];
+function editarUsuarioAdminIdx(i){ const u = admUsuariosVisibles[i]; if(u) editarUsuarioAdmin(u); }
+function desactivarUsuarioAdminIdx(i){ const u = admUsuariosVisibles[i]; if(u) desactivarUsuarioAdmin(u.usuario); }
 
 function editarUsuarioAdmin(u){
   document.getElementById('adm-usuario').value = u.usuario;
@@ -27264,6 +27270,7 @@ function renderLkKpis(porLink, lista){
 function renderLkTabla(lista){
   const tb = document.getElementById('lk-tbody');
   if(!tb) return;
+  lkListaVisible = lista;
   if(!lista.length){
     tb.innerHTML = '<tr><td colspan="9" class="empty">Ningún dispositivo LINK cumple el filtro. ' +
       'Si es la primera vez que usas esta pantalla, ejecuta el diagnóstico de Navixy para que se ' +
@@ -27278,7 +27285,7 @@ function renderLkTabla(lista){
     const cNum = L.perdidas >= 5 ? 'var(--red)' : L.perdidas >= 3 ? 'var(--amber)' : 'var(--muted)';
 
     filas.push(
-      '<tr onclick="toggleLk(' + JSON.stringify(L.serie).replace(/"/g,'&quot;') + ')" ' +
+      '<tr onclick="toggleLkIdx(' + i + ')" ' +
         'style="cursor:pointer;background:' + (i%2?'#f9f9f9':'#fff') + '" title="Clic para ver los eventos">' +
         '<td style="color:var(--muted);font-weight:700">#' + (i+1) + '</td>' +
         '<td style="font-family:monospace;font-size:11px"><b>' + esc(L.serie) + '</b></td>' +
@@ -27525,6 +27532,15 @@ async function exportarLinkPDF(){
 function toggleLk(serie){
   lkExpandido = (lkExpandido === serie) ? null : serie;
   renderLink();
+}
+
+/* SEGURIDAD: el onclick solo lleva un número. Antes llevaba la serie del LINK,
+   que llega de una API externa: una serie maliciosa podía ejecutar código y
+   robar la sesión (verificado). El dato se busca aquí, fuera del HTML. */
+let lkListaVisible = [];
+function toggleLkIdx(i){
+  const L = lkListaVisible[i];
+  if (L) toggleLk(L.serie);
 }
 
 function renderLkSinSerie(sinSerie){
@@ -27841,6 +27857,7 @@ function renderInfReincidentes(registros){
   const lista = calcularReincidentesRanking(registros)
     .filter(p => p.apariciones >= 2)
     .slice(0, 30);
+  infReincVisible = lista;
 
   if(!lista.length){
     tb.innerHTML = '<tr><td colspan="8" class="empty">Ninguna unidad con 2 o más apariciones en el rango</td></tr>';
@@ -27854,7 +27871,7 @@ function renderInfReincidentes(registros){
     const cNum = p.apariciones >= 10 ? 'var(--red)' : p.apariciones >= 5 ? 'var(--amber)' : 'var(--muted)';
 
     filas.push(
-      '<tr onclick="toggleInfReinc(' + JSON.stringify(p.eco).replace(/"/g,'&quot;') + ')" ' +
+      '<tr onclick="toggleInfReincIdx(' + i + ')" ' +
         'style="cursor:pointer;background:' + (i%2?'#f9f9f9':'#fff') + '" title="Clic para ver todas las fechas">' +
         '<td style="color:var(--muted);font-weight:700">#' + (i+1) + '</td>' +
         '<td><b>ECO ' + esc(p.eco) + '</b>' +
@@ -28142,6 +28159,14 @@ async function exportarReincidentesPDF(){
     notify('No se pudo generar el PDF: ' + e.message, 'err', 9000);
   }
   if(btn){ btn.disabled = false; btn.textContent = txtOriginal; }
+}
+
+/* SEGURIDAD: el onclick solo lleva un índice numérico; el ECO se busca aquí.
+   Incrustar el dato dentro del atributo permitía ejecutar código. */
+let infReincVisible = [];
+function toggleInfReincIdx(i){
+  const p = infReincVisible[i];
+  if (p) toggleInfReinc(p.eco);
 }
 
 function toggleInfReinc(eco){
