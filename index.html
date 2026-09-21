@@ -24097,7 +24097,7 @@ body.con-panel .content{padding-right:336px}
       <div class="card" style="margin-bottom:16px">
         <div class="card-title">📡 Qué muestra esta pantalla</div>
         <div style="font-size:12px;color:var(--muted);line-height:1.6">
-          Analiza la reincidencia por <b>dispositivo LINK</b> no por vehículo.
+          Analiza la reincidencia por <b>dispositivo LINK</b> , no por vehículo.
           Solo considera los registros donde la unidad <b>NO estaba posicionando</b>, que es cuando el LINK
           es el sospechoso. Si un mismo LINK pierde comunicación en varios ciclos, el problema es del
           aparato y no del vehículo — y eso justifica su reemplazo en vez de seguir revisando instalaciones.
@@ -26164,7 +26164,7 @@ function renderTablaWebfleet() {
   // Filtrado por estado (botones rápidos) + búsqueda por ECO/LBOX
   let filtrados = wfPosiciones.filter(u => {
     if (typeof wfFiltroActivo !== 'undefined' && wfFiltroActivo !== 'todos' && u.estado !== wfFiltroActivo) return false;
-    if (q && !((u.eco||'')+(u.lbox||'')).toLowerCase().includes(q)) return false;
+    if (q && !((u.eco||'')+(u.lbox||'')+(u.serieLink||'')).toLowerCase().includes(q)) return false;
     return true;
   });
 
@@ -26188,7 +26188,8 @@ function renderTablaWebfleet() {
       '<td style="text-align:center"><input type="checkbox" class="wf-chk-unidad" value="' + esc(u.eco) + '" onchange="updateWfSelected()"></td>' +
       '<td><b>ECO ' + esc(u.eco) + '</b></td>' +
       '<td style="font-size:10px">' + esc(u.lbox || '—') + '</td>' +
-      '<td style="font-size:10px">' + esc(u.objectname || '—') + '</td>' +
+      '<td style="font-size:11px;font-family:monospace;font-weight:600" title="' + esc(u.objectname ? 'Nombre en Webfleet: ' + u.objectname : '') + '">' +
+        (u.serieLink ? esc(u.serieLink) : '<span style="color:#b35900;font-family:inherit;font-weight:400" title="Webfleet no devolvió el N.º de serie de este LINK">sin serie</span>') + '</td>' +
       '<td style="font-size:11px;white-space:nowrap">' + esc(u.pos_time_legible || u.pos_time || '—') + '</td>' +
       '<td style="font-weight:700">' + (u.minutos !== null ? u.minutos + ' min' : '—') + '</td>' +
       '<td style="text-align:center">' + esc(u.speed || '0') + ' km/h</td>' +
@@ -26463,13 +26464,18 @@ async function consultarPosicionesWebfleet() {
     // La serie del LINK viene de showContracts (obu_serialno). Si no llega, se
     // explica por qué: error de la consulta o campos distintos a los esperados.
     if (res.diag && res.diag.totalObjetos > 0 && res.diag.conSerieLink === 0) {
-      const k = res.diag.contratos || {};
+      if (!res.diag.contratos) {
+        notify('ℹ️ El Apps Script publicado todavía no consulta el N.º de serie del LINK (es anterior a la v7.7). ' +
+          'Publica la versión nueva: Implementar → Gestionar implementaciones → editar → Versión nueva.', 'err', 16000);
+      } else {
+      const k = res.diag.contratos;
       notify('ℹ️ No llegó la serie del LINK (N.º de serie de la pestaña Contrato), así que la ' +
         'Reincidencia LINK no tendrá datos de estas unidades. ' +
         (k.error ? 'showContracts respondió: ' + k.error
                  : 'showContracts devolvió ' + (k.total || 0) + ' contratos sin obu_serialno. Campos: [' + (k.campos || []).join(', ') + ']'),
         'err', 16000);
       console.warn('Webfleet — diagnóstico de contratos:', k);
+    }
     }
 
     if (sinCruce > 0) {
@@ -30511,14 +30517,14 @@ document.addEventListener('visibilitychange', () => {
         <button class="btn wf-filtro-btn" id="wf-filtro-moderado" onclick="filtrarWebfleet('moderado')" style="font-size:11px;color:#b35900">🟡 Moderado</button>
         <button class="btn wf-filtro-btn" id="wf-filtro-reposo" onclick="filtrarWebfleet('reposo')" style="font-size:11px;color:#185FA5">🔵 En reposo</button>
         <button class="btn wf-filtro-btn" id="wf-filtro-perdida" onclick="filtrarWebfleet('perdida')" style="font-size:11px;color:#c0392b">🔴 Posible pérdida</button>
-        <input id="wf-search" type="text" placeholder="Buscar ECO..." oninput="renderTablaWebfleet()" style="flex:1;min-width:120px;padding:6px 10px;border:1px solid var(--line);border-radius:7px;font-size:12px">
+        <input id="wf-search" type="text" placeholder="Buscar ECO, LBOX o serie..." oninput="renderTablaWebfleet()" style="flex:1;min-width:120px;padding:6px 10px;border:1px solid var(--line);border-radius:7px;font-size:12px">
       </div>
 
       <div class="scroll-x" style="max-height:320px;overflow-y:auto;border:1px solid var(--line);border-radius:8px">
         <table class="tbl" style="font-size:11px">
           <thead style="position:sticky;top:0;z-index:1010"><tr>
             <th style="width:30px"><input type="checkbox" onchange="toggleAllWebfleet(this)"></th>
-            <th>#ECO</th><th>LBOX</th><th>Nombre</th><th>Última posición (pos_time)</th>
+            <th>#ECO</th><th>LBOX</th><th>Serie LINK</th><th>Última posición (pos_time)</th>
             <th>Transcurrido</th><th>Velocidad</th><th>Ignición</th><th>Estado</th><th>Posiciona</th>
           </tr></thead>
           <tbody id="wf-tbody"></tbody>
