@@ -23570,7 +23570,7 @@ body.con-panel .content{padding-right:336px}
         </div>
         <div>
           <label style="font-size:10px;color:var(--muted);text-transform:uppercase;font-weight:700;display:block;margin-bottom:4px">Nombre completo</label>
-          <input type="text" id="adm-nombre" placeholder="ej. María Segura" style="width:100%;padding:8px 10px;border:1px solid var(--line);border-radius:7px;font-size:12px;box-sizing:border-box">
+          <input type="text" id="adm-nombre" placeholder="Nombre y apellido — firma sus capturas" style="width:100%;padding:8px 10px;border:1px solid var(--line);border-radius:7px;font-size:12px;box-sizing:border-box">
         </div>
         <div>
           <label style="font-size:10px;color:var(--muted);text-transform:uppercase;font-weight:700;display:block;margin-bottom:4px">Contraseña</label>
@@ -24097,7 +24097,7 @@ body.con-panel .content{padding-right:336px}
       <div class="card" style="margin-bottom:16px">
         <div class="card-title">📡 Qué muestra esta pantalla</div>
         <div style="font-size:12px;color:var(--muted);line-height:1.6">
-          Analiza la reincidencia por <b>dispositivo LINK</b> , no por vehículo.
+          Analiza la reincidencia por <b>dispositivo LINK</b> (la serie del Teltonika), no por vehículo.
           Solo considera los registros donde la unidad <b>NO estaba posicionando</b>, que es cuando el LINK
           es el sospechoso. Si un mismo LINK pierde comunicación en varios ciclos, el problema es del
           aparato y no del vehículo — y eso justifica su reemplazo en vez de seguir revisando instalaciones.
@@ -24163,7 +24163,7 @@ body.con-panel .content{padding-right:336px}
         <div class="card-title">⚠️ Registros sin serie de LINK</div>
         <div style="font-size:11px;color:var(--muted);margin-bottom:10px">
           Estos registros no posicionaban pero no tienen la serie del LINK guardada, así que quedan fuera
-          del análisis. La serie se captura al ejecutar el diagnóstico de Link
+          del análisis. La serie se captura al ejecutar el diagnóstico de Navixy.
         </div>
         <div id="lk-sinserie" style="font-size:12px"></div>
       </div>
@@ -24432,37 +24432,67 @@ function jsonpRaw(params){
 // POST via fetch (funciona cuando hay internet, falla solo desde file://)
 // Usamos un iframe trick para POST desde file://
 // All writes use JSONP GET to avoid CORS
+/* ── ENVÍO DE DATOS AL SERVIDOR ────────────────────────────────────────────
+   Revisado tras la auditoría de optimización:
+     · Antes cada edición mandaba TODAS las unidades en la URL, codificadas
+       dos veces (~60 KB con 60 unidades). Los servidores suelen rechazar URLs
+       mucho más cortas, y el fallo no se veía.
+     · Ahora se manda solo lo que cambió, con una sola codificación, y si no
+       cabe en una URL se parte en lotes de tamaño seguro.
+     · Los lotes se reintentan sin riesgo: el servidor actualiza por ECO+LBOX
+       y el historial omite registros que ya existen. */
+const LIMITE_DATOS_URL = 5500;   // caracteres del parámetro 'data' por petición
+
+function partirEnLotes(items){
+  const lotes = []; let actual = []; let tam = 2;
+  for(const it of items){
+    const t = encodeURIComponent(JSON.stringify(it)).length + 3;
+    if(actual.length && tam + t > LIMITE_DATOS_URL){ lotes.push(actual); actual = []; tam = 2; }
+    actual.push(it); tam += t;
+  }
+  if(actual.length) lotes.push(actual);
+  return lotes;
+}
+
+async function enviarEnLotes(action, items){
+  const lotes = partirEnLotes(items || []);
+  const total = { ok: true, lotes: lotes.length, saved: 0, nuevas: 0, actualizadas: 0, omitidas: 0 };
+  for(let k = 0; k < lotes.length; k++){
+    const r = await jsonp({ action, data: JSON.stringify(lotes[k]) });
+    if(!r || r.error){
+      return { error: (r && r.error) || 'Sin respuesta del servidor',
+               loteFallido: k + 1, lotes: lotes.length, parcial: total };
+    }
+    ['saved','nuevas','actualizadas','omitidas'].forEach(x => { total[x] += (r[x] || 0); });
+  }
+  return total;
+}
+
+/* Guarda unidades (solo las indicadas) y AVISA si falla. Antes los errores
+   se tragaban con try/catch vacío y el usuario creía que todo se guardó. */
+async function guardarUnidades(lista, silencioso){
+  const items = (lista || []).filter(u => u && String(u.eco || '').trim());
+  if(!items.length) return { ok: true };
+  autoguardarLocal();
+  const r = await enviarEnLotes('saveUnitsLote', items);
+  if(r.error && !silencioso){
+    notify('⚠️ No se guardó en el servidor: ' + r.error +
+      '. Tus cambios siguen en este navegador; reintenta con Sincronizar.', 'err', 10000);
+  }
+  return r;
+}
+
 function apiPost(body) {
   const action = body.action;
 
-  if (action === 'addUnit') {
-    const u = body.data;
-    return jsonp({
-      action: 'addUnit',
-      fechaEjec: u.fechaEjec||'', eco: u.eco||'', lbox: u.lbox||'',
-      fw: u.fw||'', fechaRep: u.fechaRep||'', dias: u.dias||'',
-      pos: u.pos||'', desv: u.desv||'', rlbox: u.rlbox||'',
-      rlink: u.rlink||'', recupero: u.recupero||'', voltaje: u.voltaje||'',
-      causa: u.causa||'', comentario: u.comentario||''
-    });
-  }
-
-  if (action === 'saveUnits') {
-    return jsonp({ action: 'saveUnits', data: encodeURIComponent(JSON.stringify(body.data || [])) });
-  }
-
-  if (action === 'addHist') {
-    return jsonp({ action: 'addHist', data: encodeURIComponent(JSON.stringify(body.data || [])) });
-  }
-
-  if (action === 'clearUnits') {
-    return jsonp({ action: 'clearUnits' });
-  }
-
+  if (action === 'addUnit')    return enviarEnLotes('saveUnitsLote', [body.data]);
+  if (action === 'saveUnits')  return enviarEnLotes('saveUnitsLote', body.data || []);
+  if (action === 'addHist')    return enviarEnLotes('addHistLote',   body.data || []);
+  if (action === 'clearUnits') return jsonp({ action: 'clearUnits' });
   if (action === 'deleteUnit') {
-    return jsonp({ action: 'deleteUnit', rowIndex: String(body.rowIndex) });
+    const u = body.data || {};
+    return jsonp({ action: 'deleteUnit', eco: u.eco || '', lbox: u.lbox || '' });
   }
-
   return Promise.resolve({ ok: true });
 }
 
@@ -24896,23 +24926,33 @@ async function confirmarImport() {
   const today = new Date().toISOString().slice(0, 10);
   const btn = document.querySelector('#modal-import .btn.primary');
   btn.disabled = true; btn.textContent = 'Guardando...';
-  let added = 0;
+  /* Antes: una llamada al servidor POR UNIDAD, en serie (60 unidades ≈ más de
+     un minuto), y la unidad se reconstruía copiando solo algunos campos: se
+     perdían la cascada N/A y la posición que ya había marcado Webfleet, la
+     serie del LINK y quién la capturó. Ahora se conservan todos y se guardan
+     en un solo envío por lotes. */
+  const nuevas = [];
   for (const u of selected) {
-    if (units.some(x => x.lbox === u.lbox)) continue;
-    const unit = {
-      fechaEjec: today, eco: u.eco, lbox: u.lbox, fw: u.fw,
-      fechaRep: u.fechaRep, dias: u.dias,
-      pos: u.pos || '', desv: '', rlbox: '', rlink: '', recupero: '', voltaje: '',
-      causa: '', comentario: '',
-    };
-    try { await apiPost({ action: 'addUnit', data: unit }); } catch(e) {}
-    units.push(unit);
-    added++;
+    if (units.some(x => claveU(x) === claveU(u))) continue;
+    nuevas.push({
+      fechaEjec: today, eco: u.eco, lbox: u.lbox, fw: u.fw || '',
+      fechaRep: u.fechaRep || '', dias: u.dias || '', modo: u.modo || '',
+      pos: u.pos || '', desv: u.desv || '', rlbox: u.rlbox || '', rlink: u.rlink || '',
+      recupero: u.recupero || '', voltaje: u.voltaje || '',
+      causa: u.causa || '', comentario: u.comentario || '', nota: '',
+      serieLink: u.serieLink || '',
+      modificadoPor: u.modificadoPor || usuarioActual(),
+      modificadoEn:  u.modificadoEn  || new Date().toISOString(),
+    });
   }
+  units.push(...nuevas);
   cerrarModal();
   renderCaptura(); renderDashboard();
   showPage('captura');
-  notify(added + ' unidades importadas al reporte', 'ok');
+
+  const r = await guardarUnidades(nuevas);
+  if (!r.error) notify(nuevas.length + ' unidades importadas al reporte' +
+    (r.lotes > 1 ? ' (' + r.lotes + ' envíos)' : ''), 'ok');
   btn.disabled = false; btn.textContent = 'Agregar al reporte';
 }
 
@@ -25067,43 +25107,37 @@ async function confirmarLimpiar() {
     // éxito, el reporte se borraba SIN haberse guardado nunca en el historial
     // = pérdida permanente de datos. Ahora solo se borra tras confirmar.
     const resHist = await apiPost({ action: 'addHist', data: newHist });
-    if (resHist && resHist.error) throw new Error('addHist: ' + resHist.error);
+    if (resHist && resHist.error) {
+      throw new Error('No se completó el guardado del historial (' + resHist.error + '). ' +
+        'NO se borró el reporte. Puedes reintentar sin riesgo: lo ya guardado no se duplica.');
+    }
 
     // ── PASO 2: verificar que realmente quedó escrito ────────────────────
-    // No basta con que la petición no falle: se relee el historial del
-    // servidor y se confirma que el folio existe antes de borrar nada.
-    let verificado = false;
-    try {
-      const hRes = await jsonp({ action: 'getHist' });
-      const histRemoto = (hRes && hRes.hist) ? hRes.hist : rowsToObjects(hRes);
-      const guardados = histRemoto.filter(h => String(h.folio) === String(folio)).length;
-      verificado = guardados >= newHist.length;
-      if (!verificado) {
-        throw new Error('Verificación fallida: se esperaban ' + newHist.length +
-          ' registros del folio ' + folio + ' pero el servidor tiene ' + guardados +
-          '. NO se borró el reporte — vuelve a intentar.');
-      }
-    } catch(errVerif) {
-      if (String(errVerif.message||'').indexOf('Verificación fallida') === 0) throw errVerif;
-      // Si la verificación no se pudo completar por red, no se borra nada.
-      throw new Error('No se pudo verificar el guardado del historial. ' +
-        'NO se borró el reporte, tus datos están intactos. Revisa la conexión y reintenta.');
+    // El servidor confirma, registro por registro, cuáles guardó y cuáles ya
+    // existían. Antes se descargaba el historial COMPLETO solo para contar
+    // los registros de este folio.
+    const confirmados = (resHist.saved || 0) + (resHist.omitidas || 0);
+    if (confirmados < newHist.length) {
+      throw new Error('Verificación fallida: se esperaban ' + newHist.length + ' registros del folio ' +
+        folio + ' y el servidor confirmó ' + confirmados + '. NO se borró el reporte — vuelve a intentar.');
     }
 
     // ── PASO 3: ahora sí, limpiar unidades (historial ya confirmado) ─────
+    // Se cancela cualquier guardado pendiente: si se disparara después de
+    // vaciar la hoja, volvería a crear las unidades del ciclo ya cerrado.
+    clearTimeout(timerGuardado); colaGuardado.clear();
     await apiPost({ action: 'clearUnits' });
 
     // Enviar correo si se solicitó
     if (enviar) {
       notify('Enviando reporte por correo...', 'ok');
       try {
-        const unitsEncoded = encodeURIComponent(JSON.stringify(units));
-        const res = await apiPost({
-          action: 'sendReport',
-          folio:  encodeURIComponent(folio),
-          fecha:  encodeURIComponent(fecha),
-          units:  unitsEncoded
-        });
+        /* Antes esta llamada nunca llegaba al servidor: apiPost no tenía un
+           caso para 'sendReport' y respondía { ok:true } por defecto, así que
+           la pantalla decía "enviado" sin que saliera ningún correo. Ahora va
+           directo y solo con el folio: el servidor lee las unidades del
+           historial que se acaba de guardar. */
+        const res = await jsonp({ action: 'sendReport', folio: folio, fecha: fecha });
         if (res.ok) {
           notify(`✅ Reporte ${folio} enviado a ${CONFIG.EMAIL_DESTINO || 'el cliente'}`, 'ok');
         } else {
@@ -25950,65 +25984,50 @@ async function syncAll(opciones){
   if (btn) btn.disabled = true;
 
   try {
-    // 1) Unidades: son pocas y cambian seguido, siempre se traen.
-    const uRes = await jsonp({ action:'getUnits' });
-    units = (uRes && uRes.units) ? uRes.units : rowsToObjects(uRes);
+    /* Llamadas por sincronización:
+         antes: getUnits + getHistMeta (+ getHist + getHistMeta si cambió) = 2 a 4
+         ahora: getUnits, que ya trae la meta del historial (+ getHist si cambió) = 1 a 2 */
 
-    // 2) Historial: primero se pregunta si cambió (consulta barata).
-    let histActualizado = false;
-    if (op.forzarHist || _histMetaLocal.total < 0) {
-      histActualizado = true;   // primera carga o refresco forzado
-    } else {
-      try {
-        const meta = await jsonp({ action:'getHistMeta' });
-        if (meta && meta.ok) {
-          histActualizado = (meta.total !== _histMetaLocal.total) ||
-                            (String(meta.ultimoFolio) !== String(_histMetaLocal.ultimoFolio));
-          if (histActualizado) _histMetaLocal = { total: meta.total, ultimoFolio: meta.ultimoFolio };
-        } else {
-          // Backend sin getHistMeta (versión anterior): se trae completo.
-          histActualizado = true;
-        }
-      } catch(e) {
-        histActualizado = true;   // ante la duda, se refresca
-      }
+    // 0) Cambios locales pendientes: se envían ANTES de traer el estado del
+    //    servidor, para que la descarga no los sobrescriba.
+    if (colaGuardado.size) await vaciarColaGuardado();
+
+    // 1) Unidades.
+    const uRes = await jsonp({ action:'getUnits' });
+    // Un error NO debe vaciar las unidades locales (antes: rowsToObjects(error)
+    // devolvía [] y se perdía el trabajo en pantalla).
+    if (!uRes || uRes.error) throw new Error('getUnits: ' + ((uRes && uRes.error) || 'sin respuesta'));
+    let remotas = uRes.units || [];
+    // Lo que sigue pendiente de guardar (si el envío falló) prevalece sobre la
+    // copia del servidor, que aún no lo tiene.
+    if (colaGuardado.size) {
+      remotas = remotas.map(u => colaGuardado.get(claveU(u)) || u);
+      colaGuardado.forEach((u, k) => { if (!remotas.some(x => claveU(x) === k)) remotas.push(u); });
     }
+    units = remotas;
+
+    // 2) Historial: solo si la meta que vino con las unidades dice que cambió.
+    const meta = uRes.histMeta;
+    const histActualizado = op.forzarHist || _histMetaLocal.total < 0 || !meta ||
+      meta.total !== _histMetaLocal.total || String(meta.ultimoFolio) !== String(_histMetaLocal.ultimoFolio);
 
     if (histActualizado) {
       const hRes = await jsonp({ action:'getHist' });
-
-      // PROTECCIÓN CRÍTICA: si el backend devuelve un error (p.ej. 'Origen no
-      // permitido' por validación de origen, o cualquier fallo de red), NO se
-      // sobrescribe hist con un array vacío. Antes esto ocurría silenciosamente:
-      // hRes.hist era undefined → rowsToObjects(hRes) → [] → hist vacío.
-      if (hRes && hRes.error) {
-        throw new Error('getHist: ' + hRes.error +
-          (hRes.detalle ? ' — ' + hRes.detalle : ''));
+      if (!hRes || hRes.error) {
+        throw new Error('getHist: ' + ((hRes && hRes.error) || 'sin respuesta') + (hRes && hRes.detalle ? ' — ' + hRes.detalle : ''));
       }
-      const histNuevo = (hRes && hRes.hist) ? hRes.hist : rowsToObjects(hRes);
+      const histNuevo = hRes.hist || [];
       if (!histNuevo.length && hist.length > 0) {
-        // El servidor devolvió vacío pero localmente hay datos: es sospechoso.
-        // Se conserva el local y se avisa en vez de vaciarlo silenciosamente.
-        console.warn('getHist devolvió 0 registros pero hay', hist.length, 'en memoria. Se conserva la copia local.');
+        // Vacío con datos locales es sospechoso: se conserva la copia local.
         notify('⚠️ El servidor devolvió historial vacío pero tienes ' + hist.length +
           ' registros en memoria. Se conservó la copia local. Revisa la conexión.', 'err', 12000);
       } else {
         hist = histNuevo;
       }
-
-      // La huella se toma del SERVIDOR, no del arreglo local: getHistMeta lee
-      // la última fila de la hoja, y si aquí se guardara otra referencia la
-      // comparación siempre saldría distinta y volvería a descargar todo.
-      try {
-        const metaTras = await jsonp({ action:'getHistMeta' });
-        if (metaTras && metaTras.ok) {
-          _histMetaLocal = { total: metaTras.total, ultimoFolio: String(metaTras.ultimoFolio || '') };
-        } else {
-          _histMetaLocal = { total: hist.length, ultimoFolio: hist.length ? String(hist[hist.length-1].folio||'') : '' };
-        }
-      } catch(e) {
-        _histMetaLocal = { total: hist.length, ultimoFolio: hist.length ? String(hist[hist.length-1].folio||'') : '' };
-      }
+      // La meta viene en la misma respuesta: ya no hace falta pedirla aparte.
+      const m = hRes.histMeta || meta;
+      _histMetaLocal = m ? { total: m.total, ultimoFolio: String(m.ultimoFolio || '') }
+                         : { total: hist.length, ultimoFolio: hist.length ? String(hist[hist.length-1].folio || '') : '' };
     }
 
     setSyncStatus('ok');
@@ -26053,11 +26072,20 @@ async function syncAll(opciones){
 function syncManual(){ return syncAll({ forzarHist: true }); }
 
 
+/* Redibuja las pantallas. El historial (la más pesada: una fila por registro)
+   solo se dibuja si está visible; al entrar a esa pantalla se dibuja con sus
+   filtros vigentes. Antes también se redibujaba sin filtros, así que tras
+   cada sincronización se perdía lo que el usuario estaba buscando. */
+function historialVisible(){
+  const pg = document.getElementById('page-historial');
+  return !!(pg && pg.classList.contains('active'));
+}
+
 function renderAll(){
   renderDashboard();
   renderCaptura();
   renderUnidades(units);
-  renderHistorial(hist);
+  if (historialVisible()) filtrarHistorial();
   renderMensual();
   // Faltaba: si el usuario estaba en Informes mientras terminaba la
   // sincronización, la pantalla se quedaba vacía para siempre porque nada
@@ -26161,7 +26189,7 @@ function renderTablaWebfleet() {
       '<td><b>ECO ' + esc(u.eco) + '</b></td>' +
       '<td style="font-size:10px">' + esc(u.lbox || '—') + '</td>' +
       '<td style="font-size:10px">' + esc(u.objectname || '—') + '</td>' +
-      '<td style="font-size:11px;white-space:nowrap">' + (u.pos_time_legible || u.pos_time || '—') + '</td>' +
+      '<td style="font-size:11px;white-space:nowrap">' + esc(u.pos_time_legible || u.pos_time || '—') + '</td>' +
       '<td style="font-weight:700">' + (u.minutos !== null ? u.minutos + ' min' : '—') + '</td>' +
       '<td style="text-align:center">' + esc(u.speed || '0') + ' km/h</td>' +
       '<td style="text-align:center">' + (u.ignition == '1' ? '🟢' : '🔴') + '</td>' +
@@ -26380,7 +26408,13 @@ async function consultarPosicionesWebfleet() {
         // Se muestra el valor TAL COMO lo envía Webfleet. Antes se forzaba la
         // zona horaria de CDMX sobre una hora que ya venía en hora local, lo que
         // producía un desfase visible (23:27 se mostraba como 5:27 p.m.).
-        pos_time_legible: p.pos_time || (t ? t.toLocaleString('es-MX') : '—'),
+        /* Webfleet puede mandar la hora como texto o como marca Unix (solo
+           dígitos). El texto se muestra tal cual, para no desplazar la zona
+           horaria; la marca Unix se convierte, porque "1789967448" no le dice
+           nada a quien lo lee. */
+        pos_time_legible: (p.pos_time && !/^\d{9,13}$/.test(String(p.pos_time).trim()))
+          ? p.pos_time
+          : (t ? t.toLocaleString('es-MX', { day:'2-digit', month:'2-digit', year:'numeric', hour:'2-digit', minute:'2-digit' }) : '—'),
         minutos: minutos, 
         estado: estado,
         posiciona: posiciona,
@@ -26477,7 +26511,7 @@ function ejecutarProtocoloSeguridad() {
     return;
   }
 
-  let actualizadas = 0, sinDato = 0, marcadasSI = 0, marcadasNO = 0, cascada = 0;
+  let sinDato = 0, marcadasSI = 0, marcadasNO = 0, cascada = 0;
   seleccionadas.forEach(p => {
     const u = wfUnidadesBase.find(x => claveEco(x.eco) === claveEco(p.eco));
     if (!u) return;
@@ -26500,15 +26534,14 @@ function ejecutarProtocoloSeguridad() {
     // campos quedaban vacíos y había que llenarlos uno por uno.
     if (aplicarCascadaSinLink(u)) cascada++;
 
-    if (p.minutos === null) { sinDato++; return; }
-    const diasCalculados = Math.floor(p.minutos / 1440); // 1440 min = 1 día
-    u.dias = String(diasCalculados);
-    u.fechaRep = p.pos_time_legible || p.pos_time || u.fechaRep || '';
-    actualizadas++;
+    /* Los días sin reportar y la fecha de reporte son SIEMPRE los de la LBOX.
+       Antes se reemplazaban con el tiempo sin posición del LINK (otro
+       aparato), así que el reporte mostraba días que no eran de la LBOX. */
+    if (p.minutos === null) sinDato++;
   });
 
   let msg = '✅ Posic. LINK marcada automáticamente: ' + marcadasSI + ' SI · ' + marcadasNO + ' NO. ' +
-    actualizadas + ' con días recalculados.';
+    'Los días sin reportar se conservan como los reporta la LBOX.';
   if (cascada) msg += ' ' + cascada + ' con acciones remotas marcadas N/A (sin LINK).';
   if (sinDato) msg += ' (' + sinDato + ' sin dato de posición).';
   notify(msg, 'ok', 7000);
@@ -26525,7 +26558,25 @@ function ejecutarProtocoloSeguridad() {
 
 /* ── LÓGICA DE NEGOCIO Y UTILIDADES (Métricas visuales) ──────────────────── */
 
-function reincCount(lbox) { return hist.filter(h => h.lbox === lbox).length; }
+/* ── ÍNDICE DEL HISTORIAL POR LBOX ────────────────────────────────────────
+   reincCount, reincCountReciente y ciclosEnCategoria recorrían el historial
+   COMPLETO en cada llamada, y se llaman por fila: con 1,500 registros eran
+   millones de comparaciones por render. El índice se arma una vez y se
+   invalida solo cuando cambia el historial (nuevo arreglo o nuevo tamaño). */
+let _idxHist = { ref: null, len: -1, porLbox: null };
+function indiceHist(){
+  if (_idxHist.ref === hist && _idxHist.len === hist.length) return _idxHist.porLbox;
+  const m = new Map();
+  for (const h of hist) {
+    let a = m.get(h.lbox);
+    if (!a) { a = []; m.set(h.lbox, a); }
+    a.push(h);
+  }
+  _idxHist = { ref: hist, len: hist.length, porLbox: m };
+  return m;
+}
+
+function reincCount(lbox) { const a = indiceHist().get(lbox); return a ? a.length : 0; }
 
 /* Reincidencia RECIENTE: apariciones dentro de una ventana de tiempo (por
    defecto 90 días). Cinco fallas en dos años no es lo mismo que cinco en un
@@ -26533,8 +26584,8 @@ function reincCount(lbox) { return hist.filter(h => h.lbox === lbox).length; }
    se está degradando ahora. */
 function reincCountReciente(lbox, dias = CONFIG.VENTANA_REINCIDENCIA_DIAS){
   const corte = Date.now() - (dias * 86400000);
-  return hist.filter(h => {
-    if (h.lbox !== lbox) return false;
+  // Solo se revisan los registros de ESE equipo, no todo el historial.
+  return (indiceHist().get(lbox) || []).filter(h => {
     const f = new Date(normFecha(h.fecha));
     return !isNaN(f.getTime()) && f.getTime() >= corte;
   }).length;
@@ -26790,14 +26841,24 @@ async function guardarCambioPassword(){
         document.getElementById('pw-actual').value = '';
       }
     } else if(r && r.ok){
+      /* El servidor cierra las demás sesiones del usuario y entrega un token
+         nuevo para ESTA. Sin adoptarlo, la sesión actual también quedaría
+         invalidada y habría que volver a entrar. */
+      if(r.sesion){
+        CONFIG.SESION = r.sesion;
+        try {
+          const g = JSON.parse(sessionStorage.getItem('lbox_sesion') || 'null') || {};
+          g.sesion = r.sesion; g.usuario = CONFIG.USUARIO; g.venceEn = Date.now() + 12 * 3600000;
+          sessionStorage.setItem('lbox_sesion', JSON.stringify(g));
+        } catch(e){}
+      }
       const eraForzado = pwForzado;
       pwForzado = false;
       cerrarCambioPassword();
-      notify('Contraseña actualizada', 'ok', 5000);
+      notify('Contraseña actualizada. Si tenías la sesión abierta en otro equipo, ahí se cerró.', 'ok', 6000);
       // Si era el primer acceso, ahora sí se cargan los datos.
       if(eraForzado){
-        await cargarPerfiles();
-        await syncAll({ forzarHist:true });
+        await cargarInicio();
       }
     }
   } catch(e){
@@ -26997,6 +27058,12 @@ async function guardarUsuarioAdmin(){
   const perfiles = (document.getElementById('adm-perfiles').value || '').trim();
 
   if(!usuario){ notify('El usuario es obligatorio', 'err'); return; }
+  // El nombre completo firma las capturas y aparece en historial y reportes.
+  if(nombre.length < 3 || nombre.toLowerCase() === usuario){
+    notify('Escribe el nombre completo de la persona (no el usuario de acceso)', 'err', 7000);
+    document.getElementById('adm-nombre').focus();
+    return;
+  }
   if(!perfiles){ notify('Elige al menos un cliente permitido (o "Todos los clientes")', 'err'); return; }
 
   const btn = document.getElementById('btn-adm-guardar');
@@ -27081,8 +27148,7 @@ async function hacerLogin(){
         // No se cargan datos: el servidor los rechazaría hasta el cambio.
         abrirCambioPassword({ forzado:true, actual: password });
       } else {
-        await cargarPerfiles();
-        await syncAll({ forzarHist:true });
+        await cargarInicio();
         notify('Bienvenido, ' + (res.nombre || res.usuario), 'ok', 5000);
       }
     } else {
@@ -27096,6 +27162,8 @@ async function hacerLogin(){
 }
 
 function cerrarSesion(porExpiracion){
+  // Un envío pendiente sin sesión fallaría; el respaldo local lo conserva.
+  clearTimeout(timerGuardado); colaGuardado.clear();
   pwForzado = false; pwActualTemporal = '';
   const mpw = document.getElementById('modal-password'); if(mpw) mpw.style.display = 'none';
   CONFIG.SESION = '';
@@ -27141,6 +27209,46 @@ function actualizarUsuarioUI(){
 }
 
 /* ── Perfiles (clientes) ───────────────────────────────────────────────── */
+/* ── ARRANQUE EN UNA SOLA LLAMADA ─────────────────────────────────────────
+   Al entrar, antes se hacían cinco viajes en serie al Apps Script (perfiles,
+   unidades, historial, meta del historial y destinatarios), unos 8 segundos.
+   Ahora 'inicio' trae todo junto. Si el backend es de una versión anterior y
+   no conoce 'inicio', se usa el camino anterior. */
+async function cargarInicio(){
+  setSyncStatus('loading');
+  try {
+    const r = await jsonp({ action:'inicio' });
+    if (r && /no reconocida/i.test(r.error || '')) {
+      await cargarPerfiles(); await syncAll({ forzarHist:true }); return;
+    }
+    // El login vencido o la contraseña temporal ya los atiende jsonp().
+    if (r && (r.requiereLogin || r.requiereCambioPassword)) { setSyncStatus('err'); return; }
+    if (!r || r.error) throw new Error((r && r.error) || 'sin respuesta');
+
+    CONFIG.PERFILES_DISPONIBLES = r.perfiles || [];
+    CONFIG.PERFIL = r.perfil || CONFIG.PERFIL;
+    try { sessionStorage.setItem('lbox_perfil', CONFIG.PERFIL); } catch(e){}
+    units = r.units || [];
+    if (Array.isArray(r.hist)) hist = r.hist;
+    _histMetaLocal = r.histMeta ? { total: r.histMeta.total, ultimoFolio: String(r.histMeta.ultimoFolio || '') }
+                                : { total: -1, ultimoFolio: '' };
+    if (r.destino) { CONFIG.EMAIL_DESTINO = r.destino; CONFIG.CONTACTO_INROUTE = r.contacto || ''; }
+
+    renderSelectorPerfil();
+    setSyncStatus('ok');
+    window.__ultimaSync = Date.now();
+    renderAll();
+    if (!window.__revisadoRespaldos) {
+      window.__revisadoRespaldos = true;
+      revisarAutoguardado();
+      if (hayRespaldoCierre()) mostrarBannerRespaldo();
+    }
+  } catch(e) {
+    setSyncStatus('err');
+    notify('No se pudieron cargar los datos: ' + (e.message || 'error') + '. Tus datos locales están intactos.', 'err', 9000);
+  }
+}
+
 async function cargarPerfiles(){
   try {
     const res = await jsonp({ action:'listarPerfiles' });
@@ -27234,6 +27342,20 @@ async function cambiarPerfil(perfil){
     return;
   }
 
+  /* Los cambios pendientes pertenecen al cliente ACTUAL. Si se enviaran
+     después de cambiar, irían con el perfil nuevo y las unidades de un
+     cliente quedarían guardadas en otro. Se envían primero; si no se puede,
+     no se cambia de cliente. */
+  if (colaGuardado.size) {
+    const okCola = await vaciarColaGuardado();
+    if (!okCola) {
+      notify('Hay cambios de ' + CONFIG.PERFIL + ' sin guardar en el servidor. ' +
+        'Reintenta cuando haya conexión antes de cambiar de cliente.', 'err', 9000);
+      renderSelectorPerfil();
+      return;
+    }
+  }
+
   CONFIG.PERFIL = perfil;
   try { sessionStorage.setItem('lbox_perfil', perfil); } catch(e){}
 
@@ -27244,8 +27366,7 @@ async function cambiarPerfil(perfil){
   renderAll();
 
   notify('Cambiando a ' + perfil + '...', 'ok', 3000);
-  await syncAll({ forzarHist:true });
-  renderSelectorPerfil();
+  await cargarInicio();
 }
 
 /* ── Menú lateral ocultable ────────────────────────────────────────────────
@@ -27341,6 +27462,7 @@ function showPage(p){
     document.body.classList.toggle('con-panel', mostrar);
   }
   const titles={dashboard:'Dashboard',captura:'Captura de unidades',unidades:'Unidades del reporte',historial:'Historial de reportes',mensual:'Dashboards mensuales',informes:'Informes por reporte',link:'Reincidencia de dispositivos LINK'};
+  if(p==='historial') filtrarHistorial();
   if(p==='mensual') renderMensual();
   if(p==='informes') renderInformes();
   if(p==='link') renderLink();
@@ -28738,12 +28860,12 @@ function aplicarVoltajesNavixy(){
     u.modificadoPor = usuarioActual();
     u.modificadoEn  = new Date().toISOString();
 
-    // "Posiciona" se conoce siempre que haya dato de posicion.
-    if(r.posiciona === 'SI' || r.posiciona === 'NO'){
-      u.pos = r.posiciona;
-      pos++;
-      if(r.posiciona === 'NO') aplicarCascadaSinLink(u);
-    }
+    /* Navixy NO escribe 'Posic. LINK'. Lo que Navixy ve es el TELTONIKA, un
+       aparato distinto del LINK: su posición solo sirve aquí para deducir si
+       al Teltonika le falta red o energía. La posición del LINK es exclusiva
+       de Webfleet; antes, aplicar Navixy después de Webfleet la reemplazaba
+       con la del Teltonika y además disparaba la cascada de N/A. */
+    if(r.posiciona === 'SI' || r.posiciona === 'NO') pos++;
 
     // El VOLTAJE solo se marca con evidencia suficiente. Marcar "sin voltaje"
     // a una unidad que solo perdio cobertura mandaria un tecnico a revisar un
@@ -28772,10 +28894,10 @@ function aplicarVoltajesNavixy(){
   });
 
   renderAll();
-  autoguardarLocal();
-  try { apiPost({ action:'saveUnits', data: units }); } catch(e){}
+  // Solo se envían las unidades a las que se aplicó el diagnóstico.
+  guardarUnidades(units.filter(x => marcados.indexOf(claveEco(x.eco)) !== -1));
 
-  let msg = pos + ' con Posiciona marcado, ' + volt + ' con Voltaje marcado.';
+  let msg = volt + ' con Voltaje marcado (Posic. LINK no se modifica: es dato de Webfleet).';
   if(red) msg += ' ' + red + ' sin red: el voltaje NO se marco, porque la falta de cobertura no dice nada sobre la energia.';
   if(sinConcluir) msg += ' ' + sinConcluir + ' sin evidencia suficiente.';
   notify(msg, 'ok', 12000);
@@ -28901,13 +29023,12 @@ async function aplicarMasivo(campo, valor){
     n++;
   });
 
-  renderCaptura(); renderDashboard(); autoguardarLocal();
+  renderCaptura(); renderDashboard();
   isSaving = true;
-  try { await apiPost({ action:'saveUnits', data: units }); }
-  catch(e){ notify('No se pudo guardar en Sheets; el cambio quedó respaldado localmente.', 'err', 7000); }
+  const r = await guardarUnidades([...capturaSeleccion].map(i => units[i]));
   isSaving = false;
 
-  notify(n + ' unidad(es) actualizadas' + (causas ? ' · ' + causas + ' con causa sugerida' : ''), 'ok');
+  if(!r.error) notify(n + ' unidad(es) actualizadas' + (causas ? ' · ' + causas + ' con causa sugerida' : ''), 'ok');
 }
 
 /* Limpia la selección al salir o tras aplicar, para no arrastrar estado. */
@@ -28917,6 +29038,40 @@ function limpiarSeleccionCaptura(){
   const todas = document.getElementById('cap-chk-todas');
   if(todas) todas.checked = false;
   actualizarBarraMasiva();
+}
+
+/* ── COLA DE GUARDADO ─────────────────────────────────────────────────────
+   Recorrer una columna con el teclado genera decenas de cambios seguidos.
+   Mandar cada uno por separado saturaba el servidor (Apps Script limita las
+   ejecuciones simultáneas). Los cambios se juntan y se envían en un lote
+   tras 800 ms sin actividad. Si el envío falla, quedan pendientes: la
+   sincronización no los sobrescribe y se reintentan después. */
+const colaGuardado = new Map();
+let timerGuardado = null;
+let guardandoCola = false;
+
+function claveU(u){ return String(u.eco||'').trim().toUpperCase() + '|' + String(u.lbox||'').trim().toUpperCase(); }
+
+function encolarGuardado(u){
+  if(!u) return;
+  colaGuardado.set(claveU(u), u);
+  clearTimeout(timerGuardado);
+  timerGuardado = setTimeout(vaciarColaGuardado, 800);
+}
+
+async function vaciarColaGuardado(){
+  clearTimeout(timerGuardado);
+  if(guardandoCola || !colaGuardado.size) return !colaGuardado.size;
+  guardandoCola = true; isSaving = true;
+  const lote = [...colaGuardado.values()];
+  colaGuardado.clear();
+  const r = await guardarUnidades(lote);
+  if(r.error){
+    // Se devuelven a la cola, salvo que se hayan vuelto a editar mientras tanto.
+    lote.forEach(u => { if(!colaGuardado.has(claveU(u))) colaGuardado.set(claveU(u), u); });
+  }
+  guardandoCola = false; isSaving = false;
+  return !r.error;
 }
 
 async function updateUnit(i, field, value) {
@@ -28942,16 +29097,8 @@ async function updateUnit(i, field, value) {
   renderDashboard();  // ya redibuja gráficas y widgets
   autoguardarLocal();  // respaldo inmediato en el navegador
 
-  // Save to Sheets with isSaving flag to prevent auto-sync override
-  isSaving = true;
-  try {
-    await apiPost({ action: 'saveUnits', data: units });
-  } catch(e) {
-    // Si no se pudo guardar en Sheets, el respaldo local ya protegió el trabajo.
-    notify('⚠️ No se pudo guardar en Sheets. Tu cambio quedó respaldado localmente; ' +
-      'se reintentará al sincronizar.', 'err', 8000);
-  }
-  isSaving = false;
+  // Solo esta unidad, agrupada con otros cambios cercanos en el tiempo.
+  encolarGuardado(units[i]);
 }
 
 /* ── AUTOGUARDADO LOCAL ────────────────────────────────────────────────────
@@ -29315,7 +29462,10 @@ async function agregarUnidad(){
   const btn=document.getElementById('btn-add');
   btn.disabled=true; btn.textContent='Guardando...';
   try {
-    await apiPost({action:'addUnit', data:u});
+    u.modificadoPor = usuarioActual();
+    u.modificadoEn  = new Date().toISOString();
+    const r = await apiPost({action:'addUnit', data:u});
+    if (r && r.error) throw new Error(r.error);
     units.push(u);
     limpiarForm();
     renderCaptura(); renderDashboard();
@@ -29331,9 +29481,10 @@ async function agregarUnidad(){
 
 async function eliminar(i){
   if(!confirm('¿Eliminar ECO '+units[i].eco+'?')) return;
-  units.splice(i,1);
-  try { await apiPost({action:'saveUnits', data:units}); }
-  catch(e) { notify('Eliminado localmente, sincroniza después','info'); }
+  const quitada = units.splice(i,1)[0];
+  colaGuardado.delete(claveU(quitada));
+  const r = await apiPost({ action:'deleteUnit', data: quitada });
+  if(r && r.error) notify('Eliminada localmente, pero el servidor no respondió: ' + r.error, 'err', 8000);
   renderCaptura(); renderDashboard(); renderUnidades(units);
   notify('Unidad eliminada','ok');
 }
@@ -29466,8 +29617,7 @@ const CLASIF = {
 function ciclosEnCategoria(lbox, cat){
   if(!lbox) return 0;
   const folios = new Set();
-  hist.forEach(h => {
-    if(h.lbox !== lbox) return;
+  (indiceHist().get(lbox) || []).forEach(h => {
     if(clasificarUnidad(h) === cat) folios.add(String(h.folio||h.fecha||''));
   });
   return folios.size;
@@ -30158,8 +30308,7 @@ document.getElementById('f-fecha').value = new Date().toISOString().slice(0,10);
   if (restaurarSesion()) {
     ocultarLogin();
     actualizarUsuarioUI();
-    await cargarPerfiles();
-    await syncAll();
+    await cargarInicio();
     aplicarFiltroPeriodo();
   } else {
     // Sin sesión: la pantalla de login queda visible y no se consulta nada.
@@ -30224,7 +30373,7 @@ document.addEventListener('visibilitychange', () => {
     </div>
     <div style="margin-bottom:14px">
       <label style="font-size:12px;color:#666;display:block;margin-bottom:6px">¿Quieres usar un folio diferente? (opcional)</label>
-      <input id="folio-input" type="text" placeholder="ej. INC-42260" style="width:100%;padding:8px 12px;border:1px solid #d0d0d0;border-radius:6px;font-size:13px;box-sizing:border-box">
+      <input id="folio-input" type="text" placeholder="ej. INC-210926-2 (formato INC-DDMMAA)" style="width:100%;padding:8px 12px;border:1px solid #d0d0d0;border-radius:6px;font-size:13px;box-sizing:border-box">
     </div>
     <div id="modal-envio-section" style="display:none;background:#d5f5e3;border-radius:8px;padding:12px;margin-bottom:14px;font-size:12px;color:#1E8449">
       📧 Se enviará el reporte por correo a <strong id="modal-envio-destino"></strong> al confirmar.
