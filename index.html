@@ -23562,7 +23562,7 @@ body.con-panel .content{padding-right:336px}
 
     <!-- Formulario -->
     <div style="background:#f8f9fa;border:1px solid var(--line);border-radius:10px;padding:16px;margin-bottom:18px">
-      <div style="font-size:12px;font-weight:700;color:var(--navy);margin-bottom:12px" id="admin-form-titulo">Nuevo usuario</div>
+      <div style="font-size:12px;font-weight:700;color:var(--navy);margin-bottom:12px" id="adm-form-titulo">Nuevo usuario</div>
       <div style="display:grid;grid-template-columns:repeat(auto-fit,minmax(170px,1fr));gap:12px">
         <div>
           <label style="font-size:10px;color:var(--muted);text-transform:uppercase;font-weight:700;display:block;margin-bottom:4px">Usuario</label>
@@ -23580,9 +23580,21 @@ body.con-panel .content{padding-right:336px}
           <label style="font-size:10px;color:var(--muted);text-transform:uppercase;font-weight:700;display:block;margin-bottom:4px">Rol</label>
           <select id="adm-rol" onchange="mostrarPermisosRol()" style="width:100%;padding:8px 10px;border:1px solid var(--line);border-radius:7px;font-size:12px;background:#fff;box-sizing:border-box"></select>
         </div>
-        <div>
+        <div style="position:relative" id="adm-clientes-wrap">
           <label style="font-size:10px;color:var(--muted);text-transform:uppercase;font-weight:700;display:block;margin-bottom:4px">Clientes permitidos</label>
-          <input type="text" id="adm-perfiles" placeholder="* = todos, o ALANIS,FLETAMENTO" style="width:100%;padding:8px 10px;border:1px solid var(--line);border-radius:7px;font-size:12px;box-sizing:border-box">
+          <!-- El valor real ('*' o 'ALANIS,FLETAMENTO') vive en este campo oculto;
+               el desplegable solo lo construye, así el guardado no cambia. -->
+          <input type="hidden" id="adm-perfiles" value="*">
+          <button type="button" id="adm-perfiles-btn" onclick="toggleSelClientes(event)"
+            style="width:100%;padding:8px 10px;border:1px solid var(--line);border-radius:7px;font-size:12px;
+                   background:#fff;text-align:left;cursor:pointer;display:flex;justify-content:space-between;
+                   align-items:center;gap:6px;box-sizing:border-box;font-family:inherit">
+            <span id="adm-perfiles-txt" style="overflow:hidden;text-overflow:ellipsis;white-space:nowrap">Todos los clientes</span>
+            <span style="font-size:9px;opacity:.6">▾</span>
+          </button>
+          <div id="adm-perfiles-panel" style="display:none;position:absolute;left:0;min-width:270px;top:100%;margin-top:4px;
+               background:#fff;border:1px solid var(--line);border-radius:9px;box-shadow:0 8px 24px rgba(28,43,57,.16);
+               padding:6px;z-index:5;max-height:220px;overflow-y:auto"></div>
         </div>
       </div>
       <div id="adm-permisos-info" style="font-size:10.5px;color:var(--muted);margin-top:10px"></div>
@@ -23606,6 +23618,59 @@ body.con-panel .content{padding-right:336px}
   </div>
 </div>
 
+<!-- ══ CAMBIO DE CONTRASEÑA ═════════════════════════════════════════════ -->
+<div id="modal-password" style="display:none;position:fixed;inset:0;background:rgba(28,43,57,.72);z-index:1000;align-items:center;justify-content:center;padding:20px">
+  <div style="background:#fff;border-radius:14px;padding:26px 28px;max-width:400px;width:100%;box-shadow:0 12px 40px rgba(28,43,57,.3)">
+    <div style="display:flex;justify-content:space-between;align-items:flex-start;margin-bottom:4px">
+      <div style="font-size:17px;font-weight:700;color:var(--navy)">🔒 Cambiar contraseña</div>
+      <button id="pw-cerrar-x" onclick="cerrarCambioPassword()" style="background:none;border:none;font-size:22px;cursor:pointer;color:var(--muted);line-height:1">×</button>
+    </div>
+    <div id="pw-usuario-lbl" style="font-size:11px;color:var(--muted);margin-bottom:14px"></div>
+
+    <div id="pw-aviso-forzado" style="display:none;background:#FDEBD0;border-left:4px solid #b35900;border-radius:7px;
+         padding:10px 13px;font-size:12px;color:#7E3300;margin-bottom:16px;line-height:1.5">
+      Estás usando una <b>contraseña temporal</b> asignada por un administrador.
+      Elige una propia para continuar; hasta entonces el sistema no mostrará datos.
+    </div>
+
+    <div id="pw-err" style="display:none;background:#FADBD8;border-left:4px solid #c0392b;border-radius:7px;
+         padding:9px 12px;font-size:12px;color:#7B241C;margin-bottom:14px"></div>
+
+    <form onsubmit="return false" autocomplete="off">
+      <div id="pw-fila-actual" style="margin-bottom:12px">
+        <label style="font-size:10px;color:var(--muted);font-weight:700;text-transform:uppercase;display:block;margin-bottom:4px">Contraseña actual</label>
+        <input type="password" id="pw-actual" autocomplete="current-password"
+          style="width:100%;padding:10px 12px;border:1px solid var(--line);border-radius:8px;font-size:13px;box-sizing:border-box">
+      </div>
+      <div style="margin-bottom:12px">
+        <label style="font-size:10px;color:var(--muted);font-weight:700;text-transform:uppercase;display:block;margin-bottom:4px">Contraseña nueva</label>
+        <input type="password" id="pw-nueva" autocomplete="new-password" oninput="validarPasswordEnVivo()"
+          style="width:100%;padding:10px 12px;border:1px solid var(--line);border-radius:8px;font-size:13px;box-sizing:border-box">
+      </div>
+      <div style="margin-bottom:10px">
+        <label style="font-size:10px;color:var(--muted);font-weight:700;text-transform:uppercase;display:block;margin-bottom:4px">Confirmar contraseña nueva</label>
+        <input type="password" id="pw-confirmar" autocomplete="new-password" oninput="validarPasswordEnVivo()"
+          onkeydown="if(event.key==='Enter')guardarCambioPassword()"
+          style="width:100%;padding:10px 12px;border:1px solid var(--line);border-radius:8px;font-size:13px;box-sizing:border-box">
+      </div>
+      <label style="font-size:11px;color:var(--muted);display:flex;align-items:center;gap:6px;cursor:pointer;margin-bottom:12px">
+        <input type="checkbox" onchange="['pw-actual','pw-nueva','pw-confirmar'].forEach(id=>document.getElementById(id).type=this.checked?'text':'password')">
+        Mostrar contraseñas
+      </label>
+    </form>
+
+    <div id="pw-reglas" style="font-size:11.5px;line-height:1.8;margin-bottom:16px"></div>
+
+    <div style="display:flex;gap:10px">
+      <button class="btn" id="pw-btn-cancelar" onclick="cerrarCambioPassword()" style="flex:1">Cancelar</button>
+      <button class="btn primary" id="pw-btn-guardar" onclick="guardarCambioPassword()" style="flex:2" disabled>Cambiar contraseña</button>
+    </div>
+    <div id="pw-salir-forzado" style="display:none;text-align:center;margin-top:12px">
+      <a href="#" onclick="cerrarSesion();return false" style="font-size:11px;color:var(--muted)">Salir sin cambiarla</a>
+    </div>
+  </div>
+</div>
+
 <div class="menu-fondo" onclick="toggleSidebar()"></div>
 <div class="app" style="display:flex;height:100vh">
 <div class="sidebar">
@@ -23620,7 +23685,7 @@ body.con-panel .content{padding-right:336px}
     <div class="cliente-lbl">Perfil / Cliente</div>
     <div id="selector-perfil" style="margin-bottom:8px"></div>
     <div id="cuenta-display" class="cliente-sel" onclick="abrirModalCuenta()" style="display:flex;align-items:center;justify-content:space-between">
-      <span id="cuenta-nombre">Credenciales LBOX</span>
+      <span id="cuenta-nombre">Conexión LBOX</span>
       <span style="font-size:10px;opacity:.7">▾ configurar</span>
     </div>
     <div class="sync-row"><span class="dot loading" id="sync-dot"></span><span id="sync-label">Conectando...</span></div>
@@ -23639,6 +23704,9 @@ body.con-panel .content{padding-right:336px}
         <div id="usuario-actual" style="font-size:12px;font-weight:600;color:#fff;overflow:hidden;text-overflow:ellipsis;white-space:nowrap">—</div>
         <div id="usuario-rol" style="font-size:10px;color:rgba(255,255,255,.5);text-transform:capitalize">—</div>
       </div>
+      <button onclick="abrirCambioPassword()" title="Cambiar contraseña"
+              style="background:none;border:1px solid rgba(255,255,255,.2);color:rgba(255,255,255,.7);
+                     border-radius:6px;padding:5px 8px;font-size:11px;cursor:pointer;flex-shrink:0">🔒</button>
       <button onclick="if(confirm('¿Cerrar sesión?'))cerrarSesion()" title="Cerrar sesión"
               style="background:none;border:1px solid rgba(255,255,255,.2);color:rgba(255,255,255,.7);
                      border-radius:6px;padding:5px 9px;font-size:11px;cursor:pointer;flex-shrink:0">Salir</button>
@@ -23680,6 +23748,17 @@ body.con-panel .content{padding-right:336px}
           <button class="menu-item" onclick="cerrarMenuAcciones();abrirModalNavixy()">
             <span class="menu-ico">🔋</span>
             <span><b>Diagnóstico (Navixy)</b><small>Posiciona · sin red · sin voltaje</small></span>
+          </button>
+
+          <div class="menu-sep"></div>
+          <div class="menu-titulo">Mi cuenta</div>
+          <button class="menu-item" onclick="cerrarMenuAcciones();abrirCambioPassword()">
+            <span class="menu-ico">🔒</span>
+            <span><b>Cambiar contraseña</b><small id="menu-usuario-lbl">Tu contraseña de acceso</small></span>
+          </button>
+          <button class="menu-item" onclick="cerrarMenuAcciones();if(confirm('¿Cerrar sesión?'))cerrarSesion()">
+            <span class="menu-ico">🚪</span>
+            <span><b>Cerrar sesión</b><small>Salir del sistema</small></span>
           </button>
 
           <!-- Solo se muestra a quien tiene el permiso; el servidor lo valida igual -->
@@ -24246,13 +24325,9 @@ const CONFIG = {
   } catch(e){}
 })();
 
-// Cargar credenciales guardadas en sesión (si las hay)
-(function loadCuentaSesion(){
-  try {
-    const saved = JSON.parse(sessionStorage.getItem('lbox_cuenta') || 'null');
-    if(saved && saved.cuenta) CONFIG.CUENTA = saved;
-  } catch(e){}
-})();
+// Modelo anterior: si quedó una contraseña de LBOX guardada en el navegador
+// de una versión previa, se elimina. El modelo nuevo no la necesita.
+try { sessionStorage.removeItem('lbox_cuenta'); } catch(e){}
 
 // Acceso directo compatible con el código existente
 const API = CONFIG.API;
@@ -24323,6 +24398,8 @@ function jsonpRaw(params){
       // Si la sesión venció, se vuelve al login en lugar de fallar en silencio
       // con errores confusos en cada pantalla.
       if (data && data.requiereLogin) { cerrarSesion(true); }
+      // Sesión restaurada con contraseña temporal: el servidor lo indica aquí.
+      else if (data && data.requiereCambioPassword) { abrirCambioPassword({ forzado:true }); }
       resolve(data);
     };
 
@@ -24449,12 +24526,9 @@ async function fetchLiveData() {
   notify('Consultando LBOX y Webfleet... puede tardar 20-30 segundos', 'info', 10000);
 
   try {
-    const lboxRes = await jsonp({
-      action: 'fetchLbox',
-      cuenta:   CONFIG.CUENTA.cuenta,
-      usuario:  CONFIG.CUENTA.usuario,
-      password: CONFIG.CUENTA.password
-    });
+    // Modelo nuevo: las credenciales viven en el servidor. Solo viaja el
+    // perfil activo (lo agrega jsonp), que define el accountId del cliente.
+    const lboxRes = await jsonp({ action: 'fetchLbox' });
 
     if (lboxRes.error) throw new Error('LBOX: ' + lboxRes.error);
 
@@ -25113,55 +25187,85 @@ function cambiarCuenta(cuenta) {
   abrirModalCuenta();
 }
 
-function abrirModalCuenta(){
+/* ── CONEXIÓN CON LBOX (modelo nuevo: lbox.movomx.com) ─────────────────────
+   El modelo anterior pedía cuenta/usuario/contraseña en cada consulta y los
+   mandaba desde el navegador. En el modelo nuevo las credenciales viven solo
+   en el servidor (Propiedades del script) y el navegador nunca las guarda. */
+async function abrirModalCuenta(){
+  if(!tienePermisoUI('configurar')){
+    notify('Solo un administrador puede configurar la conexión con LBOX', 'err');
+    return;
+  }
   const m = document.getElementById('modal-cuenta');
   if(!m) return;
-  // Prellenar con los valores actuales
-  document.getElementById('cta-cuenta').value   = CONFIG.CUENTA.cuenta   || '';
-  document.getElementById('cta-usuario').value  = CONFIG.CUENTA.usuario  || '';
-  document.getElementById('cta-password').value = CONFIG.CUENTA.password || '';
+  ['lbx-email','lbx-password','lbx-account'].forEach(id => { const el = document.getElementById(id); if(el) el.value = ''; });
+  document.getElementById('lbx-perfil-lbl').textContent = '(' + (CONFIG.PERFIL || 'ALANIS') + ')';
   cerrarCapasFlotantes();
   m.style.display = 'flex';
+  cargarEstadoLbox();
 }
 
 function cerrarModalCuenta(){
   const m = document.getElementById('modal-cuenta');
   if(m) m.style.display = 'none';
+  const pw = document.getElementById('lbx-password');
+  if(pw) pw.value = '';   // no dejar la contraseña en el DOM
 }
 
-function limpiarCamposCuenta(){
-  document.getElementById('cta-cuenta').value   = '';
-  document.getElementById('cta-usuario').value  = '';
-  document.getElementById('cta-password').value = '';
-  document.getElementById('cta-cuenta').focus();
-}
-
-async function aplicarCuenta(){
-  const cuenta   = document.getElementById('cta-cuenta').value.trim();
-  const usuario  = document.getElementById('cta-usuario').value.trim();
-  const password = document.getElementById('cta-password').value.trim();
-
-  if(!cuenta || !usuario || !password){
-    notify('Completa los tres campos para conectar a la cuenta', 'err');
+function pintarEstadoLbox(e){
+  const el = document.getElementById('lbx-estado');
+  if(!el) return;
+  if(!e || e.error){
+    el.innerHTML = '<span style="color:#c0392b">No se pudo consultar el estado: ' + esc(e && e.error || 'sin respuesta') + '</span>';
     return;
   }
+  const vence = e.tokenVence ? new Date(e.tokenVence) : null;
+  const vig = vence ? Math.round((vence - Date.now()) / 86400000 * 10) / 10 : null;
+  el.innerHTML =
+    '<div><b>Modelo:</b> ' + esc(e.modelo) + '</div>' +
+    '<div><b>Credenciales:</b> ' + (e.configurado
+        ? '<span style="color:#1E8449">configuradas</span> · ' + esc(e.email)
+        : '<span style="color:#c0392b">sin configurar</span>') + '</div>' +
+    '<div><b>Sesión con LBOX:</b> ' + (vence
+        ? (vig > 0 ? 'vigente, renueva sola (vence en ' + vig + ' días)' : '<span style="color:#b35900">vencida; se renovará en la próxima consulta</span>')
+        : 'aún no se ha iniciado') + '</div>' +
+    '<div><b>accountId de ' + esc(e.perfil) + ':</b> ' + (e.accountId
+        ? '<span style="font-family:monospace;font-size:11px">' + esc(e.accountId) + '</span>'
+        : '<span style="color:#c0392b">sin configurar — no se pueden traer datos de este cliente</span>') + '</div>';
+}
 
-  CONFIG.CUENTA = { cuenta, usuario, password };
-  try { sessionStorage.setItem('lbox_cuenta', JSON.stringify(CONFIG.CUENTA)); } catch(e){}
+async function cargarEstadoLbox(){
+  try { pintarEstadoLbox(await jsonp({ action:'estadoLbox' })); }
+  catch(e){ pintarEstadoLbox({ error: e.message }); }
+}
 
-  cerrarModalCuenta();
-  const disp = document.getElementById('cuenta-nombre');
-  if(disp) disp.textContent = cuenta.charAt(0).toUpperCase()+cuenta.slice(1);
-  notify('Conectando a cuenta: ' + cuenta + '...', 'ok');
+async function guardarConexionLbox(){
+  const email    = (document.getElementById('lbx-email').value || '').trim();
+  const password = document.getElementById('lbx-password').value || '';
+  const account  = (document.getElementById('lbx-account').value || '').trim();
 
-  // Recargar datos con la nueva cuenta
-  setSyncStatus('loading');
-  try {
-    await syncAll();
-    notify('Cuenta ' + cuenta + ' cargada correctamente', 'ok');
-  } catch(e) {
-    notify('Error al conectar con la cuenta ' + cuenta, 'err');
+  if(!email && !password && !account){ notify('No hay cambios que guardar', 'err'); return; }
+  if((email && !password) || (!email && password)){
+    notify('Para cambiar credenciales escribe correo y contraseña', 'err'); return;
   }
+
+  const btn = document.getElementById('btn-lbx-guardar');
+  btn.disabled = true; btn.textContent = 'Probando contra LBOX…';
+  try {
+    const params = { action:'configurarLbox' };
+    if(email)   { params.lbox_email = email; params.lbox_password = password; }
+    if(account) params.lbox_account = account;
+    const r = await jsonp(params);
+    if(r && r.error){ notify(r.error, 'err', 12000); }
+    else {
+      notify('Guardado: ' + (r.cambios || []).join(' y ') + '. La conexión con LBOX quedó verificada.', 'ok', 8000);
+      document.getElementById('lbx-password').value = '';
+      document.getElementById('lbx-email').value = '';
+      document.getElementById('lbx-account').value = '';
+      pintarEstadoLbox(r.estado);
+    }
+  } catch(e){ notify('Error: ' + (e.message || ''), 'err'); }
+  btn.disabled = false; btn.textContent = 'Probar y guardar';
 }
 
 // ── EXPORTAR HISTORIAL A EXCEL ────────────────────────────────────────────
@@ -26602,6 +26706,107 @@ function usuarioActual(){
   return CONFIG.RESPONSABLE || '';
 }
 
+/* ── CAMBIO DE CONTRASEÑA ─────────────────────────────────────────────────
+   Dos modos:
+     · Voluntario: desde "Mi cuenta"; se puede cancelar.
+     · Forzado: cuando la contraseña fue asignada por un administrador (o por
+       crearAdministradorInicial). No se puede cerrar, y el servidor además
+       rechaza cualquier otra acción hasta que se cambie: la ventana es la
+       cara visible del bloqueo, no el bloqueo en sí. */
+let pwForzado = false;
+let pwActualTemporal = '';   // la que se acaba de usar al entrar; se borra al cerrar
+
+function abrirCambioPassword(opts){
+  opts = opts || {};
+  if(!CONFIG.SESION && !opts.forzado){ notify('Inicia sesión primero', 'err'); return; }
+  const m = document.getElementById('modal-password');
+  if(!m) return;
+  if(m.style.display === 'flex' && pwForzado) return;   // ya abierto en modo forzado
+
+  pwForzado = !!opts.forzado;
+  pwActualTemporal = opts.actual || '';
+
+  ['pw-actual','pw-nueva','pw-confirmar'].forEach(id => { const el = document.getElementById(id); el.value = ''; el.type = 'password'; });
+  m.querySelector('input[type=checkbox]').checked = false;
+  document.getElementById('pw-err').style.display = 'none';
+  document.getElementById('pw-usuario-lbl').textContent =
+    CONFIG.USUARIO ? 'Cuenta: ' + (CONFIG.USUARIO.nombre || CONFIG.USUARIO.usuario) : '';
+
+  // En modo forzado tras el login, la contraseña actual ya se conoce:
+  // se usa sin volver a pedirla y la fila se oculta.
+  document.getElementById('pw-actual').value = pwActualTemporal;
+  document.getElementById('pw-fila-actual').style.display = pwActualTemporal ? 'none' : 'block';
+
+  document.getElementById('pw-aviso-forzado').style.display = pwForzado ? 'block' : 'none';
+  document.getElementById('pw-cerrar-x').style.display      = pwForzado ? 'none'  : 'block';
+  document.getElementById('pw-btn-cancelar').style.display  = pwForzado ? 'none'  : 'block';
+  document.getElementById('pw-salir-forzado').style.display = pwForzado ? 'block' : 'none';
+
+  cerrarCapasFlotantes();
+  m.style.display = 'flex';
+  validarPasswordEnVivo();
+  setTimeout(() => document.getElementById(pwActualTemporal ? 'pw-nueva' : 'pw-actual').focus(), 80);
+}
+
+function cerrarCambioPassword(){
+  if(pwForzado) return;   // no se puede cerrar sin cambiarla
+  document.getElementById('modal-password').style.display = 'none';
+  ['pw-actual','pw-nueva','pw-confirmar'].forEach(id => { document.getElementById(id).value = ''; });
+  pwActualTemporal = '';
+}
+
+/* Reglas visibles mientras se escribe: el botón solo se habilita cuando se
+   cumplen todas. Son las mismas que valida el servidor. */
+function validarPasswordEnVivo(){
+  const actual = document.getElementById('pw-actual').value;
+  const nueva  = document.getElementById('pw-nueva').value;
+  const conf   = document.getElementById('pw-confirmar').value;
+  const reglas = [
+    [nueva.length >= 8,                         'Al menos 8 caracteres'],
+    [!!nueva && nueva !== actual,               'Distinta de la contraseña actual'],
+    [!!nueva && nueva === conf,                 'Ambas contraseñas coinciden'],
+  ];
+  document.getElementById('pw-reglas').innerHTML = reglas.map(([ok, txt]) =>
+    '<div style="color:' + (ok ? '#1E8449' : 'var(--muted)') + '">' + (ok ? '✓' : '○') + ' ' + txt + '</div>').join('');
+  document.getElementById('pw-btn-guardar').disabled = !(reglas.every(r => r[0]) && actual);
+}
+
+async function guardarCambioPassword(){
+  const actual = document.getElementById('pw-actual').value;
+  const nueva  = document.getElementById('pw-nueva').value;
+  const btn = document.getElementById('pw-btn-guardar');
+  if(btn.disabled) return;
+  const err = document.getElementById('pw-err');
+  err.style.display = 'none';
+
+  btn.disabled = true; btn.textContent = 'Guardando...';
+  try {
+    const r = await jsonp({ action:'cambiarPassword', actual, nueva });
+    if(r && r.error){
+      err.textContent = r.error; err.style.display = 'block';
+      // Si la actual era incorrecta, se muestra el campo para corregirla.
+      if(/actual/i.test(r.error)){
+        document.getElementById('pw-fila-actual').style.display = 'block';
+        document.getElementById('pw-actual').value = '';
+      }
+    } else if(r && r.ok){
+      const eraForzado = pwForzado;
+      pwForzado = false;
+      cerrarCambioPassword();
+      notify('Contraseña actualizada', 'ok', 5000);
+      // Si era el primer acceso, ahora sí se cargan los datos.
+      if(eraForzado){
+        await cargarPerfiles();
+        await syncAll({ forzarHist:true });
+      }
+    }
+  } catch(e){
+    err.textContent = 'No se pudo conectar: ' + (e.message || 'error'); err.style.display = 'block';
+  }
+  btn.textContent = 'Cambiar contraseña';
+  validarPasswordEnVivo();
+}
+
 /* ── ADMINISTRACIÓN DE USUARIOS ───────────────────────────────────────────
    Todas estas acciones exigen permiso 'usuarios' en el servidor. El frontend
    solo oculta el acceso: si alguien llama la acción sin el rol, el backend la
@@ -26685,11 +26890,79 @@ function mostrarPermisosRol(){
     rol.permisos.map(p => ETIQUETAS[p] || p).join(' · ');
 }
 
+/* ── DESPLEGABLE DE CLIENTES PERMITIDOS ───────────────────────────────────
+   Antes era texto libre ('*' o 'ALANIS,FLETAMENTO'): un error de escritura
+   dejaba al usuario sin acceso o con un cliente inexistente, sin avisar. Ahora
+   solo se puede elegir entre los clientes que existen. */
+let selClientesValor = '*';
+
+function renderSelClientes(valor){
+  selClientesValor = (valor === undefined || valor === null) ? '*' : String(valor).trim();
+  const todos = selClientesValor.trim() === '*';
+  const elegidos = todos ? [] : selClientesValor.split(',').map(s => s.trim().toUpperCase()).filter(Boolean);
+
+  // Clientes existentes, más cualquiera que el usuario tenga asignado aunque
+  // ya no aparezca (para no quitárselo en silencio al editarlo).
+  const disponibles = Array.from(new Set([...(CONFIG.PERFILES_DISPONIBLES || []), ...elegidos])).sort();
+
+  const panel = document.getElementById('adm-perfiles-panel');
+  if(panel){
+    const fila = (valor, texto, marcado, deshab, extra) =>
+      '<label style="display:flex;align-items:center;gap:8px;padding:7px 9px;border-radius:6px;cursor:' +
+        (deshab ? 'default' : 'pointer') + ';font-size:12px;' + (deshab ? 'opacity:.45;' : '') + (extra || '') + '">' +
+        '<input type="checkbox" class="adm-cli-chk" value="' + esc(valor) + '"' + (marcado ? ' checked' : '') +
+        (deshab ? ' disabled' : '') + ' onchange="alCambiarSelClientes(this)"> ' + texto + '</label>';
+
+    panel.innerHTML =
+      fila('*', '<span><b>Todos los clientes</b><br><span style="color:var(--muted);font-size:10.5px">incluye los que se creen después</span></span>',
+           todos, false, 'border-bottom:1px solid var(--line);border-radius:6px 6px 0 0;margin-bottom:4px;') +
+      (disponibles.length
+        ? disponibles.map(p => fila(p, esc(p), todos || elegidos.includes(p), todos)).join('')
+        : '<div style="font-size:11px;color:var(--muted);padding:8px">No hay clientes creados todavía</div>');
+  }
+  actualizarTextoSelClientes();
+}
+
+function alCambiarSelClientes(chk){
+  if(chk.value === '*'){
+    // Al quitar "Todos" se parte de ninguno seleccionado, para elegir a mano.
+    renderSelClientes(chk.checked ? '*' : '');
+    return;
+  }
+  const marcados = Array.from(document.querySelectorAll('#adm-perfiles-panel .adm-cli-chk'))
+    .filter(x => x.value !== '*' && x.checked).map(x => x.value);
+  selClientesValor = marcados.join(',');
+  actualizarTextoSelClientes();
+}
+
+function actualizarTextoSelClientes(){
+  const hidden = document.getElementById('adm-perfiles');
+  const txt = document.getElementById('adm-perfiles-txt');
+  if(hidden) hidden.value = selClientesValor;
+  if(!txt) return;
+  if(selClientesValor === '*'){ txt.textContent = 'Todos los clientes'; txt.style.color = ''; }
+  else if(!selClientesValor){ txt.textContent = 'Ninguno — elige al menos uno'; txt.style.color = '#c0392b'; }
+  else { txt.textContent = selClientesValor.split(',').join(', '); txt.style.color = ''; }
+}
+
+function toggleSelClientes(ev){
+  if(ev) ev.stopPropagation();
+  const p = document.getElementById('adm-perfiles-panel');
+  if(p) p.style.display = (p.style.display === 'none' || !p.style.display) ? 'block' : 'none';
+}
+
+// Cerrar el desplegable al hacer clic fuera
+document.addEventListener('click', (e) => {
+  const p = document.getElementById('adm-perfiles-panel');
+  if(p && p.style.display === 'block' && !e.target.closest('#adm-clientes-wrap')) p.style.display = 'none';
+});
+
 function limpiarFormAdmin(){
   ['adm-usuario','adm-nombre','adm-password','adm-perfiles'].forEach(id => {
     const el = document.getElementById(id); if(el) el.value = '';
   });
-  const p = document.getElementById('adm-perfiles'); if(p) p.value = '*';
+  renderSelClientes('*');
+  const pnl = document.getElementById('adm-perfiles-panel'); if(pnl) pnl.style.display = 'none';
   const t = document.getElementById('adm-form-titulo'); if(t) t.textContent = 'Nuevo usuario';
   const u = document.getElementById('adm-usuario'); if(u) u.disabled = false;
   mostrarPermisosRol();
@@ -26708,7 +26981,7 @@ function editarUsuarioAdmin(u){
   document.getElementById('adm-nombre').value = u.nombre || '';
   document.getElementById('adm-password').value = '';
   document.getElementById('adm-rol').value = u.rol || 'consulta';
-  document.getElementById('adm-perfiles').value = u.perfiles || '*';
+  renderSelClientes(u.perfiles);
   document.getElementById('adm-form-titulo').textContent = 'Editando: ' + u.usuario +
     ' (deja la contraseña vacía para conservarla)';
   mostrarPermisosRol();
@@ -26720,9 +26993,11 @@ async function guardarUsuarioAdmin(){
   const nombre   = (document.getElementById('adm-nombre').value || '').trim();
   const password = document.getElementById('adm-password').value || '';
   const rol      = document.getElementById('adm-rol').value;
-  const perfiles = (document.getElementById('adm-perfiles').value || '*').trim();
+  // Sin valor por defecto: vacío significa ninguno y se bloquea abajo.
+  const perfiles = (document.getElementById('adm-perfiles').value || '').trim();
 
   if(!usuario){ notify('El usuario es obligatorio', 'err'); return; }
+  if(!perfiles){ notify('Elige al menos un cliente permitido (o "Todos los clientes")', 'err'); return; }
 
   const btn = document.getElementById('btn-adm-guardar');
   btn.disabled = true; btn.textContent = 'Guardando...';
@@ -26802,9 +27077,14 @@ async function hacerLogin(){
       document.getElementById('login-password').value = '';
       ocultarLogin();
       actualizarUsuarioUI();
-      await cargarPerfiles();
-      await syncAll({ forzarHist:true });
-      notify('Bienvenido, ' + (res.nombre || res.usuario), 'ok', 5000);
+      if(res.debeCambiarPassword){
+        // No se cargan datos: el servidor los rechazaría hasta el cambio.
+        abrirCambioPassword({ forzado:true, actual: password });
+      } else {
+        await cargarPerfiles();
+        await syncAll({ forzarHist:true });
+        notify('Bienvenido, ' + (res.nombre || res.usuario), 'ok', 5000);
+      }
     } else {
       mostrarLogin('Respuesta inesperada del servidor');
     }
@@ -26816,6 +27096,8 @@ async function hacerLogin(){
 }
 
 function cerrarSesion(porExpiracion){
+  pwForzado = false; pwActualTemporal = '';
+  const mpw = document.getElementById('modal-password'); if(mpw) mpw.style.display = 'none';
   CONFIG.SESION = '';
   CONFIG.USUARIO = null;
   try { sessionStorage.removeItem('lbox_sesion'); } catch(e){}
@@ -26841,7 +27123,11 @@ function actualizarUsuarioUI(){
   // La sección de administración solo aparece si el rol la incluye.
   const secAdmin = document.getElementById('menu-seccion-admin');
   if(secAdmin) secAdmin.style.display = tienePermisoUI('usuarios') ? 'block' : 'none';
+  const ctaLbox = document.getElementById('cuenta-display');
+  if(ctaLbox) ctaLbox.style.display = tienePermisoUI('configurar') ? 'flex' : 'none';
 
+  const mu = document.getElementById('menu-usuario-lbl');
+  if(mu && CONFIG.USUARIO) mu.textContent = 'Cuenta: ' + (CONFIG.USUARIO.usuario || '');
   const el = document.getElementById('usuario-actual');
   if(el && CONFIG.USUARIO){
     el.textContent = CONFIG.USUARIO.nombre || CONFIG.USUARIO.usuario;
@@ -29975,33 +30261,49 @@ document.addEventListener('visibilitychange', () => {
 
 
 <!-- Modal: cambiar cuenta de cliente (credenciales API) -->
-<div id="modal-cuenta" style="display:none;position:fixed;inset:0;background:rgba(28,43,57,.6);z-index:1000;align-items:center;justify-content:center">
-  <div style="background:#fff;border-radius:14px;padding:28px;max-width:420px;width:90%;box-shadow:0 12px 40px rgba(28,43,57,.3)">
-    <div style="font-size:18px;font-weight:700;color:var(--navy);margin-bottom:6px;font-family:'Barlow Semi Condensed',sans-serif">🔑 Cambiar cuenta de cliente</div>
-    <div style="font-size:12px;color:var(--muted);margin-bottom:20px">Ingresa las credenciales de la cuenta LBOX que deseas consultar. Deja los campos en blanco y captúralos para acceder a otra cuenta.</div>
+<div id="modal-cuenta" style="display:none;position:fixed;inset:0;background:rgba(28,43,57,.6);z-index:1000;align-items:center;justify-content:center;padding:20px">
+  <div style="background:#fff;border-radius:14px;padding:26px 28px;max-width:460px;width:100%;max-height:90vh;overflow-y:auto;box-shadow:0 12px 40px rgba(28,43,57,.3)">
+    <div style="display:flex;justify-content:space-between;align-items:flex-start">
+      <div>
+        <div style="font-size:17px;font-weight:700;color:var(--navy)">🔑 Conexión con la plataforma LBOX</div>
+        <div style="font-size:11px;color:var(--muted);margin-top:3px">lbox.movomx.com · solo administradores</div>
+      </div>
+      <button onclick="cerrarModalCuenta()" style="background:none;border:none;font-size:22px;cursor:pointer;color:var(--muted);line-height:1">×</button>
+    </div>
 
-    <form onsubmit="return false" autocomplete="off" style="display:flex;flex-direction:column;gap:14px;margin-bottom:22px">
+    <!-- Estado actual -->
+    <div id="lbx-estado" style="background:#f8f9fa;border:1px solid var(--line);border-radius:9px;padding:12px 14px;margin:16px 0;font-size:12px;line-height:1.7">Consultando estado…</div>
+
+    <div style="font-size:12px;font-weight:700;color:var(--navy);margin-bottom:8px">Actualizar credenciales</div>
+    <div style="font-size:11px;color:var(--muted);margin-bottom:12px">
+      Se prueban contra la plataforma antes de guardarse; si fallan, se conservan las actuales.
+      Se guardan en el servidor y nunca se muestran de vuelta.
+    </div>
+    <form onsubmit="return false" autocomplete="off" style="display:flex;flex-direction:column;gap:12px">
       <div>
-        <label style="font-size:11px;color:var(--navy);font-weight:600;text-transform:uppercase;letter-spacing:.3px;display:block;margin-bottom:5px">Cuenta</label>
-        <input id="cta-cuenta" type="text" placeholder="ej. alanis" autocomplete="off"
-          style="width:100%;padding:9px 12px;border:1px solid var(--line);border-radius:8px;font-size:13px;box-sizing:border-box;font-family:'Barlow',sans-serif">
+        <label style="font-size:10px;color:var(--muted);font-weight:700;text-transform:uppercase;display:block;margin-bottom:4px">Correo de acceso</label>
+        <input id="lbx-email" type="email" placeholder="usuario@inroute.com.mx" autocomplete="off"
+          style="width:100%;padding:9px 12px;border:1px solid var(--line);border-radius:8px;font-size:13px;box-sizing:border-box">
       </div>
       <div>
-        <label style="font-size:11px;color:var(--navy);font-weight:600;text-transform:uppercase;letter-spacing:.3px;display:block;margin-bottom:5px">Usuario</label>
-        <input id="cta-usuario" type="text" placeholder="ej. its" autocomplete="off"
-          style="width:100%;padding:9px 12px;border:1px solid var(--line);border-radius:8px;font-size:13px;box-sizing:border-box;font-family:'Barlow',sans-serif">
+        <label style="font-size:10px;color:var(--muted);font-weight:700;text-transform:uppercase;display:block;margin-bottom:4px">Contraseña nueva</label>
+        <input id="lbx-password" type="password" placeholder="••••••••" autocomplete="new-password"
+          style="width:100%;padding:9px 12px;border:1px solid var(--line);border-radius:8px;font-size:13px;box-sizing:border-box">
       </div>
       <div>
-        <label style="font-size:11px;color:var(--navy);font-weight:600;text-transform:uppercase;letter-spacing:.3px;display:block;margin-bottom:5px">Contraseña</label>
-        <input id="cta-password" type="password" placeholder="••••••••" autocomplete="off"
-          style="width:100%;padding:9px 12px;border:1px solid var(--line);border-radius:8px;font-size:13px;box-sizing:border-box;font-family:'Barlow',sans-serif">
+        <label style="font-size:10px;color:var(--muted);font-weight:700;text-transform:uppercase;display:block;margin-bottom:4px">
+          accountId del cliente <span id="lbx-perfil-lbl" style="color:var(--navy)"></span></label>
+        <input id="lbx-account" type="text" placeholder="dejar vacío para no cambiarlo" autocomplete="off"
+          style="width:100%;padding:9px 12px;border:1px solid var(--line);border-radius:8px;font-size:12px;font-family:monospace;box-sizing:border-box">
+        <div style="font-size:10px;color:var(--muted);margin-top:4px">
+          Está en la URL de <i>vehicles?accountId=…</i> al abrir ese cliente en la plataforma.
+        </div>
       </div>
     </form>
 
-    <div style="display:flex;gap:10px">
-      <button class="btn" onclick="cerrarModalCuenta()" style="flex:1">Cancelar</button>
-      <button class="btn" onclick="limpiarCamposCuenta()" style="flex:1">Limpiar campos</button>
-      <button class="btn primary" onclick="aplicarCuenta()" style="flex:2">Conectar</button>
+    <div style="display:flex;gap:10px;margin-top:18px">
+      <button class="btn" onclick="cerrarModalCuenta()" style="flex:1">Cerrar</button>
+      <button class="btn primary" id="btn-lbx-guardar" onclick="guardarConexionLbox()" style="flex:2">Probar y guardar</button>
     </div>
   </div>
 </div>
