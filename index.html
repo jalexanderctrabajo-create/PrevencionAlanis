@@ -26460,12 +26460,16 @@ async function consultarPosicionesWebfleet() {
     // Si Webfleet responde pero ningún registro trae la serie del LINK, la
     // pantalla de reincidencia quedará vacía. Conviene avisarlo con los campos
     // reales para poder ajustar la detección.
+    // La serie del LINK viene de showContracts (obu_serialno). Si no llega, se
+    // explica por qué: error de la consulta o campos distintos a los esperados.
     if (res.diag && res.diag.totalObjetos > 0 && res.diag.conSerieLink === 0) {
-      notify('ℹ️ Webfleet no devolvió la serie del LINK en ningún registro, así que la pantalla ' +
-        'de Reincidencia LINK quedará vacía. Campos recibidos: [' +
-        (res.diag.camposDisponibles || []).join(', ') + ']', 'err', 16000);
-      console.warn('Webfleet — campos disponibles:', res.diag.camposDisponibles);
-      console.warn('Webfleet — registro de ejemplo:', res.diag.ejemploRegistro);
+      const k = res.diag.contratos || {};
+      notify('ℹ️ No llegó la serie del LINK (N.º de serie de la pestaña Contrato), así que la ' +
+        'Reincidencia LINK no tendrá datos de estas unidades. ' +
+        (k.error ? 'showContracts respondió: ' + k.error
+                 : 'showContracts devolvió ' + (k.total || 0) + ' contratos sin obu_serialno. Campos: [' + (k.campos || []).join(', ') + ']'),
+        'err', 16000);
+      console.warn('Webfleet — diagnóstico de contratos:', k);
     }
 
     if (sinCruce > 0) {
