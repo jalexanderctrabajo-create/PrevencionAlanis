@@ -23618,6 +23618,151 @@ body.con-panel .content{padding-right:336px}
   </div>
 </div>
 
+<!-- ══ CASO ════════════════════════════════════════════════════════════ -->
+<div id="modal-caso" style="display:none;position:fixed;inset:0;background:rgba(28,43,57,.6);z-index:1000;align-items:center;justify-content:center;padding:20px">
+  <div style="background:#fff;border-radius:14px;max-width:620px;width:100%;max-height:88vh;overflow-y:auto;padding:24px 26px">
+    <div style="display:flex;justify-content:space-between;align-items:flex-start">
+      <div>
+        <div style="font-size:16px;font-weight:700;color:var(--navy)" id="caso-titulo">Caso</div>
+        <div style="font-size:11px;color:var(--muted);margin-top:3px" id="caso-sub"></div>
+      </div>
+      <button onclick="cerrarModalCaso()" style="background:none;border:none;font-size:22px;cursor:pointer;color:var(--muted);line-height:1">×</button>
+    </div>
+    <div id="caso-resumen" style="background:#f8f9fa;border:1px solid var(--line);border-radius:9px;padding:12px 14px;margin:14px 0;font-size:12px;line-height:1.7"></div>
+    <div style="display:grid;grid-template-columns:repeat(auto-fit,minmax(180px,1fr));gap:12px">
+      <div>
+        <label style="font-size:10px;color:var(--muted);text-transform:uppercase;font-weight:700;display:block;margin-bottom:4px">Estado</label>
+        <select id="caso-estado" style="width:100%;padding:8px 10px;border:1px solid var(--line);border-radius:7px;font-size:12px;background:#fff;box-sizing:border-box">
+          <option>Detectada</option><option>Asignada</option><option>Programada</option><option>Atendida</option><option>Verificada</option>
+        </select>
+      </div>
+      <div>
+        <label style="font-size:10px;color:var(--muted);text-transform:uppercase;font-weight:700;display:block;margin-bottom:4px">Responsable</label>
+        <input id="caso-responsable" type="text" placeholder="Quién lo atiende" style="width:100%;padding:8px 10px;border:1px solid var(--line);border-radius:7px;font-size:12px;box-sizing:border-box">
+      </div>
+      <div>
+        <label style="font-size:10px;color:var(--muted);text-transform:uppercase;font-weight:700;display:block;margin-bottom:4px">Fecha comprometida</label>
+        <input id="caso-compromiso" type="date" style="width:100%;padding:8px 10px;border:1px solid var(--line);border-radius:7px;font-size:12px;box-sizing:border-box">
+      </div>
+      <div>
+        <label style="font-size:10px;color:var(--muted);text-transform:uppercase;font-weight:700;display:block;margin-bottom:4px">Fecha de atención</label>
+        <input id="caso-atencion" type="date" style="width:100%;padding:8px 10px;border:1px solid var(--line);border-radius:7px;font-size:12px;box-sizing:border-box">
+      </div>
+    </div>
+    <div style="margin-top:12px">
+      <label style="font-size:10px;color:var(--muted);text-transform:uppercase;font-weight:700;display:block;margin-bottom:4px">Comentario</label>
+      <textarea id="caso-comentario" rows="2" placeholder="Qué se hizo o qué falta" style="width:100%;padding:8px 10px;border:1px solid var(--line);border-radius:7px;font-size:12px;box-sizing:border-box;font-family:inherit"></textarea>
+    </div>
+    <div style="font-size:12px;font-weight:700;color:var(--navy);margin:18px 0 6px">Bitácora</div>
+    <div id="caso-bitacora" style="font-size:11.5px;color:var(--muted);line-height:1.8">—</div>
+    <div style="display:flex;gap:10px;margin-top:18px">
+      <button class="btn" onclick="cerrarModalCaso()" style="flex:1">Cancelar</button>
+      <button class="btn primary" id="btn-caso-guardar" onclick="guardarCasoUI()" style="flex:2">Guardar caso</button>
+    </div>
+  </div>
+</div>
+
+<!-- ══ BÚSQUEDA GLOBAL ══════════════════════════════════════════════════ -->
+<div id="modal-busqueda" style="display:none;position:fixed;inset:0;background:rgba(28,43,57,.6);z-index:1000;align-items:flex-start;justify-content:center;padding:60px 20px 20px">
+  <div style="background:#fff;border-radius:14px;max-width:880px;width:100%;max-height:82vh;overflow-y:auto;padding:22px 26px">
+    <div style="display:flex;gap:12px;align-items:center;margin-bottom:6px">
+      <input id="bg-input" type="text" placeholder="Buscar por ECO, LBOX o serie del LINK…" autocomplete="off"
+        oninput="buscarGlobal()" onkeydown="if(event.key==='Escape')cerrarBusqueda()"
+        style="flex:1;padding:11px 14px;border:1px solid var(--line);border-radius:9px;font-size:14px">
+      <button onclick="cerrarBusqueda()" style="background:none;border:none;font-size:22px;cursor:pointer;color:var(--muted)">×</button>
+    </div>
+    <div style="font-size:10.5px;color:var(--muted);margin-bottom:14px">Busca en el ciclo activo y en todo el historial de <span id="bg-cliente"></span>. Atajo: Ctrl+K.</div>
+    <div id="bg-resultados"></div>
+  </div>
+</div>
+
+<!-- ══ CREDENCIALES DE DIAGNÓSTICO ══════════════════════════════════════ -->
+<div id="modal-diag-cred" style="display:none;position:fixed;inset:0;background:rgba(28,43,57,.6);z-index:1000;align-items:center;justify-content:center;padding:20px">
+  <div style="background:#fff;border-radius:14px;padding:26px 28px;max-width:520px;width:100%;max-height:90vh;overflow-y:auto">
+    <div style="display:flex;justify-content:space-between;align-items:flex-start">
+      <div>
+        <div style="font-size:17px;font-weight:700;color:var(--navy)">🔑 Credenciales de diagnóstico</div>
+        <div style="font-size:11px;color:var(--muted);margin-top:3px" id="dc-cliente-lbl"></div>
+      </div>
+      <button onclick="cerrarModalDiagCred()" style="background:none;border:none;font-size:22px;cursor:pointer;color:var(--muted);line-height:1">×</button>
+    </div>
+    <div style="background:var(--lime-l);border-radius:8px;padding:10px 14px;font-size:11px;color:var(--lime-d);margin:14px 0">
+      Se piden una vez por sesión y por cliente. No se guardan en el servidor ni salen de este navegador.
+    </div>
+    <div style="font-size:12px;font-weight:700;color:var(--navy);margin-bottom:8px">Webfleet · posición del LINK</div>
+    <div style="display:grid;grid-template-columns:1fr 1fr;gap:10px;margin-bottom:16px">
+      <input id="dc-wf-account"  type="text"     placeholder="Cuenta"   autocomplete="off" style="padding:8px 10px;border:1px solid var(--line);border-radius:7px;font-size:12px">
+      <input id="dc-wf-username" type="text"     placeholder="Usuario"  autocomplete="off" style="padding:8px 10px;border:1px solid var(--line);border-radius:7px;font-size:12px">
+      <input id="dc-wf-password" type="password" placeholder="Contraseña" autocomplete="new-password" style="padding:8px 10px;border:1px solid var(--line);border-radius:7px;font-size:12px">
+      <input id="dc-wf-apikey"   type="password" placeholder="API key"  autocomplete="new-password" style="padding:8px 10px;border:1px solid var(--line);border-radius:7px;font-size:12px">
+    </div>
+    <div style="font-size:12px;font-weight:700;color:var(--navy);margin-bottom:8px">Navixy · voltaje del Teltonika</div>
+    <input id="dc-nx-hash" type="password" placeholder="Hash de sesión de Navixy" autocomplete="new-password"
+      style="width:100%;padding:8px 10px;border:1px solid var(--line);border-radius:7px;font-size:12px;box-sizing:border-box">
+    <div style="font-size:10.5px;color:var(--muted);margin-top:6px">
+      Si dejas Navixy vacío, el diagnóstico solo valida la posición del LINK.
+    </div>
+    <div style="display:flex;gap:10px;margin-top:18px">
+      <button class="btn" onclick="cerrarModalDiagCred()" style="flex:1">Cancelar</button>
+      <button class="btn primary" onclick="guardarCredDiagnostico()" style="flex:2">Guardar y diagnosticar</button>
+    </div>
+  </div>
+</div>
+
+<!-- ══ ADMINISTRACIÓN DE CLIENTES ═══════════════════════════════════════ -->
+<div id="modal-clientes" style="display:none;position:fixed;inset:0;background:rgba(28,43,57,.6);z-index:1000;align-items:center;justify-content:center;padding:20px">
+  <div style="background:#fff;border-radius:14px;max-width:900px;width:100%;max-height:88vh;overflow-y:auto;padding:26px 28px">
+    <div style="display:flex;justify-content:space-between;align-items:flex-start;margin-bottom:14px">
+      <div>
+        <div style="font-size:17px;font-weight:700;color:var(--navy)">🏢 Clientes</div>
+        <div style="font-size:11px;color:var(--muted);margin-top:3px">Nombre visible, correos del reporte y estado de cada cliente</div>
+      </div>
+      <button onclick="cerrarModalClientes()" style="background:none;border:none;font-size:22px;cursor:pointer;color:var(--muted);line-height:1">×</button>
+    </div>
+    <div style="background:#f8f9fa;border:1px solid var(--line);border-radius:10px;padding:16px;margin-bottom:18px">
+      <div style="display:flex;justify-content:space-between;align-items:center;margin-bottom:12px">
+        <div style="font-size:12px;font-weight:700;color:var(--navy)" id="cli-form-titulo">Nuevo cliente</div>
+        <button class="btn" style="font-size:11px;padding:4px 10px" onclick="limpiarFormCliente()">+ Nuevo cliente</button>
+      </div>
+      <div style="display:grid;grid-template-columns:repeat(auto-fit,minmax(190px,1fr));gap:12px">
+        <div>
+          <label style="font-size:10px;color:var(--muted);text-transform:uppercase;font-weight:700;display:block;margin-bottom:4px">Código</label>
+          <input type="text" id="cli-codigo" placeholder="ej. TRANSPORTESNORTE" style="width:100%;padding:8px 10px;border:1px solid var(--line);border-radius:7px;font-size:12px;box-sizing:border-box;text-transform:uppercase">
+        </div>
+        <div>
+          <label style="font-size:10px;color:var(--muted);text-transform:uppercase;font-weight:700;display:block;margin-bottom:4px">Nombre visible</label>
+          <input type="text" id="cli-nombre" placeholder="ej. Transportes del Norte" style="width:100%;padding:8px 10px;border:1px solid var(--line);border-radius:7px;font-size:12px;box-sizing:border-box">
+        </div>
+        <div>
+          <label style="font-size:10px;color:var(--muted);text-transform:uppercase;font-weight:700;display:block;margin-bottom:4px">Correo destino del reporte</label>
+          <input type="text" id="cli-destino" placeholder="uno o varios, separados por coma" style="width:100%;padding:8px 10px;border:1px solid var(--line);border-radius:7px;font-size:12px;box-sizing:border-box">
+        </div>
+        <div>
+          <label style="font-size:10px;color:var(--muted);text-transform:uppercase;font-weight:700;display:block;margin-bottom:4px">Copia (Inroute)</label>
+          <input type="text" id="cli-copia" placeholder="uno o varios, separados por coma" style="width:100%;padding:8px 10px;border:1px solid var(--line);border-radius:7px;font-size:12px;box-sizing:border-box">
+        </div>
+        <div>
+          <label style="font-size:10px;color:var(--muted);text-transform:uppercase;font-weight:700;display:block;margin-bottom:4px">Estado</label>
+          <select id="cli-activo" style="width:100%;padding:8px 10px;border:1px solid var(--line);border-radius:7px;font-size:12px;background:#fff;box-sizing:border-box">
+            <option value="SI">Activo</option><option value="NO">Inactivo (oculto en el selector)</option>
+          </select>
+        </div>
+      </div>
+      <div style="font-size:10.5px;color:var(--muted);margin-top:10px">
+        El código identifica las hojas del cliente y no se puede cambiar después. La conexión con LBOX (accountId) se configura en <b>Conexión LBOX</b> con el cliente seleccionado.
+      </div>
+      <div style="margin-top:14px"><button class="btn primary" id="btn-cli-guardar" onclick="guardarClienteAdmin()">Guardar cliente</button></div>
+    </div>
+    <div class="scroll-x">
+      <table class="tbl" style="min-width:700px">
+        <thead><tr><th>Cliente</th><th>Correo destino</th><th>Copia</th><th>LBOX</th><th>Estado</th><th></th></tr></thead>
+        <tbody id="cli-tbody"><tr><td colspan="6" class="empty">Cargando…</td></tr></tbody>
+      </table>
+    </div>
+    <div style="text-align:right;margin-top:18px"><button class="btn" onclick="cerrarModalClientes()">Cerrar</button></div>
+  </div>
+</div>
+
 <!-- ══ CAMBIO DE CONTRASEÑA ═════════════════════════════════════════════ -->
 <div id="modal-password" style="display:none;position:fixed;inset:0;background:rgba(28,43,57,.72);z-index:1000;align-items:center;justify-content:center;padding:20px">
   <div style="background:#fff;border-radius:14px;padding:26px 28px;max-width:400px;width:100%;box-shadow:0 12px 40px rgba(28,43,57,.3)">
@@ -23691,12 +23836,14 @@ body.con-panel .content{padding-right:336px}
     <div class="sync-row"><span class="dot loading" id="sync-dot"></span><span id="sync-label">Conectando...</span></div>
   </div>
   <div class="nav-item active" onclick="showPage('dashboard')" id="nav-dashboard"><span class="ico">📊</span> Dashboard</div>
+  <div class="nav-item" onclick="showPage('indicadores')" id="nav-indicadores"><span class="ico">📈</span> Indicadores</div>
   <div class="nav-item" onclick="showPage('captura')" id="nav-captura"><span class="ico">➕</span> Captura</div>
   <div class="nav-item" onclick="showPage('unidades')" id="nav-unidades"><span class="ico">📋</span> Unidades</div>
   <div class="nav-item" onclick="showPage('historial')" id="nav-historial"><span class="ico">🕓</span> Historial</div>
   <div class="nav-item" onclick="showPage('mensual')" id="nav-mensual"><span class="ico">📅</span> Mensual</div>
   <div class="nav-item" onclick="showPage('informes')" id="nav-informes"><span class="ico">📑</span> Informes</div>
   <div class="nav-item" onclick="showPage('link')" id="nav-link"><span class="ico">📡</span> Reincidencia LINK</div>
+  <div class="nav-item" onclick="showPage('casos')" id="nav-casos"><span class="ico">🧰</span> Casos <span id="nav-casos-badge" style="display:none;background:#c0392b;color:#fff;border-radius:9px;padding:1px 7px;font-size:10px;margin-left:6px"></span></div>
   <div class="user-info">
     <div class="sidebar-footer" style="margin-top:auto;padding:14px 16px;border-top:1px solid rgba(255,255,255,.1)">
     <div style="display:flex;align-items:center;justify-content:space-between;gap:8px">
@@ -23725,6 +23872,7 @@ body.con-panel .content{padding-right:336px}
       <!-- Las dos acciones de uso más frecuente quedan a la vista; el resto se
            agrupa en el menú para no saturar la barra ni romperla en pantallas
            angostas. -->
+      <button class="btn" onclick="abrirBusqueda()" id="btn-buscar" title="Buscar unidad (Ctrl+K)">🔎 Buscar</button>
       <button class="btn" onclick="syncManual()" id="btn-sync">↻ Sincronizar</button>
       <button class="btn primary" onclick="generarReporte()" id="btn-report">⬇ Generar .docx</button>
 
@@ -23745,6 +23893,10 @@ body.con-panel .content{padding-right:336px}
 
           <div class="menu-sep"></div>
           <div class="menu-titulo">Diagnóstico automático</div>
+          <button class="menu-item" onclick="cerrarMenuAcciones();diagnosticoCompleto()" id="btn-diag-completo">
+            <span class="menu-ico">⚡</span>
+            <span><b>Diagnóstico completo</b><small>Webfleet y Navixy en un solo paso</small></span>
+          </button>
           <button class="menu-item" onclick="cerrarMenuAcciones();abrirModalNavixy()">
             <span class="menu-ico">🔋</span>
             <span><b>Diagnóstico (Navixy)</b><small>Posiciona · sin red · sin voltaje</small></span>
@@ -23769,9 +23921,9 @@ body.con-panel .content{padding-right:336px}
               <span class="menu-ico">👥</span>
               <span><b>Usuarios y roles</b><small>Alta, permisos y acceso por cliente</small></span>
             </button>
-            <button class="menu-item" onclick="cerrarMenuAcciones();crearPerfilNuevo()">
+            <button class="menu-item" onclick="cerrarMenuAcciones();abrirModalClientes()">
               <span class="menu-ico">🏢</span>
-              <span><b>Agregar cliente</b><small>Nuevo espacio de datos separado</small></span>
+              <span><b>Clientes</b><small>Alta, nombre, correos y estado</small></span>
             </button>
           </div>
         </div>
@@ -23780,6 +23932,34 @@ body.con-panel .content{padding-right:336px}
     </div>
   </div>
   <div class="content">
+
+    <div class="page" id="page-indicadores">
+      <div class="card">
+        <div style="display:flex;justify-content:space-between;align-items:flex-start;flex-wrap:wrap;gap:12px">
+          <div>
+            <div class="card-title">📈 Indicadores de resultado</div>
+            <div style="font-size:11px;color:var(--muted);margin-top:2px">
+              Miden cómo está la flota, no cuántas unidades se revisaron. Comparación contra la línea base del cliente.
+            </div>
+          </div>
+          <div style="display:flex;gap:8px;align-items:center;flex-wrap:wrap">
+            <label style="font-size:11px;color:var(--muted)">Inicio del programa</label>
+            <input id="ind-inicio" type="date" onchange="guardarInicioPrograma()"
+              style="padding:6px 9px;border:1px solid var(--line);border-radius:7px;font-size:12px">
+          </div>
+        </div>
+        <div id="ind-aviso" style="display:none;background:#FDEBD0;border-left:4px solid #b35900;border-radius:7px;padding:9px 12px;font-size:11.5px;color:#7E3300;margin-top:14px;line-height:1.6"></div>
+        <div id="ind-kpis" style="display:grid;grid-template-columns:repeat(auto-fit,minmax(220px,1fr));gap:12px;margin:16px 0"></div>
+        <div style="font-size:12px;font-weight:700;color:var(--navy);margin:8px 0 6px">Evolución mensual</div>
+        <div class="scroll-x">
+          <table class="tbl" style="min-width:760px">
+            <thead><tr><th>Mes</th><th>Flota protegida</th><th>Días sin protección</th><th>Reincidencia activa</th><th>Tiempo a resolución</th></tr></thead>
+            <tbody id="ind-tbody"><tr><td colspan="5" class="empty">Sin datos.</td></tr></tbody>
+          </table>
+        </div>
+        <div id="ind-notas" style="font-size:10.5px;color:var(--muted);margin-top:10px;line-height:1.7"></div>
+      </div>
+    </div>
 
     <div class="page active" id="page-dashboard">
       <div class="kpi-grid" id="kpi-grid"><div class="kpi"><div class="kpi-label">Conectando...</div><div class="kpi-val gray">—</div></div></div>
@@ -24092,12 +24272,47 @@ body.con-panel .content{padding-right:336px}
     </div>
 
     <!-- ══ REINCIDENCIA DE DISPOSITIVOS LINK ═════════════════════════ -->
+    <div class="page" id="page-casos">
+      <div class="card">
+        <div style="display:flex;justify-content:space-between;align-items:flex-start;flex-wrap:wrap;gap:12px">
+          <div>
+            <div class="card-title">🧰 Seguimiento de casos</div>
+            <div style="font-size:11px;color:var(--muted);margin-top:2px">
+              Cada unidad no recuperada abre un caso; se cierra al verificar 14 días de reporte estable.
+            </div>
+          </div>
+          <div style="display:flex;gap:8px;flex-wrap:wrap">
+            <select id="casos-filtro-estado" onchange="renderCasos()" style="padding:7px 10px;border:1px solid var(--line);border-radius:7px;font-size:12px;background:#fff">
+              <option value="abiertos">Abiertos</option>
+              <option value="">Todos</option>
+              <option value="Detectada">Detectada</option>
+              <option value="Asignada">Asignada</option>
+              <option value="Programada">Programada</option>
+              <option value="Atendida">Atendida</option>
+              <option value="Verificada">Verificada</option>
+            </select>
+            <input id="casos-buscar" type="text" placeholder="Buscar ECO o LBOX…" oninput="renderCasos()"
+              style="padding:7px 10px;border:1px solid var(--line);border-radius:7px;font-size:12px">
+            <button class="btn" onclick="cargarCasos(true)" id="btn-casos-refrescar">↻ Actualizar</button>
+          </div>
+        </div>
+        <div id="casos-kpis" style="display:flex;gap:10px;flex-wrap:wrap;margin:16px 0"></div>
+        <div class="scroll-x">
+          <table class="tbl" style="min-width:900px">
+            <thead><tr><th>#ECO</th><th>LBOX</th><th>Detectado</th><th>Ruta</th><th>Estado</th>
+              <th>Responsable</th><th>Compromiso</th><th>Eventos</th><th></th></tr></thead>
+            <tbody id="casos-tbody"><tr><td colspan="9" class="empty">Sin casos abiertos.</td></tr></tbody>
+          </table>
+        </div>
+      </div>
+    </div>
+
     <div class="page" id="page-link">
 
       <div class="card" style="margin-bottom:16px">
         <div class="card-title">📡 Qué muestra esta pantalla</div>
         <div style="font-size:12px;color:var(--muted);line-height:1.6">
-          Analiza la reincidencia por <b>dispositivo LINK</b> , no por vehículo.
+          Analiza la reincidencia por <b>dispositivo LINK</b> (la serie del Teltonika), no por vehículo.
           Solo considera los registros donde la unidad <b>NO estaba posicionando</b>, que es cuando el LINK
           es el sospechoso. Si un mismo LINK pierde comunicación en varios ciclos, el problema es del
           aparato y no del vehículo — y eso justifica su reemplazo en vez de seguir revisando instalaciones.
@@ -24163,7 +24378,7 @@ body.con-panel .content{padding-right:336px}
         <div class="card-title">⚠️ Registros sin serie de LINK</div>
         <div style="font-size:11px;color:var(--muted);margin-bottom:10px">
           Estos registros no posicionaban pero no tienen la serie del LINK guardada, así que quedan fuera
-          del análisis.
+          del análisis. La serie se captura al ejecutar el diagnóstico de Navixy.
         </div>
         <div id="lk-sinserie" style="font-size:12px"></div>
       </div>
@@ -24204,7 +24419,10 @@ const CONFIG = {
   API: 'https://script.google.com/macros/s/AKfycbyV_0BjBf5VLLgt1uSTNHfo-t20TiFHXOOXxopmWwoIHpdgp3QWi0-kpZJi2Uede8TRQQ/exec',
 
   // Cliente y contacto
-  CLIENTE: 'Grupo Alanis',
+  CLIENTE: '',              // nombre visible del cliente activo (de su ficha)
+  FLOTA_TOTAL: 0,           // unidades con contrato (se cuenta al consultar LBOX)
+  INICIO_PROGRAMA: '',      // AAAA-MM-DD; lo anterior es la línea base
+  NOMBRES_CLIENTES: {},     // código → nombre visible
   // Los correos NO se escriben aquí: este archivo es público en GitHub. El
   // backend los entrega con la acción getDestino (ver cargarDestinatarios).
   CONTACTO_INROUTE: '',
@@ -24309,21 +24527,44 @@ const CONFIG = {
   WF_TOLERANCIA_REPOSO_MIN: 1440,
 };
 
-// Cargar credenciales Navixy guardadas en sesión (si las hay)
-(function loadNavixySesion(){
+/* ── DATOS LOCALES POR CLIENTE ────────────────────────────────────────────
+   Respaldos y credenciales de consulta se guardan con una llave POR CLIENTE.
+   Antes había una sola llave para todos: al cambiar de cliente se ofrecía
+   restaurar unidades de otro cliente, y Webfleet/Navixy se consultaban con
+   la cuenta del cliente anterior. Lo guardado antes sin cliente pertenece a
+   ALANIS (era el único cliente entonces) y se migra al leerlo. */
+function llaveCliente(base){ return base + ':' + (CONFIG.PERFIL || 'ALANIS'); }
+function leerLocal(almacen, base){
   try {
-    const s = JSON.parse(sessionStorage.getItem('lbox_navixy') || 'null');
-    if (s && s.hash) CONFIG.NAVIXY = s;
+    const k = llaveCliente(base);
+    let v = almacen.getItem(k);
+    if (v === null && (CONFIG.PERFIL || 'ALANIS') === 'ALANIS' && almacen.getItem(base) !== null) {
+      v = almacen.getItem(base);
+      almacen.setItem(k, v); almacen.removeItem(base);
+    }
+    return v;
+  } catch(e){ return null; }
+}
+function escribirLocal(almacen, base, valor){ try { almacen.setItem(llaveCliente(base), valor); } catch(e){} }
+function borrarLocal(almacen, base){
+  try {
+    almacen.removeItem(llaveCliente(base));
+    if ((CONFIG.PERFIL || 'ALANIS') === 'ALANIS') almacen.removeItem(base);
   } catch(e){}
-})();
+}
 
-// Cargar credenciales Webfleet guardadas en sesión (si las hay)
-(function loadWebfleetSesion(){
+/* Credenciales de Webfleet y Navixy del cliente activo (se piden una vez por
+   sesión y por cliente). Se llama al entrar y al cambiar de cliente. */
+function cargarCredencialesCliente(){
+  CONFIG.WEBFLEET = { account:'', username:'', password:'', apikey:'' };
+  CONFIG.NAVIXY   = { hash:'', base:'https://api.navixy.com/v2' };
   try {
-    const saved = JSON.parse(sessionStorage.getItem('lbox_webfleet') || 'null');
-    if(saved && saved.apikey) CONFIG.WEBFLEET = saved;
+    const w = JSON.parse(leerLocal(sessionStorage, 'lbox_webfleet') || 'null');
+    if (w && w.apikey) CONFIG.WEBFLEET = w;
+    const n = JSON.parse(leerLocal(sessionStorage, 'lbox_navixy') || 'null');
+    if (n && n.hash) CONFIG.NAVIXY = n;
   } catch(e){}
-})();
+}
 
 // Modelo anterior: si quedó una contraseña de LBOX guardada en el navegador
 // de una versión previa, se elimina. El modelo nuevo no la necesita.
@@ -24564,6 +24805,7 @@ async function fetchLiveData() {
 
     // La respuesta puede venir como array directo, o anidada en .data/.lboxes/.result.
     // Detecta el array de dispositivos sin importar la estructura exacta.
+    if (lboxRes && lboxRes.flotaTotal) CONFIG.FLOTA_TOTAL = lboxRes.flotaTotal;
     let lboxUnits = lboxRes.data;
     if (!Array.isArray(lboxUnits)) {
       if (lboxUnits && Array.isArray(lboxUnits.lboxes))      lboxUnits = lboxUnits.lboxes;
@@ -25045,6 +25287,17 @@ function getHistForDash() {
 
 // ── CERRAR Y ENVIAR AL CLIENTE ───────────────────────────────────────────
 async function cerrarYEnviar() {
+  /* Sin correo destino en la ficha del cliente no se cierra: el servidor no
+     enviaría el reporte (antes lo mandaba siempre a Alanis) y el ciclo ya
+     quedaría cerrado. Mejor detenerlo aquí. */
+  if (!CONFIG.EMAIL_DESTINO) {
+    notify('El cliente ' + nombreCliente() + ' no tiene correo destino configurado. ' +
+      (tienePermisoUI('perfiles') ? 'Configúralo en Acciones → Administración → Clientes.'
+                                  : 'Pide a un administrador que lo configure.'), 'err', 10000);
+    if (tienePermisoUI('perfiles')) abrirModalClientes();
+    return;
+  }
+
   if (!units.length) { notify('No hay unidades en el reporte', 'err'); return; }
 
   // Verificar campos mínimos
@@ -25061,7 +25314,7 @@ async function cerrarYEnviar() {
   document.getElementById('modal-folio-numero').textContent = nextFolio;
   document.getElementById('modal-folio-fecha').textContent  = fecha;
   document.getElementById('modal-folio-count').textContent  = units.length;
-  document.getElementById('modal-envio-destino').textContent = CONFIG.EMAIL_DESTINO || 'destinatario configurado en el servidor';
+  document.getElementById('modal-envio-destino').textContent = CONFIG.EMAIL_DESTINO + ' (' + nombreCliente() + ')';
   document.getElementById('modal-envio-section').style.display = 'block';
   abrirModal('modal-folio');
   // Marcar que al confirmar también se envía
@@ -25095,7 +25348,7 @@ async function confirmarLimpiar() {
   // Si algo falla a mitad del proceso, esta copia permite recuperar el ciclo
   // completo. Se conserva hasta confirmar que el historial quedó guardado.
   try {
-    localStorage.setItem('lbox_backup_cierre', JSON.stringify({
+    escribirLocal(localStorage, 'lbox_backup_cierre', JSON.stringify({
       folio, fecha, guardadoEn: new Date().toISOString(), units, newHist
     }));
   } catch(e) { console.warn('No se pudo crear respaldo local:', e); }
@@ -25120,6 +25373,25 @@ async function confirmarLimpiar() {
     if (confirmados < newHist.length) {
       throw new Error('Verificación fallida: se esperaban ' + newHist.length + ' registros del folio ' +
         folio + ' y el servidor confirmó ' + confirmados + '. NO se borró el reporte — vuelve a intentar.');
+    }
+
+    /* ── PASO 2b: abrir casos de las unidades no recuperadas ──────────────
+       Aquí es donde el ciclo deja de terminar en una recomendación: cada
+       unidad que no recuperó queda con un caso y un responsable hasta que se
+       verifique que volvió a reportar. Si falla, el cierre continúa: los
+       casos se pueden abrir después desde la pantalla de Casos. */
+    try {
+      const paraCaso = newHist
+        .filter(h => clasificarUnidad(h) !== 'recuperada')
+        .map(h => ({ eco: h.eco, lbox: h.lbox, causa: h.causa || '',
+                     categoria: clasificarUnidad(h), folio: folio, fecha: h.fecha }));
+      if (paraCaso.length) {
+        const rc = await enviarEnLotes('abrirCasos', paraCaso);
+        if (rc.error) notify('El ciclo se cerró, pero no se abrieron los casos: ' + rc.error +
+          '. Puedes reintentar desde la pantalla de Casos.', 'err', 12000);
+      }
+    } catch(e) {
+      notify('El ciclo se cerró, pero no se abrieron los casos: ' + (e.message || ''), 'err', 10000);
     }
 
     // ── PASO 3: ahora sí, limpiar unidades (historial ya confirmado) ─────
@@ -25154,8 +25426,8 @@ async function confirmarLimpiar() {
     if (!enviar) notify(newHist.length + ' unidades guardadas con folio ' + folio, 'ok');
 
     // Todo salió bien: el respaldo local ya no hace falta.
-    try { localStorage.removeItem('lbox_backup_cierre'); } catch(e) {}
-    try { localStorage.removeItem('lbox_autosave_units'); } catch(e) {}
+    borrarLocal(localStorage, 'lbox_backup_cierre');
+    borrarLocal(localStorage, 'lbox_autosave_units');
 
   } catch(e) {
     // El reporte NO se borró: units sigue intacto en memoria y hay respaldo local.
@@ -25190,12 +25462,12 @@ function mostrarBannerRespaldo(){
 }
 
 function hayRespaldoCierre(){
-  try { return !!localStorage.getItem('lbox_backup_cierre'); } catch(e) { return false; }
+  return !!leerLocal(localStorage, 'lbox_backup_cierre');
 }
 
 function verRespaldoCierre(){
   try {
-    const b = JSON.parse(localStorage.getItem('lbox_backup_cierre') || 'null');
+    const b = JSON.parse(leerLocal(localStorage, 'lbox_backup_cierre') || 'null');
     if(!b) { notify('No hay respaldo guardado', 'err'); return; }
     const fechaB = new Date(b.guardadoEn).toLocaleString('es-MX');
     if(confirm('Se encontró un respaldo de un cierre que no se completó:\n\n' +
@@ -25209,7 +25481,7 @@ function verRespaldoCierre(){
 }
 
 function descartarRespaldoCierre(){
-  try { localStorage.removeItem('lbox_backup_cierre'); } catch(e) {}
+  borrarLocal(localStorage, 'lbox_backup_cierre');
   const banner = document.getElementById('banner-respaldo');
   if(banner) banner.style.display = 'none';
   notify('Respaldo descartado', 'ok');
@@ -25233,7 +25505,7 @@ async function abrirModalCuenta(){
   const m = document.getElementById('modal-cuenta');
   if(!m) return;
   ['lbx-email','lbx-password','lbx-account'].forEach(id => { const el = document.getElementById(id); if(el) el.value = ''; });
-  document.getElementById('lbx-perfil-lbl').textContent = '(' + (CONFIG.PERFIL || 'ALANIS') + ')';
+  document.getElementById('lbx-perfil-lbl').textContent = '(' + nombreCliente() + ')';
   cerrarCapasFlotantes();
   m.style.display = 'flex';
   cargarEstadoLbox();
@@ -25322,7 +25594,7 @@ function exportarHistorialExcel() {
 
   XLSX.utils.book_append_sheet(wb, ws, 'Historial');
   const fecha = new Date().toISOString().slice(0,10);
-  XLSX.writeFile(wb, 'Historial_LBOX_Alanis_' + fecha + '.xlsx');
+  XLSX.writeFile(wb, 'Historial_LBOX_' + (CONFIG.PERFIL || 'CLIENTE') + '_' + fecha + '.xlsx');
   notify('Historial exportado: ' + hist.length + ' registros', 'ok');
 }
 
@@ -26245,6 +26517,161 @@ function claveEco(v){
   return s;
 }
 
+/* Cruza la respuesta de Webfleet con una lista de unidades y calcula el
+   estado de cada una. Lo usan el modal de validación y el diagnóstico
+   completo, para que ambos apliquen exactamente las mismas reglas. */
+function calcularEstadosWebfleet(posiciones, serverTime, base){
+    // Mapeo de resultados (claveEco está definida a nivel global más abajo).
+  const posMap = {};
+  (posiciones || []).forEach(p => {
+    const k = claveEco(p.objectno);
+    if (k) posMap[k] = p;
+  });
+
+  // 'server_time' viene del backend (reloj de Google). Si el Apps Script
+  // desplegado en producción es una versión anterior que aún no lo envía,
+  // 'res.server_time' llegaría undefined y ROMPERÍA todo el cálculo en
+  // silencio (NaN en todas las comparaciones → todo cae en 'NO'). Por eso
+  // esta protección es obligatoria: si falta, usamos la hora local como
+  // respaldo y avisamos, en vez de fallar silenciosamente.
+  let ahora = serverTime;
+  let usoHoraLocal = false;
+  if (typeof ahora !== 'number' || isNaN(ahora)) {
+    usoHoraLocal = true;
+    console.warn('⚠️ El backend no envió server_time — usando hora local del navegador como respaldo. ' +
+      'Verifica que el Apps Script esté desplegado con la versión más reciente (Implementar → Gestionar implementaciones → Versión nueva).');
+    ahora = Date.now();
+  }
+
+  // Webfleet, con useISO8601=false, devuelve pos_time como epoch Unix en
+  // SEGUNDOS (ej. "1735307000"), no como fecha de texto. Esta función también
+  // soporta epoch en milisegundos (13 dígitos) y fechas ISO/"YYYY-MM-DD HH:MM:SS"
+  // por si la configuración de la cuenta Webfleet cambia en el futuro.
+  function parsePosTime(raw){
+    if (raw === null || raw === undefined || raw === '') return null;
+    const s = String(raw).trim();
+
+    // 1) Epoch numérico (13 dígitos ≈ milisegundos, 10 ≈ segundos)
+    if (/^\d+$/.test(s)) {
+      const n = parseInt(s, 10);
+      return new Date(s.length >= 13 ? n : n * 1000);
+    }
+
+    // 2) Formato de Webfleet en español con mes abreviado: "18-ago-2026 23:27".
+    //    JavaScript NO entiende los meses en español, así que new Date() daría
+    //    Invalid Date → minutos null → toda unidad marcada como "no posiciona"
+    //    aunque su última posición sea de hace un minuto. Se traduce a mano.
+    const MESES_ES = { ene:0, feb:1, mar:2, abr:3, may:4, jun:5,
+                       jul:6, ago:7, sep:8, set:8, oct:9, nov:10, dic:11 };
+    let m = s.match(/^(\d{1,2})[-\/\s]([a-zA-ZáéíóúÁÉÍÓÚ]{3,})[-\/\s](\d{4})(?:[\sT]+(\d{1,2}):(\d{2})(?::(\d{2}))?)?/);
+    if (m) {
+      const mesTxt = m[2].toLowerCase()
+        .normalize('NFD').replace(/[\u0300-\u036f]/g, '')  // quita acentos
+        .slice(0,3);
+      if (MESES_ES[mesTxt] !== undefined) {
+        return new Date(
+          parseInt(m[3],10),            // año
+          MESES_ES[mesTxt],             // mes (0-11)
+          parseInt(m[1],10),            // día
+          parseInt(m[4]||'0',10),       // hora
+          parseInt(m[5]||'0',10),       // minuto
+          parseInt(m[6]||'0',10)        // segundo
+        );
+      }
+    }
+
+    // 3) Formato día/mes/año numérico: "18/08/2026 23:27" o "18-08-2026 23:27".
+    //    Se interpreta como DD/MM/AAAA (convención local), no MM/DD.
+    m = s.match(/^(\d{1,2})[-\/](\d{1,2})[-\/](\d{4})(?:[\sT]+(\d{1,2}):(\d{2})(?::(\d{2}))?)?$/);
+    if (m) {
+      return new Date(
+        parseInt(m[3],10), parseInt(m[2],10)-1, parseInt(m[1],10),
+        parseInt(m[4]||'0',10), parseInt(m[5]||'0',10), parseInt(m[6]||'0',10)
+      );
+    }
+
+    // 4) ISO u otros formatos que JavaScript sí reconoce
+    const d = new Date(s.replace(' ', 'T'));
+    if (!isNaN(d.getTime())) return d;
+
+    const d2 = new Date(s);
+    return isNaN(d2.getTime()) ? null : d2;
+  }
+  
+  let sinCruce = 0;
+  const lista = base.map(u => {
+    const p = posMap[claveEco(u.eco)];
+    if (!p) sinCruce++;
+    
+    if (!p || !p.pos_time) {
+      return { 
+        eco: u.eco, lbox: u.lbox || '', objectname: '', pos_time: '', 
+        serieLink: p ? (p.serie_link || '') : '',
+        minutos: null, standstill: '', ignition: '', speed: '', estado: 'sin_dato',
+        posiciona: 'NO'
+      };
+    }
+    
+    const t = parsePosTime(p.pos_time);
+    const minutos = t ? Math.floor((ahora - t.getTime()) / 60000) : null;
+    let estado = 'sin_dato';
+    
+    // El "estado" debe ser coherente con la marca 'posiciona' que se calcula abajo:
+    // una unidad detenida/apagada que reporta cada varias horas es comportamiento
+    // NORMAL (ahorro de batería), no una "posible pérdida". Se evalúa el contexto
+    // del vehículo antes de clasificar, igual que en la regla de 'posiciona'.
+    const enReposo = (String(p.ignition) === '0') ||
+                     (String(p.standstill) === '1') ||
+                     (String(p.speed) === '0');
+    const TOLERANCIA_REPOSO_MIN = CONFIG.WF_TOLERANCIA_REPOSO_MIN;
+
+    if (minutos !== null) {
+      if (minutos <= CONFIG.WF_UMBRAL_ACTIVO) estado = 'activo';
+      else if (minutos <= CONFIG.WF_UMBRAL_MODERADO) estado = 'moderado';
+      else if (enReposo && minutos <= TOLERANCIA_REPOSO_MIN) estado = 'reposo';
+      else estado = 'perdida';
+    }
+
+    // Marca automática SI/NO: <2 min desde la última posición = SI (posiciona),
+    // 2+ min o sin dato = NO. Esto alimenta directamente el campo 'pos' del reporte.
+    //const posiciona = (minutos !== null && minutos < CONFIG.WF_UMBRAL_POSICIONA_MIN) ? 'SI' : 'NO';
+    // NUEVA LÓGICA
+    // 'posiciona' se deriva del mismo estado ya calculado arriba, para que ambas
+    // columnas nunca se contradigan (antes 'perdida' podía convivir con 'SI').
+    //  · activo / moderado → reportando dentro de lo esperado en marcha
+    //  · reposo            → apagado o detenido, silencio normal por ahorro de batería
+    //  · perdida           → sin reportar sin justificación → NO posiciona
+    let posiciona = (estado === 'activo' || estado === 'reposo') ? 'SI' : 'NO';
+    
+    return {
+      eco: u.eco, 
+      lbox: u.lbox || '', 
+      objectname: p.objectname || '',
+      pos_time: p.pos_time,
+      // Se muestra el valor TAL COMO lo envía Webfleet. Antes se forzaba la
+      // zona horaria de CDMX sobre una hora que ya venía en hora local, lo que
+      // producía un desfase visible (23:27 se mostraba como 5:27 p.m.).
+      /* Webfleet puede mandar la hora como texto o como marca Unix (solo
+         dígitos). El texto se muestra tal cual, para no desplazar la zona
+         horaria; la marca Unix se convierte, porque "1789967448" no le dice
+         nada a quien lo lee. */
+      pos_time_legible: (p.pos_time && !/^\d{9,13}$/.test(String(p.pos_time).trim()))
+        ? p.pos_time
+        : (t ? t.toLocaleString('es-MX', { day:'2-digit', month:'2-digit', year:'numeric', hour:'2-digit', minute:'2-digit' }) : '—'),
+      minutos: minutos, 
+      estado: estado,
+      posiciona: posiciona,
+      // Serie del dispositivo LINK: base del análisis de reincidencia por aparato
+      serieLink: p.serie_link || '',
+      standstill: p.standstill, 
+      ignition: p.ignition, 
+      speed: p.speed
+    };
+  });
+
+  return { lista: lista, sinCruce: sinCruce, usoHoraLocal: usoHoraLocal };
+}
+
 async function consultarPosicionesWebfleet() {
   const account  = document.getElementById('wf-account').value.trim();
   const username = document.getElementById('wf-username').value.trim();
@@ -26258,7 +26685,7 @@ async function consultarPosicionesWebfleet() {
 
   CONFIG.WEBFLEET = { account, username, password, apikey };
   try { 
-    sessionStorage.setItem('lbox_webfleet', JSON.stringify(CONFIG.WEBFLEET)); 
+    escribirLocal(sessionStorage, 'lbox_webfleet', JSON.stringify(CONFIG.WEBFLEET)); 
   } catch(e) {}
 
   const btn = document.getElementById('btn-wf-consultar');
@@ -26281,151 +26708,9 @@ async function consultarPosicionesWebfleet() {
 
     if (res.error) throw new Error(res.error);
 
-    // Mapeo de resultados (claveEco está definida a nivel global más abajo).
-    const posMap = {};
-    (res.posiciones || []).forEach(p => {
-      const k = claveEco(p.objectno);
-      if (k) posMap[k] = p;
-    });
-
-    // 'server_time' viene del backend (reloj de Google). Si el Apps Script
-    // desplegado en producción es una versión anterior que aún no lo envía,
-    // 'res.server_time' llegaría undefined y ROMPERÍA todo el cálculo en
-    // silencio (NaN en todas las comparaciones → todo cae en 'NO'). Por eso
-    // esta protección es obligatoria: si falta, usamos la hora local como
-    // respaldo y avisamos, en vez de fallar silenciosamente.
-    let ahora = res.server_time;
-    if (typeof ahora !== 'number' || isNaN(ahora)) {
-      console.warn('⚠️ El backend no envió server_time — usando hora local del navegador como respaldo. ' +
-        'Verifica que el Apps Script esté desplegado con la versión más reciente (Implementar → Gestionar implementaciones → Versión nueva).');
-      ahora = Date.now();
-    }
-
-    // Webfleet, con useISO8601=false, devuelve pos_time como epoch Unix en
-    // SEGUNDOS (ej. "1735307000"), no como fecha de texto. Esta función también
-    // soporta epoch en milisegundos (13 dígitos) y fechas ISO/"YYYY-MM-DD HH:MM:SS"
-    // por si la configuración de la cuenta Webfleet cambia en el futuro.
-    function parsePosTime(raw){
-      if (raw === null || raw === undefined || raw === '') return null;
-      const s = String(raw).trim();
-
-      // 1) Epoch numérico (13 dígitos ≈ milisegundos, 10 ≈ segundos)
-      if (/^\d+$/.test(s)) {
-        const n = parseInt(s, 10);
-        return new Date(s.length >= 13 ? n : n * 1000);
-      }
-
-      // 2) Formato de Webfleet en español con mes abreviado: "18-ago-2026 23:27".
-      //    JavaScript NO entiende los meses en español, así que new Date() daría
-      //    Invalid Date → minutos null → toda unidad marcada como "no posiciona"
-      //    aunque su última posición sea de hace un minuto. Se traduce a mano.
-      const MESES_ES = { ene:0, feb:1, mar:2, abr:3, may:4, jun:5,
-                         jul:6, ago:7, sep:8, set:8, oct:9, nov:10, dic:11 };
-      let m = s.match(/^(\d{1,2})[-\/\s]([a-zA-ZáéíóúÁÉÍÓÚ]{3,})[-\/\s](\d{4})(?:[\sT]+(\d{1,2}):(\d{2})(?::(\d{2}))?)?/);
-      if (m) {
-        const mesTxt = m[2].toLowerCase()
-          .normalize('NFD').replace(/[\u0300-\u036f]/g, '')  // quita acentos
-          .slice(0,3);
-        if (MESES_ES[mesTxt] !== undefined) {
-          return new Date(
-            parseInt(m[3],10),            // año
-            MESES_ES[mesTxt],             // mes (0-11)
-            parseInt(m[1],10),            // día
-            parseInt(m[4]||'0',10),       // hora
-            parseInt(m[5]||'0',10),       // minuto
-            parseInt(m[6]||'0',10)        // segundo
-          );
-        }
-      }
-
-      // 3) Formato día/mes/año numérico: "18/08/2026 23:27" o "18-08-2026 23:27".
-      //    Se interpreta como DD/MM/AAAA (convención local), no MM/DD.
-      m = s.match(/^(\d{1,2})[-\/](\d{1,2})[-\/](\d{4})(?:[\sT]+(\d{1,2}):(\d{2})(?::(\d{2}))?)?$/);
-      if (m) {
-        return new Date(
-          parseInt(m[3],10), parseInt(m[2],10)-1, parseInt(m[1],10),
-          parseInt(m[4]||'0',10), parseInt(m[5]||'0',10), parseInt(m[6]||'0',10)
-        );
-      }
-
-      // 4) ISO u otros formatos que JavaScript sí reconoce
-      const d = new Date(s.replace(' ', 'T'));
-      if (!isNaN(d.getTime())) return d;
-
-      const d2 = new Date(s);
-      return isNaN(d2.getTime()) ? null : d2;
-    }
-    
-    let sinCruce = 0;
-    wfPosiciones = wfUnidadesBase.map(u => {
-      const p = posMap[claveEco(u.eco)];
-      if (!p) sinCruce++;
-      
-      if (!p || !p.pos_time) {
-        return { 
-          eco: u.eco, lbox: u.lbox || '', objectname: '', pos_time: '', 
-          serieLink: p ? (p.serie_link || '') : '',
-          minutos: null, standstill: '', ignition: '', speed: '', estado: 'sin_dato',
-          posiciona: 'NO'
-        };
-      }
-      
-      const t = parsePosTime(p.pos_time);
-      const minutos = t ? Math.floor((ahora - t.getTime()) / 60000) : null;
-      let estado = 'sin_dato';
-      
-      // El "estado" debe ser coherente con la marca 'posiciona' que se calcula abajo:
-      // una unidad detenida/apagada que reporta cada varias horas es comportamiento
-      // NORMAL (ahorro de batería), no una "posible pérdida". Se evalúa el contexto
-      // del vehículo antes de clasificar, igual que en la regla de 'posiciona'.
-      const enReposo = (String(p.ignition) === '0') ||
-                       (String(p.standstill) === '1') ||
-                       (String(p.speed) === '0');
-      const TOLERANCIA_REPOSO_MIN = CONFIG.WF_TOLERANCIA_REPOSO_MIN;
-
-      if (minutos !== null) {
-        if (minutos <= CONFIG.WF_UMBRAL_ACTIVO) estado = 'activo';
-        else if (minutos <= CONFIG.WF_UMBRAL_MODERADO) estado = 'moderado';
-        else if (enReposo && minutos <= TOLERANCIA_REPOSO_MIN) estado = 'reposo';
-        else estado = 'perdida';
-      }
-
-      // Marca automática SI/NO: <2 min desde la última posición = SI (posiciona),
-      // 2+ min o sin dato = NO. Esto alimenta directamente el campo 'pos' del reporte.
-      //const posiciona = (minutos !== null && minutos < CONFIG.WF_UMBRAL_POSICIONA_MIN) ? 'SI' : 'NO';
-      // NUEVA LÓGICA
-      // 'posiciona' se deriva del mismo estado ya calculado arriba, para que ambas
-      // columnas nunca se contradigan (antes 'perdida' podía convivir con 'SI').
-      //  · activo / moderado → reportando dentro de lo esperado en marcha
-      //  · reposo            → apagado o detenido, silencio normal por ahorro de batería
-      //  · perdida           → sin reportar sin justificación → NO posiciona
-      let posiciona = (estado === 'activo' || estado === 'reposo') ? 'SI' : 'NO';
-      
-      return {
-        eco: u.eco, 
-        lbox: u.lbox || '', 
-        objectname: p.objectname || '',
-        pos_time: p.pos_time,
-        // Se muestra el valor TAL COMO lo envía Webfleet. Antes se forzaba la
-        // zona horaria de CDMX sobre una hora que ya venía en hora local, lo que
-        // producía un desfase visible (23:27 se mostraba como 5:27 p.m.).
-        /* Webfleet puede mandar la hora como texto o como marca Unix (solo
-           dígitos). El texto se muestra tal cual, para no desplazar la zona
-           horaria; la marca Unix se convierte, porque "1789967448" no le dice
-           nada a quien lo lee. */
-        pos_time_legible: (p.pos_time && !/^\d{9,13}$/.test(String(p.pos_time).trim()))
-          ? p.pos_time
-          : (t ? t.toLocaleString('es-MX', { day:'2-digit', month:'2-digit', year:'numeric', hour:'2-digit', minute:'2-digit' }) : '—'),
-        minutos: minutos, 
-        estado: estado,
-        posiciona: posiciona,
-        // Serie del dispositivo LINK: base del análisis de reincidencia por aparato
-        serieLink: p.serie_link || '',
-        standstill: p.standstill, 
-        ignition: p.ignition, 
-        speed: p.speed
-      };
-    });
+    const calc = calcularEstadosWebfleet(res.posiciones || [], res.server_time, wfUnidadesBase);
+    wfPosiciones = calc.lista;
+    const sinCruce = calc.sinCruce;
 
     document.getElementById('wf-resultados').style.display = 'block';
     wfFiltroActivo = 'todos';
@@ -26484,7 +26769,7 @@ async function consultarPosicionesWebfleet() {
       notify('⚠️ ' + sinCruce + ' de ' + wfUnidadesBase.length + ' unidades no se encontraron en Webfleet ' +
         '(quedan marcadas como NO por falta de dato, no por diagnóstico). ' +
         'ECO en la app: [' + ejemploApp + '] · objectno en Webfleet: [' + ejemploWf + ']', 'err', 12000);
-      console.warn('Unidades sin cruce Webfleet:', wfUnidadesBase.filter(u => !posMap[claveEco(u.eco)]).map(u=>u.eco));
+      console.warn('Unidades sin cruce Webfleet:', calc.lista.filter(p => p.estado === 'sin_dato').map(p => p.eco));
     }
 
   } catch(e) { 
@@ -26513,6 +26798,595 @@ function getWfSeleccionadas() {
    en la tabla de "Obtener datos en vivo" y en los filtros por días.
    Esta validación NO ejecuta ninguna acción sobre el vehículo, por lo que
    no aplica ninguna restricción por movimiento/ignición. */
+/* ── INDICADORES DE RESULTADO ─────────────────────────────────────────────
+   Sustituyen a "% recuperadas" como medida principal: ese porcentaje sube o
+   baja según cuántas unidades se carguen, no según cómo esté la flota.
+
+   Definiciones (las mismas que se presentan al cliente):
+     · Flota protegida     1 − unidades sin reportar ÷ flota con contrato.
+                           Por mes: promedio de sus ciclos.
+     · Días sin protección Suma de días sin reportar de las unidades del
+                           periodo (días de la LBOX; negativos cuentan como 0).
+     · Reincidencia activa Vehículos (ECO) con 3+ eventos en 90 días.
+     · Tiempo a resolución Mediana de días entre detección y verificación de
+                           los casos verificados.
+   Línea base: promedio de hasta 6 meses previos al inicio del programa. */
+const IND_MESES = 12, IND_MESES_BASE = 6;
+
+function mesDe(fecha){ const s = normFecha(fecha); return /^\d{4}-\d{2}/.test(s) ? s.slice(0, 7) : ''; }
+function tsDe(fecha){ const t = new Date(normFecha(fecha) + 'T12:00:00').getTime(); return isNaN(t) ? null : t; }
+function mediana(xs){
+  const v = xs.filter(x => x !== null && !isNaN(x)).sort((a, b) => a - b);
+  if(!v.length) return null;
+  const m = Math.floor(v.length / 2);
+  return v.length % 2 ? v[m] : (v[m - 1] + v[m]) / 2;
+}
+function promedio(xs){ const v = xs.filter(x => x !== null && !isNaN(x)); return v.length ? v.reduce((a,b)=>a+b,0) / v.length : null; }
+
+/* Vehículos con 3+ eventos en los 90 días que terminan en 'finTs'. */
+function reincidenciaActivaAl(finTs){
+  const ini = finTs - CONFIG.VENTANA_REINCIDENCIA_DIAS * 86400000;
+  const porEco = {};
+  hist.forEach(h => {
+    const t = tsDe(h.fecha);
+    if(t === null || t <= ini || t > finTs) return;
+    const k = claveEco(h.eco); if(!k) return;
+    porEco[k] = (porEco[k] || 0) + 1;
+  });
+  return Object.values(porEco).filter(n => n >= CONFIG.UMBRAL_REINCIDENTE_RECIENTE).length;
+}
+
+function calcularIndicadores(){
+  const flota = CONFIG.FLOTA_TOTAL || 0;
+  // Días negativos (error de datos): se cuentan como 0 y se reportan una vez.
+  const negativos = hist.filter(h => parseInt(h.dias, 10) < 0).length;
+  const diasDe = h => { const d = parseInt(h.dias, 10); return isNaN(d) || d < 0 ? 0 : d; };
+  /* La reincidencia se mide en ventanas de 90 días. En los primeros meses con
+     datos esa ventana todavía no tiene historia completa, así que no pueden
+     aparecer 3 fallas y el valor sale artificialmente bajo; comparar contra
+     él haría parecer peor cualquier periodo posterior. Esos meses no cuentan. */
+  const primerTs = hist.reduce((m, h) => { const t = tsDe(h.fecha); return t !== null && (m === null || t < m) ? t : m; }, null);
+  const ventanaCompleta = finTs => primerTs !== null && (finTs - primerTs) >= CONFIG.VENTANA_REINCIDENCIA_DIAS * 86400000;
+
+  // Serie de los últimos 12 meses (más los previos para la línea base).
+  const hoy = new Date();
+  const meses = [];
+  for(let i = IND_MESES + IND_MESES_BASE - 1; i >= 0; i--){
+    const d = new Date(hoy.getFullYear(), hoy.getMonth() - i, 1);
+    meses.push(d.getFullYear() + '-' + String(d.getMonth() + 1).padStart(2, '0'));
+  }
+  const porMes = {};
+  meses.forEach(m => porMes[m] = { dias: 0, ciclos: {}, registros: 0 });
+  hist.forEach(h => {
+    const m = mesDe(h.fecha); if(!porMes[m]) return;
+    porMes[m].registros++;
+    porMes[m].dias += diasDe(h);
+    const f = h.folio || ('sin-folio-' + normFecha(h.fecha));
+    (porMes[m].ciclos[f] = porMes[m].ciclos[f] || new Set()).add(claveEco(h.eco));
+  });
+
+  const serie = meses.map(m => {
+    const pm = porMes[m];
+    const [y, mo] = m.split('-').map(Number);
+    const finMes = Math.min(new Date(y, mo, 0, 23, 59).getTime(), Date.now());
+    const protegidas = flota ? Object.values(pm.ciclos).map(s => Math.max(0, 1 - s.size / flota)) : [];
+    const resol = casos.filter(k => k.estado === 'Verificada' && mesDe(k.fechaVerificacion) === m)
+      .map(k => { const a = tsDe(k.fechaDeteccion), b = tsDe(k.fechaVerificacion); return a && b ? (b - a) / 86400000 : null; });
+    return {
+      mes: m, conDatos: pm.registros > 0,
+      flota: protegidas.length ? promedio(protegidas) : null,
+      dias: pm.registros ? pm.dias : null,
+      reinc: (pm.registros || m === meses[meses.length - 1]) && ventanaCompleta(finMes) ? reincidenciaActivaAl(finMes) : null,
+      resol: mediana(resol)
+    };
+  });
+
+  // Línea base: meses con datos anteriores al inicio del programa.
+  const inicio = CONFIG.INICIO_PROGRAMA ? CONFIG.INICIO_PROGRAMA.slice(0, 7) : '';
+  let base = serie.filter(s => s.conDatos && (!inicio || s.mes < inicio));
+  base = inicio ? base.slice(-IND_MESES_BASE) : base.slice(0, 3);   // sin fecha: los 3 primeros meses con datos
+  const lb = {
+    flota: promedio(base.map(s => s.flota)), dias: promedio(base.map(s => s.dias)),
+    reinc: promedio(base.map(s => s.reinc)), resol: promedio(base.map(s => s.resol)),
+    meses: base.map(s => s.mes)
+  };
+
+  // Valor actual de cada indicador.
+  const hace30 = Date.now() - 30 * 86400000;
+  const actual = {
+    // Al corte: el ciclo activo son las unidades que hoy no reportan.
+    flota: flota ? Math.max(0, 1 - units.length / flota) : null,
+    dias: hist.filter(h => { const t = tsDe(h.fecha); return t !== null && t >= hace30; }).reduce((a, h) => a + diasDe(h), 0),
+    reinc: ventanaCompleta(Date.now()) ? reincidenciaActivaAl(Date.now()) : null,
+    resol: mediana(casos.filter(k => k.estado === 'Verificada' && (tsDe(k.fechaVerificacion) || 0) >= Date.now() - 90 * 86400000)
+      .map(k => { const a = tsDe(k.fechaDeteccion), b = tsDe(k.fechaVerificacion); return a && b ? (b - a) / 86400000 : null; }))
+  };
+  return { serie: serie.slice(-IND_MESES), lb, actual, flota, negativos, inicio };
+}
+
+function renderIndicadores(){
+  const cont = document.getElementById('ind-kpis');
+  if(!cont) return;
+  const inp = document.getElementById('ind-inicio');
+  inp.value = CONFIG.INICIO_PROGRAMA || '';
+  inp.disabled = !tienePermisoUI('perfiles');
+  inp.title = inp.disabled ? 'Solo un administrador puede cambiarla' : '';
+
+  const R = calcularIndicadores();
+  const fmt = {
+    flota: v => v === null ? '—' : (v * 100).toFixed(1) + ' %',
+    dias:  v => v === null ? '—' : Math.round(v).toLocaleString('es-MX'),
+    reinc: v => v === null ? '—' : String(Math.round(v)),
+    resol: v => v === null ? '—' : Math.round(v) + ' días'
+  };
+  // Dirección deseada: la flota protegida debe subir; lo demás, bajar.
+  const MEJOR = { flota: 1, dias: -1, reinc: -1, resol: -1 };
+  const TITULO = { flota: 'Flota protegida', dias: 'Días sin protección (30 días)',
+                   reinc: 'Reincidencia activa', resol: 'Tiempo a resolución' };
+  const AYUDA = { flota: 'Unidades reportando al corte', dias: 'Suma de días sin reportar',
+                  reinc: 'Vehículos con 3+ fallas en 90 días', resol: 'Mediana, casos verificados' };
+
+  cont.innerHTML = ['flota','dias','reinc','resol'].map(k => {
+    const a = R.actual[k], b = R.lb[k];
+    let delta = '';
+    if(a !== null && b !== null && b !== 0){
+      const cambio = (a - b) / Math.abs(b);
+      const bueno = cambio * MEJOR[k] > 0;
+      const neutro = Math.abs(cambio) < 0.02;
+      delta = '<div style="font-size:11.5px;font-weight:700;color:' + (neutro ? 'var(--muted)' : bueno ? '#1E8449' : '#c0392b') + '">' +
+        (cambio > 0 ? '▲ ' : cambio < 0 ? '▼ ' : '') + Math.abs(cambio * 100).toFixed(0) + ' % vs línea base</div>';
+    }
+    return '<div style="background:#f8f9fa;border:1px solid var(--line);border-radius:10px;padding:14px 16px">' +
+      '<div style="font-size:10px;color:var(--muted);text-transform:uppercase;font-weight:700">' + TITULO[k] + '</div>' +
+      '<div style="font-size:26px;font-weight:700;color:var(--navy);margin:4px 0">' + fmt[k](a) + '</div>' + delta +
+      '<div style="font-size:10.5px;color:var(--muted);margin-top:4px">' + AYUDA[k] +
+        ' · línea base: ' + fmt[k](b) + '</div></div>';
+  }).join('');
+
+  // Tabla mensual, más reciente arriba.
+  const filas = R.serie.slice().reverse();
+  document.getElementById('ind-tbody').innerHTML = filas.map(s =>
+    '<tr' + (R.lb.meses.includes(s.mes) ? ' style="background:#F4F6F7"' : '') + '>' +
+      '<td style="white-space:nowrap"><b>' + s.mes + '</b>' + (R.lb.meses.includes(s.mes) ? ' <span style="font-size:9.5px;color:var(--muted)">línea base</span>' : '') +
+        (R.inicio && s.mes === R.inicio ? ' <span style="font-size:9.5px;color:#1E8449;font-weight:700">inicio</span>' : '') + '</td>' +
+      '<td>' + fmt.flota(s.flota) + '</td><td>' + fmt.dias(s.dias) + '</td>' +
+      '<td>' + fmt.reinc(s.reinc) + '</td><td>' + fmt.resol(s.resol) + '</td></tr>').join('');
+
+  // Avisos: lo que limita la lectura de los números.
+  const avisos = [];
+  if(!R.flota) avisos.push('Sin tamaño de flota: la flota protegida se calcula al consultar "Datos en vivo" de LBOX con este cliente.');
+  if(!R.inicio) avisos.push('Sin fecha de inicio del programa: la línea base provisional son los 3 primeros meses con datos.');
+  if(R.negativos) avisos.push(R.negativos === 1
+    ? '1 registro del historial tiene días negativos (error de datos) y se contó como 0.'
+    : R.negativos + ' registros del historial tienen días negativos (error de datos) y se contaron como 0.');
+  if(R.lb.reinc === null) avisos.push('La reincidencia de la línea base no se puede calcular: esos meses no tienen 90 días de historia previa.');
+  const av = document.getElementById('ind-aviso');
+  av.style.display = avisos.length ? 'block' : 'none';
+  av.innerHTML = avisos.map(esc).join('<br>');
+  document.getElementById('ind-notas').innerHTML =
+    'Flota protegida por mes: promedio de sus ciclos, con el tamaño de flota actual (' + (R.flota || 'sin dato') + ' unidades). ' +
+    'Reincidencia activa: al cierre de cada mes. Tiempo a resolución: solo existe desde que se usan los casos, así que su línea base puede quedar vacía.';
+}
+
+async function guardarInicioPrograma(){
+  if(!tienePermisoUI('perfiles')) return;
+  const v = document.getElementById('ind-inicio').value;
+  try {
+    const r = await jsonp({ action:'guardarCliente', cliente: CONFIG.PERFIL, inicioPrograma: v });
+    if(r && r.error){ notify(r.error, 'err'); return; }
+    CONFIG.INICIO_PROGRAMA = v;
+    notify(v ? 'Inicio del programa: ' + v + '. La línea base se recalculó.' : 'Inicio del programa borrado', 'ok');
+    renderIndicadores();
+  } catch(e){ notify('Error: ' + (e.message || ''), 'err'); }
+}
+
+/* ── SEGUIMIENTO DE CASOS ─────────────────────────────────────────────────
+   Un caso por unidad no recuperada, desde que se detecta hasta que se
+   verifica que volvió a reportar. El servidor valida estados y permisos; aquí
+   se muestran y se editan. */
+let casos = [];
+let casoEditando = null;
+const CASO_DIAS_SIN_FECHA = 7;   // sin fecha comprometida en 7 días → detenido
+
+function casoDetenido(k){
+  if(k.estado === 'Verificada' || k.estado === 'Atendida') return false;
+  if(k.fechaCompromiso) return false;
+  const det = new Date(String(k.fechaDeteccion || '') + 'T12:00:00');
+  return !isNaN(det.getTime()) && (Date.now() - det.getTime()) > CASO_DIAS_SIN_FECHA * 86400000;
+}
+
+async function cargarCasos(forzar){
+  if(!CONFIG.SESION) return;
+  try {
+    // La verificación automática corre antes de mostrar: así los casos
+    // atendidos hace 14 días aparecen ya verificados.
+    if(forzar && tienePermisoUI('capturar')){
+      const v = await jsonp({ action:'verificarCasos' });
+      if(v && v.ok && (v.verificados || v.reabiertos)){
+        notify('Casos: ' + v.verificados + ' verificados, ' + v.reabiertos + ' reabiertos por volver a fallar', 'ok', 9000);
+      }
+    }
+    const r = await jsonp({ action:'getCasos' });
+    if(r && r.ok){ casos = r.casos || []; renderCasos(); actualizarBadgeCasos(); }
+  } catch(e){ console.warn('No se pudieron cargar los casos:', e); }
+}
+
+function actualizarBadgeCasos(){
+  const b = document.getElementById('nav-casos-badge');
+  if(!b) return;
+  const detenidos = casos.filter(casoDetenido).length;
+  b.textContent = detenidos;
+  b.style.display = detenidos ? 'inline-block' : 'none';
+  b.title = detenidos + ' caso(s) sin fecha de atención';
+}
+
+function renderCasos(){
+  const tb = document.getElementById('casos-tbody');
+  const kpis = document.getElementById('casos-kpis');
+  if(!tb) return;
+
+  const filtro = document.getElementById('casos-filtro-estado').value;
+  const q = (document.getElementById('casos-buscar').value || '').toLowerCase();
+  const lista = casos.filter(k => {
+    if(filtro === 'abiertos'){ if(k.estado === 'Verificada') return false; }
+    else if(filtro && k.estado !== filtro) return false;
+    return !q || ((k.eco || '') + (k.lbox || '')).toLowerCase().includes(q);
+  });
+
+  const abiertos = casos.filter(k => k.estado !== 'Verificada').length;
+  const detenidos = casos.filter(casoDetenido).length;
+  const verificados = casos.filter(k => k.estado === 'Verificada').length;
+  const reabiertos = casos.filter(k => parseInt(k.reaperturas, 10) > 0).length;
+  const tarjeta = (t, v, color) =>
+    '<div style="flex:1;min-width:130px;background:#f8f9fa;border:1px solid var(--line);border-radius:9px;padding:11px 13px">' +
+      '<div style="font-size:10px;color:var(--muted);text-transform:uppercase;font-weight:700">' + t + '</div>' +
+      '<div style="font-size:20px;font-weight:700;color:' + (color || 'var(--navy)') + '">' + v + '</div></div>';
+  kpis.innerHTML = tarjeta('Abiertos', abiertos) +
+    tarjeta('Sin fecha de atención', detenidos, detenidos ? '#c0392b' : '') +
+    tarjeta('Verificados', verificados, verificados ? '#1E8449' : '') +
+    tarjeta('Reabiertos', reabiertos, reabiertos ? '#b35900' : '');
+
+  if(!lista.length){
+    tb.innerHTML = '<tr><td colspan="9" class="empty">' +
+      (casos.length ? 'Ningún caso con ese filtro.' : 'Sin casos: se abren al cerrar un ciclo con unidades no recuperadas.') +
+      '</td></tr>';
+    return;
+  }
+
+  const COLOR = { Detectada:'#c0392b', Asignada:'#b35900', Programada:'#1A5276', Atendida:'#7D6608', Verificada:'#1E8449' };
+  tb.innerHTML = lista.map((k, i) => {
+    const det = casoDetenido(k);
+    return '<tr style="background:' + (det ? '#FDEDEC' : (i % 2 ? '#f9f9f9' : '#fff')) + '">' +
+      '<td><b>' + esc(k.eco) + '</b>' + (parseInt(k.reaperturas,10) > 0 ?
+        ' <span title="Reaperturas: la solución anterior no resolvió" style="color:#b35900;font-size:10px">↻' + esc(k.reaperturas) + '</span>' : '') + '</td>' +
+      '<td style="font-size:11px">' + esc(k.lbox || '—') + '</td>' +
+      '<td style="font-size:11px;white-space:nowrap">' + esc(k.fechaDeteccion || '—') + '</td>' +
+      '<td style="font-size:11px">' + esc(k.ruta || '—') + '</td>' +
+      '<td><span style="font-size:11px;font-weight:700;color:' + (COLOR[k.estado] || 'var(--navy)') + '">' + esc(k.estado) + '</span>' +
+        (det ? '<div style="font-size:9.5px;color:#c0392b">sin fecha</div>' : '') + '</td>' +
+      '<td style="font-size:11px">' + esc(k.responsable || '—') + '</td>' +
+      '<td style="font-size:11px;white-space:nowrap">' + esc(k.fechaCompromiso || '—') + '</td>' +
+      '<td style="text-align:center">' + esc(k.eventos || '1') + '</td>' +
+      '<td><button class="btn" style="font-size:10px;padding:3px 8px" onclick="abrirCasoIdx(' + i + ')">Abrir</button></td>' +
+    '</tr>';
+  }).join('');
+  casosVisibles = lista;
+}
+let casosVisibles = [];
+
+async function abrirCasoIdx(i){
+  const k = casosVisibles[i];
+  if(!k) return;
+  casoEditando = k;
+  document.getElementById('caso-titulo').textContent = 'ECO ' + k.eco + ' · ' + (k.lbox || 's/LBOX');
+  document.getElementById('caso-sub').textContent = 'Detectado el ' + (k.fechaDeteccion || '—') +
+    ' · folio ' + (k.folioOrigen || '—');
+  document.getElementById('caso-resumen').innerHTML =
+    '<b>Ruta:</b> ' + esc(k.ruta || '—') + '<br>' +
+    '<b>Causa:</b> ' + esc(k.causa || '—') + '<br>' +
+    '<b>Eventos:</b> ' + esc(k.eventos || '1') +
+    (parseInt(k.reaperturas,10) > 0 ? ' · <b>reaperturas:</b> ' + esc(k.reaperturas) : '') +
+    (k.fechaVerificacion ? '<br><b>Verificado:</b> ' + esc(k.fechaVerificacion) : '');
+  document.getElementById('caso-estado').value = k.estado || 'Detectada';
+  document.getElementById('caso-responsable').value = k.responsable || '';
+  document.getElementById('caso-compromiso').value = (k.fechaCompromiso || '').slice(0, 10);
+  document.getElementById('caso-atencion').value = (k.fechaAtencion || '').slice(0, 10);
+  document.getElementById('caso-comentario').value = '';
+  document.getElementById('caso-bitacora').innerHTML = 'Cargando…';
+  cerrarCapasFlotantes();
+  document.getElementById('modal-caso').style.display = 'flex';
+
+  try {
+    const r = await jsonp({ action:'getBitacoraCaso', id: k.id });
+    const ev = (r && r.eventos) || [];
+    document.getElementById('caso-bitacora').innerHTML = ev.length
+      ? ev.slice().reverse().map(e =>
+          '<div>' + esc(String(e.fecha || '').slice(0, 10)) + ' · <b>' + esc(e.estadoAnterior || '—') + ' → ' +
+          esc(e.estadoNuevo) + '</b> · ' + esc(e.usuario || '') +
+          (e.comentario ? '<br><span style="color:var(--navy)">' + esc(e.comentario) + '</span>' : '') + '</div>').join('')
+      : 'Sin cambios registrados todavía.';
+  } catch(e){ document.getElementById('caso-bitacora').textContent = 'No se pudo cargar la bitácora.'; }
+}
+
+function cerrarModalCaso(){ document.getElementById('modal-caso').style.display = 'none'; casoEditando = null; }
+
+async function guardarCasoUI(){
+  if(!casoEditando) return;
+  const btn = document.getElementById('btn-caso-guardar');
+  btn.disabled = true; btn.textContent = 'Guardando...';
+  try {
+    const r = await jsonp({ action:'guardarCaso', id: casoEditando.id,
+      estado: document.getElementById('caso-estado').value,
+      responsable: document.getElementById('caso-responsable').value.trim(),
+      fechaCompromiso: document.getElementById('caso-compromiso').value,
+      fechaAtencion: document.getElementById('caso-atencion').value,
+      comentario: document.getElementById('caso-comentario').value.trim() });
+    if(r && r.error){ notify(r.error, 'err', 8000); }
+    else {
+      notify('Caso actualizado: ECO ' + casoEditando.eco, 'ok');
+      cerrarModalCaso();
+      await cargarCasos(false);
+    }
+  } catch(e){ notify('Error: ' + (e.message || ''), 'err'); }
+  btn.disabled = false; btn.textContent = 'Guardar caso';
+}
+
+/* ── BÚSQUEDA GLOBAL ──────────────────────────────────────────────────────
+   Una sola caja para encontrar una unidad por ECO, LBOX o serie del LINK y
+   ver toda su historia. Antes había que saber en qué pantalla buscar y cruzar
+   a mano el ciclo activo con el historial. */
+function abrirBusqueda(){
+  const m = document.getElementById('modal-busqueda');
+  document.getElementById('bg-cliente').textContent = nombreCliente();
+  cerrarCapasFlotantes();
+  m.style.display = 'flex';
+  const inp = document.getElementById('bg-input');
+  inp.select(); setTimeout(() => inp.focus(), 60);
+  buscarGlobal();
+}
+function cerrarBusqueda(){ document.getElementById('modal-busqueda').style.display = 'none'; }
+
+document.addEventListener('keydown', e => {
+  if((e.ctrlKey || e.metaKey) && e.key.toLowerCase() === 'k'){ e.preventDefault(); abrirBusqueda(); }
+});
+
+/* Reúne todo lo que se sabe de una unidad: ciclo activo, historial, series y
+   patrón de reincidencia. */
+function expedienteUnidad(clave){
+  const q = String(clave).toLowerCase();
+  const coincide = o => ((o.eco||'') + '|' + (o.lbox||'') + '|' + (o.serieLink||'')).toLowerCase().includes(q);
+  const enCiclo = units.filter(coincide);
+  const eventos = hist.filter(coincide)
+    .slice().sort((a,b) => String(b.fecha||'').localeCompare(String(a.fecha||'')));
+  const ecos   = [...new Set([...enCiclo, ...eventos].map(o => o.eco).filter(Boolean))];
+  const lboxes = [...new Set(eventos.map(o => o.lbox).filter(Boolean))];
+  const links  = [...new Set([...enCiclo, ...eventos].map(o => o.serieLink).filter(Boolean))];
+  const fallas = eventos.filter(h => h.pos === 'NO' || h.recupero === 'NO').length;
+  const corte = Date.now() - CONFIG.VENTANA_REINCIDENCIA_DIAS * 86400000;
+  const recientes = eventos.filter(h => {
+    const f = new Date(normFecha(h.fecha));
+    return !isNaN(f.getTime()) && f.getTime() >= corte;
+  }).length;
+  return { enCiclo, eventos, ecos, lboxes, links, fallas, recientes };
+}
+
+function buscarGlobal(){
+  const q = (document.getElementById('bg-input').value || '').trim();
+  const cont = document.getElementById('bg-resultados');
+  if(q.length < 2){
+    cont.innerHTML = '<div class="empty" style="padding:24px">Escribe al menos 2 caracteres.</div>';
+    return;
+  }
+  const e = expedienteUnidad(q);
+  if(!e.enCiclo.length && !e.eventos.length){
+    cont.innerHTML = '<div class="empty" style="padding:24px">Sin coincidencias para "' + esc(q) + '" en ' + esc(nombreCliente()) + '.</div>';
+    return;
+  }
+
+  const tarjeta = (titulo, valor, color) =>
+    '<div style="flex:1;min-width:120px;background:#f8f9fa;border:1px solid var(--line);border-radius:9px;padding:10px 12px">' +
+      '<div style="font-size:10px;color:var(--muted);text-transform:uppercase;font-weight:700">' + titulo + '</div>' +
+      '<div style="font-size:18px;font-weight:700;color:' + (color || 'var(--navy)') + '">' + valor + '</div></div>';
+
+  let html = '<div style="display:flex;gap:10px;flex-wrap:wrap;margin-bottom:16px">' +
+    tarjeta('Eventos', e.eventos.length) +
+    tarjeta('Fallas', e.fallas, e.fallas >= CONFIG.UMBRAL_REINCIDENTE ? '#c0392b' : '') +
+    tarjeta('En ' + CONFIG.VENTANA_REINCIDENCIA_DIAS + ' días', e.recientes,
+            e.recientes >= CONFIG.UMBRAL_REINCIDENTE_RECIENTE ? '#c0392b' : '') +
+    tarjeta('Series de LBOX', e.lboxes.length, e.lboxes.length > 1 ? '#b35900' : '') +
+    tarjeta('Series de LINK', e.links.length) + '</div>';
+
+  // Lectura del patrón: es lo que decide si conviene revisar instalación o equipo.
+  const avisos = [];
+  if(e.lboxes.length > 1 && e.ecos.length === 1){
+    avisos.push('Este vehículo ha fallado con ' + e.lboxes.length + ' series de LBOX distintas: el patrón apunta a la instalación, no al equipo.');
+  }
+  if(e.recientes >= CONFIG.UMBRAL_REINCIDENTE_RECIENTE){
+    avisos.push('Degradación activa: ' + e.recientes + ' eventos en los últimos ' + CONFIG.VENTANA_REINCIDENCIA_DIAS + ' días.');
+  }
+  if(e.enCiclo.length) avisos.push('Está en el ciclo activo de ' + nombreCliente() + '.');
+  if(avisos.length){
+    html += '<div style="background:#FDEBD0;border-left:4px solid #b35900;border-radius:7px;padding:10px 13px;font-size:12px;color:#7E3300;margin-bottom:16px;line-height:1.6">' +
+      avisos.map(esc).join('<br>') + '</div>';
+  }
+
+  if(e.enCiclo.length){
+    html += '<div style="font-size:12px;font-weight:700;color:var(--navy);margin-bottom:6px">Ciclo activo</div><div class="scroll-x"><table class="tbl" style="min-width:560px"><thead><tr>' +
+      '<th>#ECO</th><th>LBOX</th><th>Días</th><th>Posic.</th><th>Voltaje</th><th>Diagnóstico</th><th>Capturó</th></tr></thead><tbody>' +
+      e.enCiclo.map(u => '<tr>' +
+        '<td><b>' + esc(u.eco) + '</b></td><td style="font-size:11px">' + esc(u.lbox || '—') + '</td>' +
+        '<td>' + esc(u.dias || '—') + '</td><td>' + esc(u.pos || '—') + '</td><td>' + esc(u.voltaje || '—') + '</td>' +
+        '<td>' + atribBadge(u) + '</td><td style="font-size:10px;color:var(--muted)">' + esc(u.modificadoPor || '—') + '</td></tr>').join('') +
+      '</tbody></table></div>';
+  }
+
+  html += '<div style="font-size:12px;font-weight:700;color:var(--navy);margin:16px 0 6px">Historial (' + e.eventos.length + ')</div>';
+  if(!e.eventos.length){
+    html += '<div class="empty" style="padding:14px">Sin eventos anteriores.</div>';
+  } else {
+    html += '<div class="scroll-x"><table class="tbl" style="min-width:680px"><thead><tr>' +
+      '<th>Fecha</th><th>Folio</th><th>#ECO</th><th>LBOX</th><th>Diagnóstico</th><th>Causa</th><th>Serie LINK</th><th>Agente</th></tr></thead><tbody>' +
+      e.eventos.slice(0, 60).map(h => '<tr>' +
+        '<td style="white-space:nowrap;font-size:11px">' + esc(h.fecha || '—') + '</td>' +
+        '<td style="font-size:11px">' + esc(h.folio || '—') + '</td>' +
+        '<td><b>' + esc(h.eco) + '</b></td><td style="font-size:11px">' + esc(h.lbox || '—') + '</td>' +
+        '<td>' + atribBadge(h) + '</td>' +
+        '<td style="font-size:11px">' + esc(h.causa || '—') + '</td>' +
+        '<td style="font-size:10px;font-family:monospace">' + esc(h.serieLink || '—') + '</td>' +
+        '<td style="font-size:10px;color:var(--muted)">' + esc(h.agente || '—') + '</td></tr>').join('') +
+      '</tbody></table></div>';
+    if(e.eventos.length > 60) html += '<div style="font-size:10.5px;color:var(--muted);margin-top:6px">Se muestran los 60 más recientes.</div>';
+  }
+  cont.innerHTML = html;
+}
+
+/* ── DIAGNÓSTICO COMPLETO EN UN PASO ──────────────────────────────────────
+   Antes eran dos flujos separados, cada uno con su ventana y sus credenciales;
+   saltarse el segundo dejaba unidades sin diagnóstico completo, que es lo que
+   más se repite en los ciclos. Aquí se consultan ambas plataformas en serie y
+   se aplican las mismas reglas de siempre:
+     · Webfleet → Posic. LINK, serie del LINK y cascada N/A
+     · Navixy   → voltaje, causa y evidencia (nunca la posición del LINK)
+   Solo se completa lo que está vacío: nunca se pisa una captura manual. */
+function faltaCredWebfleet(){
+  const w = CONFIG.WEBFLEET || {};
+  return !(w.account && w.username && w.password && w.apikey);
+}
+
+function abrirModalDiagCred(){
+  const w = CONFIG.WEBFLEET || {}, n = CONFIG.NAVIXY || {};
+  document.getElementById('dc-cliente-lbl').textContent = 'Cliente: ' + nombreCliente();
+  document.getElementById('dc-wf-account').value  = w.account  || '';
+  document.getElementById('dc-wf-username').value = w.username || '';
+  document.getElementById('dc-wf-password').value = w.password || '';
+  document.getElementById('dc-wf-apikey').value   = w.apikey   || '';
+  document.getElementById('dc-nx-hash').value     = n.hash     || '';
+  cerrarCapasFlotantes();
+  document.getElementById('modal-diag-cred').style.display = 'flex';
+  setTimeout(() => document.getElementById('dc-wf-account').focus(), 80);
+}
+function cerrarModalDiagCred(){ document.getElementById('modal-diag-cred').style.display = 'none'; }
+
+function guardarCredDiagnostico(){
+  const v = id => document.getElementById(id).value.trim();
+  CONFIG.WEBFLEET = { account: v('dc-wf-account'), username: v('dc-wf-username'),
+                      password: v('dc-wf-password'), apikey: v('dc-wf-apikey') };
+  CONFIG.NAVIXY = { hash: v('dc-nx-hash'), base: (CONFIG.NAVIXY && CONFIG.NAVIXY.base) || 'https://api.navixy.com/v2' };
+  if(faltaCredWebfleet()){ notify('Faltan datos de Webfleet', 'err'); return; }
+  escribirLocal(sessionStorage, 'lbox_webfleet', JSON.stringify(CONFIG.WEBFLEET));
+  escribirLocal(sessionStorage, 'lbox_navixy', JSON.stringify(CONFIG.NAVIXY));
+  cerrarModalDiagCred();
+  diagnosticoCompleto();
+}
+
+async function diagnosticoCompleto(){
+  if(!units.length){ notify('No hay unidades en el reporte para diagnosticar', 'err'); return; }
+  if(faltaCredWebfleet()){ abrirModalDiagCred(); return; }
+
+  estadoItemMenu('btn-diag-completo', true, 'Diagnosticando...');
+  const resumen = { pos: 0, sinPos: 0, cascada: 0, volt: 0, red: 0, sinConcluir: 0, errores: [] };
+  try {
+    // ── 1. Webfleet: posición del LINK ──
+    notify('Consultando Webfleet (1 de 2)...', 'ok', 4000);
+    const w = CONFIG.WEBFLEET;
+    const wRes = await jsonp({ action:'fetchWebfleetPositions', wf_account:w.account,
+      wf_username:w.username, wf_password:w.password, wf_apikey:w.apikey });
+    if(wRes && wRes.error){ resumen.errores.push('Webfleet: ' + wRes.error); }
+    else {
+      const posiciones = calcularEstadosWebfleet(wRes.posiciones || [], wRes.server_time, units).lista;
+      posiciones.forEach(p => {
+        const u = units.find(x => claveEco(x.eco) === claveEco(p.eco));
+        if(!u) return;
+        // La serie del LINK se guarda siempre: es un dato del aparato, no un
+        // diagnóstico, y la pantalla de reincidencia la necesita aunque la
+        // posición se haya capturado a mano.
+        if(p.serieLink) u.serieLink = p.serieLink;
+        if(u.pos === 'SI' || u.pos === 'NO') return;   // diagnóstico manual: no se pisa
+        const r = aplicarResultadoWebfleet(u, p);
+        if(r.pos === 'SI') resumen.pos++; else resumen.sinPos++;
+        if(r.cascada) resumen.cascada++;
+      });
+      if(wRes.diag && wRes.diag.totalObjetos && !wRes.diag.conSerieLink){
+        resumen.errores.push('Webfleet no devolvió el N.º de serie del LINK');
+      }
+    }
+
+    // ── 2. Navixy: voltaje del Teltonika ──
+    if(CONFIG.NAVIXY && CONFIG.NAVIXY.hash){
+      notify('Consultando Navixy (2 de 2)...', 'ok', 4000);
+      const nRes = await jsonp({ action:'fetchNavixyVoltajes', nx_hash: CONFIG.NAVIXY.hash, nx_base: CONFIG.NAVIXY.base });
+      if(nRes && nRes.error){ resumen.errores.push('Navixy: ' + nRes.error); }
+      else {
+        nxResultados = cruzarNavixyConUnidades(nRes.equipos || [], nRes.server_time, units).lista;
+        nxResultados.forEach(r => {
+          const u = units.find(x => claveEco(x.eco) === claveEco(r.eco));
+          if(!u || u.voltaje === 'SI' || u.voltaje === 'NO') return;   // captura manual
+          const a = aplicarResultadoNavixy(u, r);
+          if(a.marcoVoltaje) resumen.volt++;
+          else if(a.esRed)   resumen.red++;
+          else               resumen.sinConcluir++;
+        });
+      }
+    } else {
+      resumen.errores.push('Sin credenciales de Navixy: no se marcó el voltaje');
+    }
+
+    renderAll();
+    await guardarUnidades(units.filter(u => u.modificadoEn && Date.now() - new Date(u.modificadoEn).getTime() < 120000));
+
+    // ── Resultado, medido en lo que importa: cuántas quedaron completas ──
+    const completas = units.filter(u => clasificarUnidad(u) !== 'sin_dato').length;
+    let msg = '⚡ Diagnóstico completo: ' + completas + ' de ' + units.length + ' unidades con diagnóstico definido. ' +
+      'Posición marcada en ' + (resumen.pos + resumen.sinPos) + ' · voltaje en ' + resumen.volt + '.';
+    if(resumen.red) msg += ' ' + resumen.red + ' sin red (el voltaje no se marca).';
+    if(resumen.cascada) msg += ' ' + resumen.cascada + ' con acciones remotas en N/A.';
+    notify(msg, 'ok', 14000);
+    if(resumen.errores.length) notify('⚠️ ' + resumen.errores.join(' · '), 'err', 14000);
+    if(completas < units.length){
+      notify('Quedan ' + (units.length - completas) + ' unidades sin diagnóstico: complétalas en Captura antes de cerrar.', 'err', 12000);
+      showPage('captura');
+    }
+  } catch(e){
+    notify('No se pudo completar el diagnóstico: ' + (e.message || 'error'), 'err', 10000);
+  }
+  estadoItemMenu('btn-diag-completo', false);
+}
+
+/* ── APLICACIÓN DE DIAGNÓSTICOS (fuente única) ────────────────────────────
+   Las mismas reglas las usan el modal de Webfleet, el de Navixy y el botón
+   de diagnóstico completo. Antes cada flujo tenía su copia, así que corregir
+   una regla en un lado dejaba el otro desalineado. */
+
+/* Webfleet decide Posic. LINK y la serie del LINK. Nunca toca días ni fecha:
+   esos son de la LBOX. Devuelve qué hizo, para los resúmenes. */
+function aplicarResultadoWebfleet(u, p){
+  if(!u || !p) return null;
+  if (p.serieLink) u.serieLink = p.serieLink;
+  u.modificadoPor = usuarioActual();
+  u.modificadoEn  = new Date().toISOString();
+  u.pos = p.posiciona || 'NO';
+  const cascada = aplicarCascadaSinLink(u);
+  return { pos: u.pos, cascada: !!cascada, sinDato: p.minutos === null };
+}
+
+/* Navixy decide el VOLTAJE del Teltonika, su causa y la evidencia. Nunca
+   escribe Posic. LINK: mide un aparato distinto del LINK. */
+function aplicarResultadoNavixy(u, r){
+  if(!u || !r) return null;
+  u.modificadoPor = usuarioActual();
+  u.modificadoEn  = new Date().toISOString();
+  let marcoVoltaje = false, esRed = false;
+  if(r.causa === 'ok'){ u.voltaje = 'SI'; marcoVoltaje = true; }
+  else if(r.causa === 'sin_voltaje'){ u.voltaje = 'NO'; marcoVoltaje = true; }
+  else if(r.causa === 'sin_red'){ esRed = true; }
+
+  if(r.causa === 'sin_red')                   u.causa = u.causa || 'Sin cobertura de red';
+  else if(r.causa === 'sin_voltaje')          u.causa = u.causa || 'Sin voltaje de alimentacion';
+  else if(r.causa === 'sin_voltaje_probable') u.causa = u.causa || 'Probable falta de voltaje';
+  if(r.detalle) u.comentario = u.comentario || (r.detalle + ' (Navixy)');
+  return { marcoVoltaje, esRed, sinConcluir: !marcoVoltaje && !esRed };
+}
+
 function ejecutarProtocoloSeguridad() {
   const seleccionadas = getWfSeleccionadas();
 
@@ -26526,28 +27400,10 @@ function ejecutarProtocoloSeguridad() {
     const u = wfUnidadesBase.find(x => claveEco(x.eco) === claveEco(p.eco));
     if (!u) return;
 
-    // Serie del LINK: se guarda siempre que Webfleet la devuelva, para poder
-    // analizar la reincidencia por dispositivo en la pantalla correspondiente.
-    if (p.serieLink) u.serieLink = p.serieLink;
-
-    // Quien ejecuta el diagnóstico automático queda como responsable de esa
-    // captura: la decisión de aplicarlo al reporte fue suya.
-    u.modificadoPor = usuarioActual();
-    u.modificadoEn  = new Date().toISOString();
-
-    // Marca automática Posic. LINK: <2 min = SI, 2+ min o sin dato = NO
-    u.pos = p.posiciona || 'NO';
-    if (u.pos === 'SI') marcadasSI++; else marcadasNO++;
-
-    // Si no posiciona, marcar en automático las acciones remotas como N/A.
-    // Antes esto solo ocurría al capturar a mano; al venir de Webfleet los
-    // campos quedaban vacíos y había que llenarlos uno por uno.
-    if (aplicarCascadaSinLink(u)) cascada++;
-
-    /* Los días sin reportar y la fecha de reporte son SIEMPRE los de la LBOX.
-       Antes se reemplazaban con el tiempo sin posición del LINK (otro
-       aparato), así que el reporte mostraba días que no eran de la LBOX. */
-    if (p.minutos === null) sinDato++;
+    const res = aplicarResultadoWebfleet(u, p);
+    if (res.pos === 'SI') marcadasSI++; else marcadasNO++;
+    if (res.cascada) cascada++;
+    if (res.sinDato) sinDato++;
   });
 
   let msg = '✅ Posic. LINK marcada automáticamente: ' + marcadasSI + ' SI · ' + marcadasNO + ' NO. ' +
@@ -26762,6 +27618,13 @@ function ocultarModal(id){
    y para que el historial conserve quién hizo cada registro. Antes se usaba
    una constante fija, así que todos los registros quedaban con el mismo
    nombre sin importar quién trabajara. */
+/* Nombre visible del cliente activo (o de un código dado). */
+function nombreCliente(codigo){
+  const pf = codigo || CONFIG.PERFIL || '';
+  return (CONFIG.NOMBRES_CLIENTES && CONFIG.NOMBRES_CLIENTES[pf]) ||
+         (!codigo && CONFIG.CLIENTE) || pf || 'Cliente';
+}
+
 function usuarioActual(){
   if (CONFIG.USUARIO) return CONFIG.USUARIO.nombre || CONFIG.USUARIO.usuario || '';
   return CONFIG.RESPONSABLE || '';
@@ -26988,7 +27851,7 @@ function renderSelClientes(valor){
       fila('*', '<span><b>Todos los clientes</b><br><span style="color:var(--muted);font-size:10.5px">incluye los que se creen después</span></span>',
            todos, false, 'border-bottom:1px solid var(--line);border-radius:6px 6px 0 0;margin-bottom:4px;') +
       (disponibles.length
-        ? disponibles.map(p => fila(p, esc(p), todos || elegidos.includes(p), todos)).join('')
+        ? disponibles.map(p => fila(p, esc(nombreCliente(p)) + ' <span style="color:var(--muted);font-size:10px;font-family:monospace">' + esc(p) + '</span>', todos || elegidos.includes(p), todos)).join('')
         : '<div style="font-size:11px;color:var(--muted);padding:8px">No hay clientes creados todavía</div>');
   }
   actualizarTextoSelClientes();
@@ -27013,7 +27876,7 @@ function actualizarTextoSelClientes(){
   if(!txt) return;
   if(selClientesValor === '*'){ txt.textContent = 'Todos los clientes'; txt.style.color = ''; }
   else if(!selClientesValor){ txt.textContent = 'Ninguno — elige al menos uno'; txt.style.color = '#c0392b'; }
-  else { txt.textContent = selClientesValor.split(',').join(', '); txt.style.color = ''; }
+  else { txt.textContent = selClientesValor.split(',').map(p => nombreCliente(p)).join(', '); txt.style.color = ''; }
 }
 
 function toggleSelClientes(ev){
@@ -27242,9 +28105,19 @@ async function cargarInicio(){
     if (Array.isArray(r.hist)) hist = r.hist;
     _histMetaLocal = r.histMeta ? { total: r.histMeta.total, ultimoFolio: String(r.histMeta.ultimoFolio || '') }
                                 : { total: -1, ultimoFolio: '' };
-    if (r.destino) { CONFIG.EMAIL_DESTINO = r.destino; CONFIG.CONTACTO_INROUTE = r.contacto || ''; }
+    // Datos del cliente activo según su ficha (antes: "Grupo Alanis" fijo).
+    CONFIG.EMAIL_DESTINO = r.destino || '';
+    CONFIG.CONTACTO_INROUTE = r.contacto || '';
+    if (r.cliente && r.cliente.nombre) CONFIG.CLIENTE = r.cliente.nombre;
+    CONFIG.FLOTA_TOTAL = (r.cliente && r.cliente.flotaTotal) || 0;
+    CONFIG.INICIO_PROGRAMA = (r.cliente && r.cliente.inicioPrograma) || '';
+    if (r.nombres) CONFIG.NOMBRES_CLIENTES = r.nombres;
+    cargarCredencialesCliente();
 
     renderSelectorPerfil();
+    // Los casos vienen en la misma respuesta de arranque.
+    casos = Array.isArray(r.casos) ? r.casos : [];
+    actualizarBadgeCasos();
     setSyncStatus('ok');
     window.__ultimaSync = Date.now();
     renderAll();
@@ -27263,12 +28136,11 @@ async function cargarPerfiles(){
   try {
     const res = await jsonp({ action:'listarPerfiles' });
     if(res && res.ok){
+      // El servidor ya devuelve solo los clientes permitidos, con los permisos
+      // VIGENTES. Filtrar de nuevo aquí con la lista del inicio de sesión
+      // ocultaba un cliente recién asignado hasta volver a entrar.
       CONFIG.PERFILES_DISPONIBLES = res.perfiles || [];
-      // Un usuario solo ve los perfiles que tiene asignados.
-      const permitidos = (CONFIG.USUARIO && CONFIG.USUARIO.perfiles) || ['*'];
-      if(permitidos.indexOf('*') === -1){
-        CONFIG.PERFILES_DISPONIBLES = CONFIG.PERFILES_DISPONIBLES.filter(p => permitidos.indexOf(p) !== -1);
-      }
+      if(res.nombres) CONFIG.NOMBRES_CLIENTES = res.nombres;
       if(!CONFIG.PERFIL || CONFIG.PERFILES_DISPONIBLES.indexOf(CONFIG.PERFIL) === -1){
         CONFIG.PERFIL = CONFIG.PERFILES_DISPONIBLES[0] || res.porDefecto || 'ALANIS';
       }
@@ -27290,7 +28162,7 @@ function renderSelectorPerfil(){
     'style="background:rgba(255,255,255,.12);color:#fff;border:1px solid rgba(255,255,255,.25);' +
     'border-radius:7px;padding:7px 10px;font-size:12.5px;width:100%;font-family:inherit;cursor:pointer;font-weight:600">' +
       lista.map(p => '<option value="' + esc(p) + '"' + (p === CONFIG.PERFIL ? ' selected' : '') +
-        ' style="color:#1C2B39">' + esc(p) + '</option>').join('') +
+        ' style="color:#1C2B39">' + esc(nombreCliente(p)) + '</option>').join('') +
       (puedeCrear ? '<option disabled style="color:#999">──────────</option>' +
         '<option value="__nuevo__" style="color:#1C2B39">+ Agregar cliente…</option>' : '') +
     '</select>';
@@ -27306,29 +28178,103 @@ function alCambiarPerfil(sel){
   cambiarPerfil(sel.value);
 }
 
-async function crearPerfilNuevo(){
-  const nombre = prompt('Nombre del nuevo cliente:\n\n' +
-    'Se creará su propio espacio de unidades e historial, separado de los demás.\n' +
-    'Solo letras y números (ej. FLETAMENTO, TRANSPORTESXYZ).');
-  if(!nombre) return;
+/* ── ADMINISTRACIÓN DE CLIENTES ──────────────────────────────────────────
+   Cada cliente tiene una ficha en el servidor (hoja CLIENTES): nombre
+   visible, correo destino del reporte, copia interna y estado. El servidor
+   valida los permisos; aquí solo se oculta lo que el rol no puede usar. */
+let cliListaVisible = [];
+let cliEditando = '';   // código del cliente en edición ('' = alta)
 
-  const limpio = nombre.normalize('NFD').replace(/[\u0300-\u036f]/g,'')
-    .toUpperCase().replace(/[^A-Z0-9]/g,'');
-  if(limpio.length < 3){ notify('El nombre debe tener al menos 3 letras o números', 'err'); return; }
+/* "+ Agregar cliente…" del selector abre el panel en modo alta. */
+function crearPerfilNuevo(){ abrirModalClientes(true); }
 
-  if((CONFIG.PERFILES_DISPONIBLES||[]).includes(limpio)){
-    notify('El cliente ' + limpio + ' ya existe', 'err');
-    return;
-  }
+function abrirModalClientes(soloAlta){
+  if(!tienePermisoUI('perfiles')){ notify('Tu rol no permite administrar clientes', 'err'); return; }
+  cerrarCapasFlotantes();
+  document.getElementById('modal-clientes').style.display = 'flex';
+  limpiarFormCliente();
+  cargarClientesAdmin();
+  if(soloAlta) setTimeout(() => document.getElementById('cli-codigo').focus(), 80);
+}
+function cerrarModalClientes(){ document.getElementById('modal-clientes').style.display = 'none'; }
 
+function limpiarFormCliente(){
+  cliEditando = '';
+  ['cli-codigo','cli-nombre','cli-destino','cli-copia'].forEach(id => { document.getElementById(id).value = ''; });
+  document.getElementById('cli-codigo').disabled = false;
+  document.getElementById('cli-activo').value = 'SI';
+  document.getElementById('cli-copia').value = CONFIG.CONTACTO_INROUTE || '';
+  document.getElementById('cli-form-titulo').textContent = 'Nuevo cliente';
+}
+
+async function cargarClientesAdmin(){
+  const tb = document.getElementById('cli-tbody');
   try {
-    const res = await jsonp({ action:'crearPerfil', perfil: limpio });
-    if(res && res.error){ notify(res.error, 'err', 8000); return; }
-    notify('Cliente ' + limpio + ' creado. Ya puedes cambiar a él.', 'ok', 7000);
-    await cargarPerfiles();
-  } catch(e){
-    notify('No se pudo crear el cliente: ' + (e.message||'error'), 'err', 8000);
+    const r = await jsonp({ action:'listarClientes' });
+    if(!r || r.error){ tb.innerHTML = '<tr><td colspan="6" class="empty">' + esc((r && r.error) || 'Sin respuesta') + '</td></tr>'; return; }
+    cliListaVisible = r.clientes || [];
+    tb.innerHTML = cliListaVisible.map((k, i) =>
+      '<tr style="background:' + (i%2 ? '#f9f9f9' : '#fff') + '">' +
+        '<td><b style="font-size:12px">' + esc(k.nombre) + '</b><div style="font-size:10px;color:var(--muted);font-family:monospace">' + esc(k.perfil) + '</div></td>' +
+        '<td style="font-size:11px">' + (k.correoDestino ? esc(k.correoDestino) : '<span style="color:#c0392b">sin configurar</span>') + '</td>' +
+        '<td style="font-size:11px;color:var(--muted)">' + esc(k.correoCopia || '—') + '</td>' +
+        '<td style="text-align:center">' + (k.accountIdLbox ? '<span class="badge si">✓</span>' : '<span class="badge na" title="Falta el accountId en Conexión LBOX">falta</span>') + '</td>' +
+        '<td style="text-align:center">' + (k.activo ? '<span class="badge si">Activo</span>' : '<span class="badge na">Inactivo</span>') + '</td>' +
+        '<td><button class="btn" style="font-size:10px;padding:3px 8px" onclick="editarClienteIdx(' + i + ')">Editar</button></td>' +
+      '</tr>').join('') || '<tr><td colspan="6" class="empty">Sin clientes</td></tr>';
+  } catch(e){ tb.innerHTML = '<tr><td colspan="6" class="empty">Error: ' + esc(e.message || '') + '</td></tr>'; }
+}
+
+function editarClienteIdx(i){
+  const k = cliListaVisible[i]; if(!k) return;
+  cliEditando = k.perfil;
+  document.getElementById('cli-codigo').value = k.perfil;
+  document.getElementById('cli-codigo').disabled = true;
+  document.getElementById('cli-nombre').value = k.nombre || '';
+  document.getElementById('cli-destino').value = k.correoDestino || '';
+  document.getElementById('cli-copia').value = k.correoCopia || '';
+  document.getElementById('cli-activo').value = k.activo ? 'SI' : 'NO';
+  document.getElementById('cli-form-titulo').textContent = 'Editando: ' + k.nombre;
+  document.getElementById('cli-nombre').focus();
+}
+
+async function guardarClienteAdmin(){
+  const codigoCrudo = document.getElementById('cli-codigo').value.trim();
+  const codigo  = codigoCrudo.normalize('NFD').replace(/[\u0300-\u036f]/g,'').toUpperCase().replace(/[^A-Z0-9]/g,'');
+  const nombre  = document.getElementById('cli-nombre').value.trim();
+  const destino = document.getElementById('cli-destino').value.trim();
+  const copia   = document.getElementById('cli-copia').value.trim();
+  const activo  = document.getElementById('cli-activo').value;
+
+  if(!cliEditando && codigo.length < 3){ notify('El código debe tener al menos 3 letras o números', 'err'); return; }
+  if(nombre.length < 2){ notify('Escribe el nombre visible del cliente', 'err'); return; }
+  if(!cliEditando && (CONFIG.PERFILES_DISPONIBLES || []).includes(codigo)){
+    notify('Ya existe un cliente con el código ' + codigo + '. Usa Editar.', 'err'); return;
   }
+
+  const btn = document.getElementById('btn-cli-guardar');
+  btn.disabled = true; btn.textContent = 'Guardando...';
+  try {
+    const pf = cliEditando || codigo;
+    if(!cliEditando){
+      // El código del cliente nuevo va en 'nuevoPerfil': 'perfil' siempre es el activo.
+      const r1 = await jsonp({ action:'crearPerfil', nuevoPerfil: codigo, nombreVisible: nombre });
+      if(r1 && r1.error){ notify(r1.error, 'err', 8000); return; }
+    }
+    const r2 = await jsonp({ action:'guardarCliente', cliente: pf, nombre, correoDestino: destino, correoCopia: copia, activo });
+    if(r2 && r2.error){ notify(r2.error, 'err', 8000); return; }
+    notify((cliEditando ? 'Cliente actualizado: ' : 'Cliente creado: ') + nombre, 'ok', 5000);
+
+    // Si se editó el cliente activo, sus datos en pantalla se actualizan ya.
+    if(pf === CONFIG.PERFIL){
+      CONFIG.CLIENTE = nombre; CONFIG.EMAIL_DESTINO = r2.cliente ? r2.cliente.correoDestino : destino;
+      CONFIG.CONTACTO_INROUTE = r2.cliente ? r2.cliente.correoCopia : copia;
+    }
+    await cargarPerfiles();
+    limpiarFormCliente();
+    cargarClientesAdmin();
+  } catch(e){ notify('Error: ' + (e.message || ''), 'err'); }
+  finally { btn.disabled = false; btn.textContent = 'Guardar cliente'; }
 }
 
 /* Comprobación de permisos para MOSTRAR u ocultar controles. Es cortesía
@@ -27346,8 +28292,8 @@ async function cambiarPerfil(perfil){
 
   // Cambiar de cliente con trabajo sin cerrar podría mezclar datos.
   if(units.length && !confirm('Hay ' + units.length + ' unidades en el reporte activo de ' +
-     CONFIG.PERFIL + '.\n\nAl cambiar de perfil se cargarán los datos de ' + perfil +
-     ' y el reporte actual quedará guardado en su propio perfil.\n\n¿Continuar?')){
+     nombreCliente() + '.\n\nAl cambiar de cliente se cargarán los datos de ' + nombreCliente(perfil) +
+     ' y el reporte actual quedará guardado en su propio cliente.\n\n¿Continuar?')){
     renderSelectorPerfil();   // revertir el select
     return;
   }
@@ -27373,9 +28319,22 @@ async function cambiarPerfil(perfil){
   // que nunca se mezclen datos de dos clientes en pantalla.
   units = []; hist = [];
   _histMetaLocal = { total: -1, ultimoFolio: '' };
+  /* También lo que quedó en memoria del cliente anterior: una importación a
+     medias, resultados de Webfleet/Navixy o filas seleccionadas terminarían
+     aplicándose al cliente nuevo. */
+  importData = []; importFiltered = [];
+  wfUnidadesBase = []; wfPosiciones = []; nxResultados = [];
+  casos = []; casosVisibles = [];
+  capturaSeleccion.clear();
+  ['modal-import','modal-webfleet','modal-navixy'].forEach(id => {
+    const m = document.getElementById(id); if (m) m.style.display = 'none';
+  });
+  CONFIG.CLIENTE = nombreCliente(perfil);
+  CONFIG.FLOTA_TOTAL = 0; CONFIG.INICIO_PROGRAMA = '';
+  cargarCredencialesCliente();
   renderAll();
 
-  notify('Cambiando a ' + perfil + '...', 'ok', 3000);
+  notify('Cambiando a ' + nombreCliente(perfil) + '...', 'ok', 3000);
   await cargarInicio();
 }
 
@@ -27472,6 +28431,8 @@ function showPage(p){
     document.body.classList.toggle('con-panel', mostrar);
   }
   const titles={dashboard:'Dashboard',captura:'Captura de unidades',unidades:'Unidades del reporte',historial:'Historial de reportes',mensual:'Dashboards mensuales',informes:'Informes por reporte',link:'Reincidencia de dispositivos LINK'};
+  if(p==='casos') cargarCasos(true);
+  if(p==='indicadores') renderIndicadores();
   if(p==='historial') filtrarHistorial();
   if(p==='mensual') renderMensual();
   if(p==='informes') renderInformes();
@@ -27826,7 +28787,7 @@ function exportarLinkExcel(){
 
   // Hoja 4: metadatos
   XLSX.utils.book_append_sheet(wb, XLSX.utils.json_to_sheet([
-    { Campo:'Cliente', Valor: CONFIG.CLIENTE || 'Grupo Alanis' },
+    { Campo:'Cliente', Valor: nombreCliente() },
     { Campo:'Informe', Valor: 'Reincidencia de dispositivos LINK' },
     { Campo:'Alcance', Valor: alcance },
     { Campo:'Filtro aplicado', Valor: min + ' o mas perdidas' },
@@ -27865,7 +28826,7 @@ async function exportarLinkPDF(){
     doc.setTextColor(255,255,255); doc.setFont('helvetica','bold'); doc.setFontSize(14);
     doc.text('Reincidencia de dispositivos LINK', 190, 32);
     doc.setFont('helvetica','normal'); doc.setFontSize(9); doc.setTextColor(203,216,227);
-    doc.text((CONFIG.CLIENTE || 'Grupo Alanis') + '   ·   ' + alcance + '   ·   ' +
+    doc.text(nombreCliente() + '   ·   ' + alcance + '   ·   ' +
              new Date().toLocaleDateString('es-MX'), 190, 47);
 
     const reemplazo = lista.filter(L => L.veredicto === 'reemplazo').length;
@@ -28431,7 +29392,7 @@ function exportarReincidentesExcel(){
 
   // ── Hoja 4: Metadatos, para que el archivo sea autoexplicativo ──────
   XLSX.utils.book_append_sheet(wb, XLSX.utils.json_to_sheet([
-    { Campo:'Cliente',            Valor: CONFIG.CLIENTE || 'Grupo Alanis' },
+    { Campo:'Cliente',            Valor: nombreCliente() },
     { Campo:'Informe',            Valor: 'Reincidentes — ranking e historial de equipo' },
     { Campo:'Alcance',            Valor: alcance },
     { Campo:'Reportes incluidos', Valor: claves.length },
@@ -28473,7 +29434,7 @@ async function exportarReincidentesPDF(){
     doc.setTextColor(255,255,255); doc.setFont('helvetica','bold'); doc.setFontSize(14);
     doc.text('Reincidentes — ranking e historial de equipo', 190, 32);
     doc.setFont('helvetica','normal'); doc.setFontSize(9); doc.setTextColor(203,216,227);
-    doc.text((CONFIG.CLIENTE || 'Grupo Alanis') + '   ·   ' + alcance +
+    doc.text(nombreCliente() + '   ·   ' + alcance +
              '   ·   ' + new Date().toLocaleDateString('es-MX'), 190, 47);
 
     // ── Resumen ejecutivo ─────────────────────────────────────────────
@@ -28676,13 +29637,116 @@ function cerrarModalNavixy(){
   if(m) m.style.display = 'none';
 }
 
+/* Cruza la respuesta de Navixy con una lista de unidades y aplica las siete
+   reglas de diagnóstico. La usan el modal de Navixy y el diagnóstico
+   completo, para no tener dos copias de las mismas reglas. */
+function cruzarNavixyConUnidades(equiposIn, serverTime, base){
+    const equipos = equiposIn || [];
+  const ahora = serverTime || Date.now();
+
+  const porEco = {};
+  equipos.forEach(e => {
+    const k = claveEco(e.label);
+    if(k) porEco[k] = e;
+    const m = String(e.label||'').match(/\d{2,}/);
+    if(m){ const k2 = claveEco(m[0]); if(k2 && !porEco[k2]) porEco[k2] = e; }
+  });
+
+  const min = (t) => {
+    if(!t) return null;
+    const d = new Date(String(t).replace(' ','T'));
+    return isNaN(d.getTime()) ? null : Math.floor((ahora - d.getTime())/60000);
+  };
+
+  const U = CONFIG.NAVIXY_UMBRAL_POSICION_MIN;
+
+  let sinCruce = 0;
+  let base0 = base.map(u => {
+    const e = porEco[claveEco(u.eco)];
+    if(!e){ sinCruce++; return { eco:u.eco, lbox:u.lbox, encontrado:false }; }
+    return {
+      eco: u.eco, lbox: u.lbox, encontrado: true,
+      label: e.label, modelo: e.modelo,
+      serieTeltonika: e.serie_teltonika || '', modeloTeltonika: e.modelo_teltonika || '',
+      minPos:  min(e.gps_updated),
+      minDato: min(e.last_update),
+      gsm: e.gsm_signal, gpsSig: e.gps_signal, red: e.red,
+      bateria: e.bateria, voltaje: e.board_voltage, origenVoltaje: e.board_origen,
+      conexion: e.conexion, movimiento: e.movimiento,
+      lat: e.lat, lng: e.lng
+    };
+  });
+
+  // Unidades calladas y cercanas entre si apuntan a falta de cobertura en la
+  // zona, no a fallas electricas individuales simultaneas.
+  const R = CONFIG.NAVIXY_RADIO_ZONA_KM;
+  const mudas = base0.filter(r => r.encontrado && r.minPos !== null && r.minPos > U && r.lat && r.lng);
+  const distKm = (a,b) => {
+    const rad = x => x*Math.PI/180, Rt = 6371;
+    const dLat = rad(b.lat-a.lat), dLng = rad(b.lng-a.lng);
+    const h = Math.sin(dLat/2)**2 + Math.cos(rad(a.lat))*Math.cos(rad(b.lat))*Math.sin(dLng/2)**2;
+    return 2*Rt*Math.asin(Math.sqrt(h));
+  };
+  mudas.forEach(r => { r.vecinasMudas = mudas.filter(o => o !== r && distKm(r,o) <= R).length; });
+
+  const lista = base0.map(r => {
+    if(!r.encontrado) return Object.assign({}, r, { posiciona:'', causa:'', detalle:'No encontrada en Navixy' });
+
+    if(r.minPos !== null && r.minPos <= U){
+      return Object.assign({}, r, { posiciona:'SI', causa:'ok',
+        detalle:'Posicion de hace ' + r.minPos + ' min' });
+    }
+    if(r.minPos === null){
+      return Object.assign({}, r, { posiciona:'', causa:'sin_dato',
+        detalle:'Sin fecha de ultima posicion' });
+    }
+
+    // 1) Datos recientes con posiciones viejas = descarga de memoria interna.
+    //    Solo ocurre si el equipo estuvo ENCENDIDO sin red.
+    if(r.minDato !== null && (r.minPos - r.minDato) >= CONFIG.NAVIXY_DESFASE_BUFFER_MIN){
+      return Object.assign({}, r, { posiciona:'NO', causa:'sin_red',
+        detalle:'Transmitiendo datos guardados (posicion de hace ' + r.minPos +
+                ' min, dato recibido hace ' + r.minDato + ' min)' });
+    }
+    // 2) Varias unidades calladas en la misma zona.
+    if((r.vecinasMudas || 0) >= CONFIG.NAVIXY_MIN_VECINAS_ZONA){
+      return Object.assign({}, r, { posiciona:'NO', causa:'sin_red',
+        detalle:(r.vecinasMudas+1) + ' unidades sin reportar en un radio de ' + R + ' km' });
+    }
+    // 3) Senal GSM baja en el ultimo reporte.
+    if(r.gsm !== null && r.gsm !== undefined && r.gsm <= CONFIG.NAVIXY_GSM_BAJO){
+      return Object.assign({}, r, { posiciona:'NO', causa:'sin_red',
+        detalle:'Ultima senal GSM baja (' + r.gsm + '%)' });
+    }
+    // 4) Voltaje medido: evidencia directa.
+    if(r.voltaje !== null && r.voltaje !== undefined && r.voltaje < CONFIG.NAVIXY_UMBRAL_VOLTAJE){
+      return Object.assign({}, r, { posiciona:'NO', causa:'sin_voltaje',
+        detalle:'Voltaje medido ' + Number(r.voltaje).toFixed(2) + ' V' });
+    }
+    // 5) Bateria interna agotandose = perdio alimentacion externa.
+    if(r.bateria !== null && r.bateria !== undefined && r.bateria <= CONFIG.NAVIXY_BATERIA_BAJA){
+      return Object.assign({}, r, { posiciona:'NO', causa:'sin_voltaje',
+        detalle:'Bateria interna en ' + r.bateria + '%' });
+    }
+    // 6) Silencio largo sin indicios de red: PROBABLE, no confirmado.
+    if(r.minPos >= CONFIG.NAVIXY_SILENCIO_LARGO_MIN){
+      return Object.assign({}, r, { posiciona:'NO', causa:'sin_voltaje_probable',
+        detalle:'Sin reportar hace ' + Math.floor(r.minPos/60) + ' h, sin indicios de falta de red' });
+    }
+    return Object.assign({}, r, { posiciona:'NO', causa:'indeterminado',
+      detalle:'Sin posicion hace ' + r.minPos + ' min' });
+  });
+
+  return { lista: lista, sinCruce: sinCruce };
+}
+
 async function consultarVoltajesNavixy(){
   const hash = document.getElementById('nx-hash').value.trim();
   const base = document.getElementById('nx-base').value.trim() || 'https://api.navixy.com/v2';
   if(!hash){ notify('Ingresa la API key de Navixy', 'err'); return; }
 
   CONFIG.NAVIXY = { hash, base };
-  try { sessionStorage.setItem('lbox_navixy', JSON.stringify(CONFIG.NAVIXY)); } catch(e){}
+  escribirLocal(sessionStorage, 'lbox_navixy', JSON.stringify(CONFIG.NAVIXY));
 
   const btn = document.getElementById('btn-nx-consultar');
   btn.disabled = true; btn.textContent = 'Consultando Navixy...';
@@ -28696,101 +29760,10 @@ async function consultarVoltajesNavixy(){
         'Implementar, Gestionar implementaciones, editar, Version nueva.', 'err', 20000);
     }
 
+    const cruce = cruzarNavixyConUnidades(res.equipos || [], res.server_time, units);
+    nxResultados = cruce.lista;
+    const sinCruce = cruce.sinCruce;
     const equipos = res.equipos || [];
-    const ahora = res.server_time || Date.now();
-
-    const porEco = {};
-    equipos.forEach(e => {
-      const k = claveEco(e.label);
-      if(k) porEco[k] = e;
-      const m = String(e.label||'').match(/\d{2,}/);
-      if(m){ const k2 = claveEco(m[0]); if(k2 && !porEco[k2]) porEco[k2] = e; }
-    });
-
-    const min = (t) => {
-      if(!t) return null;
-      const d = new Date(String(t).replace(' ','T'));
-      return isNaN(d.getTime()) ? null : Math.floor((ahora - d.getTime())/60000);
-    };
-
-    const U = CONFIG.NAVIXY_UMBRAL_POSICION_MIN;
-
-    let sinCruce = 0;
-    let base0 = units.map(u => {
-      const e = porEco[claveEco(u.eco)];
-      if(!e){ sinCruce++; return { eco:u.eco, lbox:u.lbox, encontrado:false }; }
-      return {
-        eco: u.eco, lbox: u.lbox, encontrado: true,
-        label: e.label, modelo: e.modelo,
-        serieTeltonika: e.serie_teltonika || '', modeloTeltonika: e.modelo_teltonika || '',
-        minPos:  min(e.gps_updated),
-        minDato: min(e.last_update),
-        gsm: e.gsm_signal, gpsSig: e.gps_signal, red: e.red,
-        bateria: e.bateria, voltaje: e.board_voltage, origenVoltaje: e.board_origen,
-        conexion: e.conexion, movimiento: e.movimiento,
-        lat: e.lat, lng: e.lng
-      };
-    });
-
-    // Unidades calladas y cercanas entre si apuntan a falta de cobertura en la
-    // zona, no a fallas electricas individuales simultaneas.
-    const R = CONFIG.NAVIXY_RADIO_ZONA_KM;
-    const mudas = base0.filter(r => r.encontrado && r.minPos !== null && r.minPos > U && r.lat && r.lng);
-    const distKm = (a,b) => {
-      const rad = x => x*Math.PI/180, Rt = 6371;
-      const dLat = rad(b.lat-a.lat), dLng = rad(b.lng-a.lng);
-      const h = Math.sin(dLat/2)**2 + Math.cos(rad(a.lat))*Math.cos(rad(b.lat))*Math.sin(dLng/2)**2;
-      return 2*Rt*Math.asin(Math.sqrt(h));
-    };
-    mudas.forEach(r => { r.vecinasMudas = mudas.filter(o => o !== r && distKm(r,o) <= R).length; });
-
-    nxResultados = base0.map(r => {
-      if(!r.encontrado) return Object.assign({}, r, { posiciona:'', causa:'', detalle:'No encontrada en Navixy' });
-
-      if(r.minPos !== null && r.minPos <= U){
-        return Object.assign({}, r, { posiciona:'SI', causa:'ok',
-          detalle:'Posicion de hace ' + r.minPos + ' min' });
-      }
-      if(r.minPos === null){
-        return Object.assign({}, r, { posiciona:'', causa:'sin_dato',
-          detalle:'Sin fecha de ultima posicion' });
-      }
-
-      // 1) Datos recientes con posiciones viejas = descarga de memoria interna.
-      //    Solo ocurre si el equipo estuvo ENCENDIDO sin red.
-      if(r.minDato !== null && (r.minPos - r.minDato) >= CONFIG.NAVIXY_DESFASE_BUFFER_MIN){
-        return Object.assign({}, r, { posiciona:'NO', causa:'sin_red',
-          detalle:'Transmitiendo datos guardados (posicion de hace ' + r.minPos +
-                  ' min, dato recibido hace ' + r.minDato + ' min)' });
-      }
-      // 2) Varias unidades calladas en la misma zona.
-      if((r.vecinasMudas || 0) >= CONFIG.NAVIXY_MIN_VECINAS_ZONA){
-        return Object.assign({}, r, { posiciona:'NO', causa:'sin_red',
-          detalle:(r.vecinasMudas+1) + ' unidades sin reportar en un radio de ' + R + ' km' });
-      }
-      // 3) Senal GSM baja en el ultimo reporte.
-      if(r.gsm !== null && r.gsm !== undefined && r.gsm <= CONFIG.NAVIXY_GSM_BAJO){
-        return Object.assign({}, r, { posiciona:'NO', causa:'sin_red',
-          detalle:'Ultima senal GSM baja (' + r.gsm + '%)' });
-      }
-      // 4) Voltaje medido: evidencia directa.
-      if(r.voltaje !== null && r.voltaje !== undefined && r.voltaje < CONFIG.NAVIXY_UMBRAL_VOLTAJE){
-        return Object.assign({}, r, { posiciona:'NO', causa:'sin_voltaje',
-          detalle:'Voltaje medido ' + Number(r.voltaje).toFixed(2) + ' V' });
-      }
-      // 5) Bateria interna agotandose = perdio alimentacion externa.
-      if(r.bateria !== null && r.bateria !== undefined && r.bateria <= CONFIG.NAVIXY_BATERIA_BAJA){
-        return Object.assign({}, r, { posiciona:'NO', causa:'sin_voltaje',
-          detalle:'Bateria interna en ' + r.bateria + '%' });
-      }
-      // 6) Silencio largo sin indicios de red: PROBABLE, no confirmado.
-      if(r.minPos >= CONFIG.NAVIXY_SILENCIO_LARGO_MIN){
-        return Object.assign({}, r, { posiciona:'NO', causa:'sin_voltaje_probable',
-          detalle:'Sin reportar hace ' + Math.floor(r.minPos/60) + ' h, sin indicios de falta de red' });
-      }
-      return Object.assign({}, r, { posiciona:'NO', causa:'indeterminado',
-        detalle:'Sin posicion hace ' + r.minPos + ' min' });
-    });
 
     document.getElementById('nx-resultados').style.display = 'block';
     renderTablaNavixy();
@@ -28867,40 +29840,12 @@ function aplicarVoltajesNavixy(){
     const u = units.find(x => claveEco(x.eco) === claveEco(r.eco));
     if(!u) return;
 
-    u.modificadoPor = usuarioActual();
-    u.modificadoEn  = new Date().toISOString();
-
-    /* Navixy NO escribe 'Posic. LINK'. Lo que Navixy ve es el TELTONIKA, un
-       aparato distinto del LINK: su posición solo sirve aquí para deducir si
-       al Teltonika le falta red o energía. La posición del LINK es exclusiva
-       de Webfleet; antes, aplicar Navixy después de Webfleet la reemplazaba
-       con la del Teltonika y además disparaba la cascada de N/A. */
     if(r.posiciona === 'SI' || r.posiciona === 'NO') pos++;
+    const res = aplicarResultadoNavixy(u, r);
+    if(res.marcoVoltaje) volt++;
+    else if(res.esRed)   red++;
+    else                 sinConcluir++;
 
-    // El VOLTAJE solo se marca con evidencia suficiente. Marcar "sin voltaje"
-    // a una unidad que solo perdio cobertura mandaria un tecnico a revisar un
-    // vehiculo que esta bien, asi que se prefiere dejarlo vacio.
-    if(r.causa === 'ok'){
-      u.voltaje = 'SI';   // esta transmitiendo: necesariamente tiene energia
-      volt++;
-    } else if(r.causa === 'sin_voltaje'){
-      u.voltaje = 'NO';
-      volt++;
-    } else if(r.causa === 'sin_red'){
-      red++;              // sin red no dice nada del voltaje: se deja sin marcar
-    } else {
-      sinConcluir++;
-    }
-
-    // La causa queda registrada con su evidencia, para que el reporte explique
-    // por que se concluyo cada cosa.
-    if(r.causa === 'sin_red')                   u.causa = u.causa || 'Sin cobertura de red';
-    else if(r.causa === 'sin_voltaje')          u.causa = u.causa || 'Sin voltaje de alimentacion';
-    else if(r.causa === 'sin_voltaje_probable') u.causa = u.causa || 'Probable falta de voltaje';
-
-    if(r.detalle){
-      u.comentario = (u.comentario ? u.comentario + ' - ' : '') + r.detalle + ' (Navixy)';
-    }
   });
 
   renderAll();
@@ -29116,7 +30061,7 @@ async function updateUnit(i, field, value) {
    pestaña o se recarga antes de que Sheets confirme, el trabajo no se pierde. */
 function autoguardarLocal(){
   try {
-    localStorage.setItem('lbox_autosave_units', JSON.stringify({
+    escribirLocal(localStorage, 'lbox_autosave_units', JSON.stringify({
       guardadoEn: new Date().toISOString(),
       units
     }));
@@ -29127,13 +30072,13 @@ function autoguardarLocal(){
    se ofrece restaurarlo (no se pisa nada automáticamente sin preguntar). */
 function revisarAutoguardado(){
   try {
-    const raw = localStorage.getItem('lbox_autosave_units');
+    const raw = leerLocal(localStorage, 'lbox_autosave_units');
     if(!raw) return;
     const bak = JSON.parse(raw);
     if(!bak || !Array.isArray(bak.units) || !bak.units.length) return;
 
     // Si el servidor ya tiene la misma cantidad de unidades, se asume sincronizado.
-    if(units.length >= bak.units.length) { localStorage.removeItem('lbox_autosave_units'); return; }
+    if(units.length >= bak.units.length) { borrarLocal(localStorage, 'lbox_autosave_units'); return; }
 
     const cuando = new Date(bak.guardadoEn).toLocaleString('es-MX');
     if(confirm('Se encontró trabajo sin sincronizar en este navegador:\n\n' +
@@ -29143,7 +30088,7 @@ function revisarAutoguardado(){
       renderAll();
       notify('Trabajo local restaurado: ' + units.length + ' unidades', 'ok', 7000);
     } else {
-      localStorage.removeItem('lbox_autosave_units');
+      borrarLocal(localStorage, 'lbox_autosave_units');
     }
   } catch(e) { /* ignorar */ }
 }
@@ -30100,7 +31045,7 @@ async function generarReporte(){
                     ]
                   }),
                   new Paragraph({ spacing:{after:0},
-                    children:[new TextRun({ text:'Grupo Alanis  ·  Ciclo de prevención',
+                    children:[new TextRun({ text: nombreCliente() + '  ·  Ciclo de prevención',
                       size:18, font:'Arial', color:BLUE_M })] }),
                 ]
               }),
@@ -30115,7 +31060,7 @@ async function generarReporte(){
             rows:[
               new TableRow({ children:[
                 cell('Cliente:',          GRAY, true, 2200, MID),
-                cell('Grupo Alanis',      WHITE, false, 2580, DARK),
+                cell(nombreCliente(),      WHITE, false, 2580, DARK),
                 cell('Responsable:',      GRAY, true, 2200, MID),
                 cell('Alexander Cedillo', WHITE, false, 2380, DARK),
               ]}),
@@ -30290,7 +31235,8 @@ async function generarReporte(){
     const url  = URL.createObjectURL(blob);
     const a    = document.createElement('a');
     a.href     = url;
-    a.download = 'Reporte_Prevencion_LBOX_' + folio + '.docx';
+    // El código del cliente en el nombre: dos clientes pueden tener el mismo folio el mismo día.
+    a.download = 'Reporte_Prevencion_LBOX_' + (CONFIG.PERFIL || 'CLIENTE') + '_' + folio + '.docx';
     document.body.appendChild(a);
     a.click();
     setTimeout(() => { document.body.removeChild(a); URL.revokeObjectURL(url); }, 100);
@@ -30491,7 +31437,7 @@ document.addEventListener('visibilitychange', () => {
     <form onsubmit="return false" autocomplete="off" style="display:grid;grid-template-columns:repeat(4,1fr);gap:10px;margin-bottom:14px">
       <div>
         <label style="font-size:10px;color:var(--navy);font-weight:600;text-transform:uppercase;display:block;margin-bottom:4px">Account</label>
-        <input id="wf-account" type="text" placeholder="Alanis" style="width:100%;padding:7px 9px;border:1px solid var(--line);border-radius:7px;font-size:12px;box-sizing:border-box">
+        <input id="wf-account" type="text" placeholder="cuenta de Webfleet del cliente" style="width:100%;padding:7px 9px;border:1px solid var(--line);border-radius:7px;font-size:12px;box-sizing:border-box">
       </div>
       <div>
         <label style="font-size:10px;color:var(--navy);font-weight:600;text-transform:uppercase;display:block;margin-bottom:4px">Username</label>
